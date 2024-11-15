@@ -4,6 +4,7 @@ import { GalleryVerticalEnd, LayoutList, Calendar, Users, Lightbulb, Search, Set
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import Image from 'next/image'
 
 import {
   Sidebar,
@@ -39,7 +40,7 @@ export default function SidebarComponent() {
       <SidebarHeader>
         <Link href="/" className="flex items-center gap-2 px-4 py-6">
           <div className="flex h-12 w-12 items-center justify-center">
-            <GalleryVerticalEnd className="h-8 w-8 text-[#fb2e01]" />
+            <Image src="/creator-task-logo.png" width={100} height={100} alt="" />
           </div>
           <div className="font-bebas-neue text-2xl tracking-wide text-white">CREATORTASK</div>
         </Link>
