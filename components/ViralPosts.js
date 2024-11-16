@@ -1,260 +1,254 @@
-import { Bebas_Neue, Lexend_Deca } from 'next/font/google'
-import { useState } from 'react'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+'use client'
+
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
+import { useToast } from "@/components/ui/use-toast"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog'
-import { MessageSquare, Heart, Search, Plus, Trash2 } from 'lucide-react'
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import { Plus, Trash2 } from 'lucide-react'
 
-const bebasNeue = Bebas_Neue({
-  weight: '400',
-  subsets: ['latin'],
-  variable: '--font-bebas-neue',
-})
+const POSTS_PER_PAGE = 6 // Changed to 6 for better grid layout
 
-const lexendDeca = Lexend_Deca({
-  subsets: ['latin'],
-  variable: '--font-lexend-deca',
-})
+const TwitterEmbed = ({ tweetId }) => {
+  useEffect(() => {
+    const script = document.createElement('script')
+    script.src = 'https://platform.twitter.com/widgets.js'
+    script.async = true
+    document.body.appendChild(script)
 
-export default function Component() {
-  const [posts, setPosts] = useState([
-    {
-      id: '1',
-      author: {
-        name: 'John Doe',
-        avatar: '/placeholder.svg?height=40&width=40',
-        handle: '@johndoe'
-      },
-      date: '2024-01-15',
-      content: 'Check out my latest article on coaching techniques!',
-      likes: 5,
-      comments: 2,
-      tag: 'coaching',
-      url: 'https://twitter.com/johndoe/status/123'
-    },
-    {
-      id: '2',
-      author: {
-        name: 'Jane Smith',
-        avatar: '/placeholder.svg?height=40&width=40',
-        handle: '@janesmith'
-      },
-      date: '2024-01-16',
-      content: 'New blog post about service-based businesses. Give it a read!',
-      likes: 8,
-      comments: 3,
-      tag: 'service-based',
-      url: 'https://linkedin.com/in/janesmith/post/456'
-    },
-  ])
-  const [searchTerm, setSearchTerm] = useState('')
-  const [newPost, setNewPost] = useState({
-    url: '',
-    tag: '',
-    description: ''
-  })
-  const [tags, setTags] = useState(['coaching', 'service-based', 'tech', 'marketing'])
-  const [newTag, setNewTag] = useState('')
+    return () => {
+      document.body.removeChild(script)
+    }
+  }, [tweetId])
+
+  return (
+    <div className="twitter-embed">
+      <blockquote className="twitter-tweet" data-dnt="true">
+        <a href={`https://twitter.com/x/status/${tweetId}`}></a>
+      </blockquote>
+    </div>
+  )
+}
+
+export default function ViralPostSwipeFile() {
+  const { toast } = useToast()
+  const [posts, setPosts] = useState([])
+  const [newPost, setNewPost] = useState({ url: '', description: '', tag: '' })
+  const [tags, setTags] = useState(['tech', 'marketing', 'design', 'development'])
+  const [selectedTag, setSelectedTag] = useState('all')
+  const [page, setPage] = useState(1)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [newTag, setNewTag] = useState('')
 
   const handleAddPost = () => {
+    if (!newPost.url) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid X post URL",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const tweetIdMatch = newPost.url.match(/(?:twitter\.com|x\.com)\/\w+\/status\/(\d+)/)
+    if (!tweetIdMatch) {
+      toast({
+        title: "Error",
+        description: "Invalid X post URL. Please use a valid twitter.com or x.com status URL.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const tweetId = tweetIdMatch[1]
     const newPostObj = {
       id: Date.now().toString(),
-      author: {
-        name: 'Current User',
-        avatar: '/placeholder.svg?height=40&width=40',
-        handle: '@currentuser'
-      },
-      date: new Date().toISOString().split('T')[0],
-      content: newPost.description,
-      likes: 0,
-      comments: 0,
-      tag: newPost.tag,
-      url: newPost.url
+      description: newPost.description,
+      tweetId: tweetId,
+      tag: newPost.tag || 'untagged'
     }
-    setPosts([newPostObj, ...posts])
-    setNewPost({ url: '', tag: '', description: '' })
+    setPosts(prevPosts => [newPostObj, ...prevPosts])
+    setNewPost({ url: '', description: '', tag: '' })
+    setIsDialogOpen(false)
+    toast({
+      title: "Success",
+      description: "X post added successfully",
+    })
   }
 
   const handleAddTag = () => {
-    if (newTag && !tags.includes(newTag)) {
-      setTags([...tags, newTag])
-      setNewTag('')
-      setIsDialogOpen(false)
+    if (!newTag) return
+    if (tags.includes(newTag)) {
+      toast({
+        title: "Error",
+        description: "Tag already exists",
+        variant: "destructive",
+      })
+      return
     }
+    setTags(prev => [...prev, newTag])
+    setNewTag('')
+    toast({
+      title: "Success",
+      description: "Tag added successfully",
+    })
   }
 
-  const handleRemovePost = (id) => {
-    setPosts(posts.filter(post => post.id !== id))
+  const handleDeletePost = (id) => {
+    setPosts(prevPosts => prevPosts.filter(post => post.id !== id))
+    toast({
+      title: "Success",
+      description: "Post deleted successfully",
+    })
   }
 
-  const filteredPosts = posts.filter(post => 
-    post.tag.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    post.content.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredPosts = selectedTag === 'all'
+    ? posts
+    : posts.filter(post => post.tag === selectedTag)
+
+  const paginatedPosts = filteredPosts.slice(
+    (page - 1) * POSTS_PER_PAGE,
+    page * POSTS_PER_PAGE
   )
 
+  const totalPages = Math.ceil(filteredPosts.length / POSTS_PER_PAGE)
+
   return (
-    <div className={`${bebasNeue.variable} ${lexendDeca.variable} font-sans max-w-2xl mx-auto p-4 space-y-6`}>
-      <style jsx global>{`
-        :root {
-          --color-primary: #fb2e01;
-        }
-      `}</style>
-      {/* Add new post form */}
-      <Card className="p-4 border-primary border-2">
-        <CardHeader className="pb-4">
-          <h2 className="text-lg font-semibold font-bebas-neue text-primary">Add New Link</h2>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="url" className="font-bebas-neue">URL</Label>
-            <Input
-              id="url"
-              placeholder="Enter Twitter or LinkedIn URL"
-              value={newPost.url}
-              onChange={(e) => setNewPost({ ...newPost, url: e.target.value })}
-              className="font-lexend-deca border-primary focus:ring-primary"
-            />
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="tag" className="font-bebas-neue">Tag</Label>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="font-bebas-neue border-primary text-primary hover:bg-primary hover:text-white">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add New Tag
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="border-primary border-2">
-                  <DialogHeader>
-                    <DialogTitle className="font-bebas-neue text-primary">Add New Tag</DialogTitle>
-                  </DialogHeader>
-                  <div className="flex items-center space-x-2">
-                    <Input
-                      placeholder="Enter new tag"
-                      value={newTag}
-                      onChange={(e) => setNewTag(e.target.value)}
-                      className="font-lexend-deca border-primary focus:ring-primary"
-                    />
-                    <Button onClick={handleAddTag} className="font-bebas-neue bg-primary text-white hover:bg-primary/90">Add</Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-            <Select
-              value={newPost.tag}
-              onValueChange={(value) => setNewPost({ ...newPost, tag: value })}
-            >
-              <SelectTrigger className="font-bebas-neue border-primary focus:ring-primary">
-                <SelectValue placeholder="Select a tag" />
-              </SelectTrigger>
-              <SelectContent>
-                {tags.map((tag) => (
-                  <SelectItem key={tag} value={tag} className="font-bebas-neue">
-                    {tag}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="description" className="font-bebas-neue">Description</Label>
-            <Input
-              id="description"
-              placeholder="Add a description"
-              value={newPost.description}
-              onChange={(e) => setNewPost({ ...newPost, description: e.target.value })}
-              className="font-lexend-deca border-primary focus:ring-primary"
-            />
-          </div>
-          <Button className="w-full font-bebas-neue bg-primary text-white hover:bg-primary/90" onClick={handleAddPost}>
-            Add Post
-          </Button>
-        </CardContent>
-      </Card>
+    <div className="max-w-4xl mx-auto p-4 space-y-6">
+      <div className="flex justify-between items-center">
+        <Select value={selectedTag} onValueChange={setSelectedTag}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Filter by tag" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All tags</SelectItem>
+            {tags.map(tag => (
+              <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-      {/* Search bar for tag filtering */}
-      <div className="relative">
-        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-primary" />
-        <Input
-          type="text"
-          placeholder="Search by tag or content"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10 font-lexend-deca border-primary focus:ring-primary"
-        />
-      </div>
-
-      {/* Posts list */}
-      <div className="space-y-4">
-        {filteredPosts.map((post) => (
-          <Card key={post.id} className="bg-card border-primary border-2">
-            <CardHeader className="flex flex-row items-center space-x-4 pb-4">
-              <Avatar>
-                <AvatarImage src={post.author.avatar} alt={post.author.name} />
-                <AvatarFallback>{post.author.name[0]}</AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col">
-                <div className="font-semibold font-bebas-neue">{post.author.name}</div>
-                <div className="text-sm text-muted-foreground font-lexend-deca">
-                  {post.author.handle} · {post.date}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-[#FF4400] hover:bg-[#FF4400]/90">
+              <Plus className="mr-2 h-4 w-4" /> Add New X Post
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="border-[#FF4400] border-2">
+            <DialogHeader>
+              <DialogTitle className="text-[#FF4400] font-bebas-neue text-3xl">ADD NEW X POST</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="url" className="font-bebas-neue text-xl">X POST URL</Label>
+                <Input
+                  id="url"
+                  placeholder="Enter X post URL"
+                  value={newPost.url}
+                  onChange={(e) => setNewPost({ ...newPost, url: e.target.value })}
+                  className="font-lexend-deca"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description" className="font-bebas-neue text-xl">DESCRIPTION (OPTIONAL)</Label>
+                <Input
+                  id="description"
+                  placeholder="Add a description (optional)"
+                  value={newPost.description}
+                  onChange={(e) => setNewPost({ ...newPost, description: e.target.value })}
+                  className="font-lexend-deca"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tag" className="font-bebas-neue text-xl">TAG</Label>
+                <div className="flex gap-2">
+                  <Select value={newPost.tag} onValueChange={(value) => setNewPost({ ...newPost, tag: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a tag" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="untagged">Untagged</SelectItem>
+                      {tags.map(tag => (
+                        <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    placeholder="Add new tag"
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    className="font-lexend-deca"
+                  />
+                  <Button onClick={handleAddTag} variant="outline">Add Tag</Button>
                 </div>
               </div>
-              <Badge className="ml-auto font-bebas-neue bg-primary text-white">{post.tag}</Badge>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm font-lexend-deca">{post.content}</p>
-              <a 
-                href={post.url} 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="text-sm text-primary hover:underline mt-2 inline-block font-lexend-deca"
+              <Button 
+                onClick={handleAddPost} 
+                className="w-full bg-[#FF4400] hover:bg-[#FF4400]/90 font-bebas-neue text-xl"
               >
-                View on {post.url.includes('twitter') ? 'Twitter' : 'LinkedIn'}
-              </a>
-            </CardContent>
-            <CardFooter className="flex justify-between items-center text-sm text-muted-foreground">
-              <div className="flex gap-4">
-                <button className="flex items-center gap-1 hover:text-primary font-lexend-deca">
-                  <Heart className="h-4 w-4" />
-                  {post.likes}
-                </button>
-                <button className="flex items-center gap-1 hover:text-primary font-lexend-deca">
-                  <MessageSquare className="h-4 w-4" />
-                  {post.comments}
-                </button>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleRemovePost(post.id)}
-                className="text-primary hover:bg-primary hover:text-white"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span className="sr-only">Delete post</span>
+                ADD X POST
               </Button>
-            </CardFooter>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        {paginatedPosts.map((post) => (
+          <Card key={post.id} className="relative">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-2 right-2 z-10"
+              onClick={() => handleDeletePost(post.id)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+            <CardContent className="p-4">
+              {post.tag && (
+                <Badge className="mb-2 bg-[#FF4400]">{post.tag}</Badge>
+              )}
+              {post.description && (
+                <p className="mb-2 font-lexend-deca text-sm">{post.description}</p>
+              )}
+              <div className="overflow-hidden" style={{ maxHeight: '300px' }}>
+                <TwitterEmbed tweetId={post.tweetId} />
+              </div>
+            </CardContent>
           </Card>
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex justify-center gap-2 mt-6">
+          {Array.from({ length: totalPages }, (_, i) => (
+            <Button
+              key={i + 1}
+              variant={page === i + 1 ? "default" : "outline"}
+              onClick={() => setPage(i + 1)}
+              className={page === i + 1 ? "bg-[#FF4400]" : ""}
+            >
+              {i + 1}
+            </Button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
