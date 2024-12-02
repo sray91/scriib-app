@@ -1,41 +1,43 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { useToast } from "@/components/ui/use-toast"
+import { useState, useEffect } from 'react';
+import { useSession } from '@supabase/auth-helpers-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/use-toast';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import { Plus, Trash2 } from 'lucide-react'
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Plus, Trash2 } from 'lucide-react';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
-const POSTS_PER_PAGE = 6 // Changed to 6 for better grid layout
+const POSTS_PER_PAGE = 6;
 
 const TwitterEmbed = ({ tweetId }) => {
   useEffect(() => {
-    const script = document.createElement('script')
-    script.src = 'https://platform.twitter.com/widgets.js'
-    script.async = true
-    document.body.appendChild(script)
+    const script = document.createElement('script');
+    script.src = 'https://platform.twitter.com/widgets.js';
+    script.async = true;
+    document.body.appendChild(script);
 
     return () => {
-      document.body.removeChild(script)
-    }
-  }, [tweetId])
+      document.body.removeChild(script);
+    };
+  }, [tweetId]);
 
   return (
     <div className="twitter-embed">
@@ -43,91 +45,149 @@ const TwitterEmbed = ({ tweetId }) => {
         <a href={`https://twitter.com/x/status/${tweetId}`}></a>
       </blockquote>
     </div>
-  )
-}
+  );
+};
 
 export default function ViralPostSwipeFile() {
-  const { toast } = useToast()
-  const [posts, setPosts] = useState([])
-  const [newPost, setNewPost] = useState({ url: '', description: '', tag: '' })
-  const [tags, setTags] = useState(['tech', 'marketing', 'design', 'development'])
-  const [selectedTag, setSelectedTag] = useState('all')
-  const [page, setPage] = useState(1)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [newTag, setNewTag] = useState('')
+  const supabase = createClientComponentClient();
+  const session = useSession();
+  const { toast } = useToast();
+  const [posts, setPosts] = useState([]);
+  const [newPost, setNewPost] = useState({ url: '', description: '', tag: '' });
+  const [tags, setTags] = useState(['tech', 'marketing', 'design', 'development']);
+  const [selectedTag, setSelectedTag] = useState('all');
+  const [page, setPage] = useState(1);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [newTag, setNewTag] = useState('');
 
-  const handleAddPost = () => {
-    if (!newPost.url) {
-      toast({
-        title: "Error",
-        description: "Please enter a valid X post URL",
-        variant: "destructive",
-      })
-      return
+  const fetchPosts = async () => {
+    if (!supabase?.from) {
+      console.error('Supabase client not properly initialized');
+      toast({ 
+        title: "Error", 
+        description: "Database connection error. Please try again later.", 
+        variant: "destructive" 
+      });
+      return;
     }
 
-    const tweetIdMatch = newPost.url.match(/(?:twitter\.com|x\.com)\/\w+\/status\/(\d+)/)
+    try {
+      const { data, error } = await supabase
+        .from('reference_posts')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching posts:', error);
+        toast({ title: 'Error', description: 'Failed to fetch posts.', variant: 'destructive' });
+      } else {
+        setPosts(data);
+      }
+    } catch (error) {
+      console.error('Unexpected error:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
+  const handleAddPost = async () => {
+    if (!supabase?.from) {
+      console.error('Supabase client not properly initialized');
+      toast({ 
+        title: "Error", 
+        description: "Database connection error. Please try again later.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    if (!newPost.url) {
+      toast({ title: "Error", description: "Please enter a valid X post URL", variant: "destructive" });
+      return;
+    }
+
+    const tweetIdMatch = newPost.url.match(/(?:twitter\.com|x\.com)\/\w+\/status\/(\d+)/);
     if (!tweetIdMatch) {
       toast({
         title: "Error",
         description: "Invalid X post URL. Please use a valid twitter.com or x.com status URL.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
-    const tweetId = tweetIdMatch[1]
+    const tweetId = tweetIdMatch[1];
     const newPostObj = {
-      id: Date.now().toString(),
+      user_id: session?.user?.id || null,
       description: newPost.description,
-      tweetId: tweetId,
-      tag: newPost.tag || 'untagged'
+      tweet_id: tweetId,
+      tag: newPost.tag || 'untagged',
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from('reference_posts')
+        .insert([newPostObj])
+        .select();
+
+      if (error) {
+        console.error('Supabase Insertion Error:', error);
+        throw error;
+      }
+
+      if (data && data.length > 0) {
+        setPosts((prevPosts) => [data[0], ...prevPosts]);
+        setNewPost({ url: '', description: '', tag: '' });
+        setIsDialogOpen(false);
+        toast({ title: 'Success', description: 'X post added successfully!' });
+      } else {
+        throw new Error('No data returned from insert operation');
+      }
+    } catch (error) {
+      console.error('Error in handleAddPost:', error);
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to add post to the database.', 
+        variant: 'destructive' 
+      });
     }
-    setPosts(prevPosts => [newPostObj, ...prevPosts])
-    setNewPost({ url: '', description: '', tag: '' })
-    setIsDialogOpen(false)
-    toast({
-      title: "Success",
-      description: "X post added successfully",
-    })
-  }
+  };
 
   const handleAddTag = () => {
-    if (!newTag) return
+    if (!newTag) return;
     if (tags.includes(newTag)) {
-      toast({
-        title: "Error",
-        description: "Tag already exists",
-        variant: "destructive",
-      })
-      return
+      toast({ title: 'Error', description: 'Tag already exists', variant: 'destructive' });
+      return;
     }
-    setTags(prev => [...prev, newTag])
-    setNewTag('')
-    toast({
-      title: "Success",
-      description: "Tag added successfully",
-    })
-  }
+    setTags((prev) => [...prev, newTag]);
+    setNewTag('');
+    toast({ title: 'Success', description: 'Tag added successfully' });
+  };
 
-  const handleDeletePost = (id) => {
-    setPosts(prevPosts => prevPosts.filter(post => post.id !== id))
-    toast({
-      title: "Success",
-      description: "Post deleted successfully",
-    })
-  }
+  const handleDeletePost = async (id) => {
+    try {
+      const { error } = await supabase.from('reference_posts').delete().eq('id', id);
 
-  const filteredPosts = selectedTag === 'all'
-    ? posts
-    : posts.filter(post => post.tag === selectedTag)
+      if (error) {
+        console.error('Supabase Deletion Error:', error);
+        toast({ title: 'Error', description: 'Failed to delete post.', variant: 'destructive' });
+      } else {
+        setPosts((prevPosts) => prevPosts.filter((post) => post.id !== id));
+        toast({ title: 'Success', description: 'Post deleted successfully' });
+      }
+    } catch (error) {
+      console.error('Error in handleDeletePost:', error);
+      toast({ title: 'Error', description: 'Unexpected error during deletion.', variant: 'destructive' });
+    }
+  };
 
-  const paginatedPosts = filteredPosts.slice(
-    (page - 1) * POSTS_PER_PAGE,
-    page * POSTS_PER_PAGE
-  )
+  const filteredPosts = selectedTag === 'all' ? posts : posts.filter((post) => post.tag === selectedTag);
 
-  const totalPages = Math.ceil(filteredPosts.length / POSTS_PER_PAGE)
+  const paginatedPosts = filteredPosts.slice((page - 1) * POSTS_PER_PAGE, page * POSTS_PER_PAGE);
+
+  const totalPages = Math.ceil(filteredPosts.length / POSTS_PER_PAGE);
 
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-6">
@@ -138,8 +198,10 @@ export default function ViralPostSwipeFile() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All tags</SelectItem>
-            {tags.map(tag => (
-              <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+            {tags.map((tag) => (
+              <SelectItem key={tag} value={tag}>
+                {tag}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -155,53 +217,35 @@ export default function ViralPostSwipeFile() {
               <DialogTitle className="text-[#FF4400] font-bebas-neue text-3xl">ADD NEW X POST</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label htmlFor="url" className="font-bebas-neue text-xl">X POST URL</Label>
-                <Input
-                  id="url"
-                  placeholder="Enter X post URL"
-                  value={newPost.url}
-                  onChange={(e) => setNewPost({ ...newPost, url: e.target.value })}
-                  className="font-lexend-deca"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description" className="font-bebas-neue text-xl">DESCRIPTION (OPTIONAL)</Label>
-                <Input
-                  id="description"
-                  placeholder="Add a description (optional)"
-                  value={newPost.description}
-                  onChange={(e) => setNewPost({ ...newPost, description: e.target.value })}
-                  className="font-lexend-deca"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tag" className="font-bebas-neue text-xl">TAG</Label>
-                <div className="flex gap-2">
-                  <Select value={newPost.tag} onValueChange={(value) => setNewPost({ ...newPost, tag: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a tag" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="untagged">Untagged</SelectItem>
-                      {tags.map(tag => (
-                        <SelectItem key={tag} value={tag}>{tag}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    placeholder="Add new tag"
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    className="font-lexend-deca"
-                  />
-                  <Button onClick={handleAddTag} variant="outline">Add Tag</Button>
-                </div>
-              </div>
-              <Button 
-                onClick={handleAddPost} 
-                className="w-full bg-[#FF4400] hover:bg-[#FF4400]/90 font-bebas-neue text-xl"
-              >
+              <Label htmlFor="url">X POST URL</Label>
+              <Input
+                id="url"
+                placeholder="Enter X post URL"
+                value={newPost.url}
+                onChange={(e) => setNewPost({ ...newPost, url: e.target.value })}
+              />
+              <Label htmlFor="description">Description</Label>
+              <Input
+                id="description"
+                placeholder="Add a description (optional)"
+                value={newPost.description}
+                onChange={(e) => setNewPost({ ...newPost, description: e.target.value })}
+              />
+              <Label htmlFor="tag">Tag</Label>
+              <Select value={newPost.tag} onValueChange={(value) => setNewPost({ ...newPost, tag: value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a tag" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="untagged">Untagged</SelectItem>
+                  {tags.map((tag) => (
+                    <SelectItem key={tag} value={tag}>
+                      {tag}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={handleAddPost} className="w-full bg-[#FF4400] hover:bg-[#FF4400]/90">
                 ADD X POST
               </Button>
             </div>
@@ -220,16 +264,10 @@ export default function ViralPostSwipeFile() {
             >
               <Trash2 className="h-4 w-4" />
             </Button>
-            <CardContent className="p-4">
-              {post.tag && (
-                <Badge className="mb-2 bg-[#FF4400]">{post.tag}</Badge>
-              )}
-              {post.description && (
-                <p className="mb-2 font-lexend-deca text-sm">{post.description}</p>
-              )}
-              <div className="overflow-hidden" style={{ maxHeight: '300px' }}>
-                <TwitterEmbed tweetId={post.tweetId} />
-              </div>
+            <CardContent>
+              <Badge>{post.tag}</Badge>
+              {post.description && <p>{post.description}</p>}
+              <TwitterEmbed tweetId={post.tweet_id} />
             </CardContent>
           </Card>
         ))}
@@ -240,9 +278,9 @@ export default function ViralPostSwipeFile() {
           {Array.from({ length: totalPages }, (_, i) => (
             <Button
               key={i + 1}
-              variant={page === i + 1 ? "default" : "outline"}
+              variant={page === i + 1 ? 'default' : 'outline'}
               onClick={() => setPage(i + 1)}
-              className={page === i + 1 ? "bg-[#FF4400]" : ""}
+              className={page === i + 1 ? 'bg-[#FF4400]' : ''}
             >
               {i + 1}
             </Button>
@@ -250,5 +288,5 @@ export default function ViralPostSwipeFile() {
         </div>
       )}
     </div>
-  )
+  );
 }

@@ -3,6 +3,7 @@ import { headers, cookies } from 'next/headers'
 import './globals.css'
 import MainLayout from '@/components/MainLayout'
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import Providers from '@/components/Providers'
 
 const bebasNeue = Bebas_Neue({
   weight: '400',
@@ -20,22 +21,22 @@ export default async function RootLayout({ children }) {
   const supabase = createServerComponentClient({ cookies: () => cookieStore })
   const { data: { session } } = await supabase.auth.getSession()
 
-  // Get the current pathname from headers
   const headersList = await headers()
   const pathname = headersList.get('x-invoke-path') || ''
 
-  // Define routes that should not use MainLayout
   const excludeMainLayout = ['/login', '/signup', '/settings']
   const shouldExcludeMainLayout = excludeMainLayout.some(route => pathname.startsWith(route))
 
   return (
     <html lang="en">
       <body className={`${bebasNeue.variable} ${lexendDeca.variable} ${lexendDeca.className} overscroll-x-auto`}>
-        {session && !shouldExcludeMainLayout ? (
-          <MainLayout>{children}</MainLayout>
-        ) : (
-          children
-        )}
+        <Providers>
+          {session && !shouldExcludeMainLayout ? (
+            <MainLayout>{children}</MainLayout>
+          ) : (
+            children
+          )}
+        </Providers>
       </body>
     </html>
   )
