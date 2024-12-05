@@ -1,11 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import Link from 'next/link'
 import { Progress } from "@/components/ui/progress"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Clock } from 'lucide-react'
+import { Button } from "@/components/ui/button"
+import { Clock, Edit } from 'lucide-react'
 
 // This would come from your database in a real app
 const initialChecklist = {
@@ -70,7 +72,14 @@ export default function TaskList() {
   return (
     <div className="container max-w-4xl py-6">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-4">{checklist.day}&apos;s Checklist</h1>
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-3xl font-bold">{checklist.day}&apos;s Checklist</h1>
+          <Link href="/tasks/builder">
+            <Button variant="outline">
+              <Edit className="mr-2 h-4 w-4" /> Edit Checklist
+            </Button>
+          </Link>
+        </div>
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span>Progress</span>
