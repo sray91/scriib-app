@@ -75,6 +75,7 @@ export default function ViralPostSwipeFile() {
       const { data, error } = await supabase
         .from('reference_posts')
         .select('*')
+        .eq('user_id', session?.user?.id)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -89,8 +90,10 @@ export default function ViralPostSwipeFile() {
   };
 
   useEffect(() => {
-    fetchPosts();
-  }, []);
+    if (session) {
+      fetchPosts();
+    }
+  }, [session]);
 
   const handleAddPost = async () => {
     if (!supabase?.from) {
@@ -127,24 +130,19 @@ export default function ViralPostSwipeFile() {
     };
 
     try {
-      const { data, error } = await supabase
+      const { error: insertError } = await supabase
         .from('reference_posts')
-        .insert([newPostObj])
-        .select();
+        .insert([newPostObj]);
 
-      if (error) {
-        console.error('Supabase Insertion Error:', error);
-        throw error;
+      if (insertError) {
+        console.error('Supabase Insertion Error:', insertError);
+        throw insertError;
       }
 
-      if (data && data.length > 0) {
-        setPosts((prevPosts) => [data[0], ...prevPosts]);
-        setNewPost({ url: '', description: '', tag: '' });
-        setIsDialogOpen(false);
-        toast({ title: 'Success', description: 'X post added successfully!' });
-      } else {
-        throw new Error('No data returned from insert operation');
-      }
+      await fetchPosts();
+      setNewPost({ url: '', description: '', tag: '' });
+      setIsDialogOpen(false);
+      toast({ title: 'Success', description: 'X post added successfully!' });
     } catch (error) {
       console.error('Error in handleAddPost:', error);
       toast({ 
