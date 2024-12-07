@@ -1,106 +1,195 @@
-"use client"
+'use client';
 
 import { useState } from "react"
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, Trash2, ArrowLeft } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Clock } from 'lucide-react'
+import { useToast } from "@/components/ui/use-toast"
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
-const initialChecklist = {
-  day: "Monday",
-  timeBlocks: [
-    {
-      id: "1",
-      startTime: "6am",
-      endTime: "12pm",
-      title: "TOP OF FUNNEL",
-      description: "Personal takes, opinions, stories",
-      tasks: [
-        { id: "1", text: "Post 1 long-form tweet (personal story)", completed: false },
-        { id: "2", text: "Post 3 value tweets (personal opinions, experiences)", completed: false },
-        { id: "3", text: "Post 2 image-based tweets (memes, gym, family)", completed: false },
-        { id: "4", text: "Spend 30 minutes engaging with audience", completed: false },
-      ],
-    },
-    {
-      id: "2",
-      startTime: "12pm",
-      endTime: "6pm",
-      title: "MIDDLE OF FUNNEL",
-      description: "General niche advice, problem-solving, how-to's",
-      tasks: [
-        { id: "5", text: "Post 1 long-form tweet (niche advice or insight)", completed: false },
-        { id: "6", text: "Post 1 thread (inspirational brand comparison or how-to)", completed: false },
-        { id: "7", text: "Post 3 value tweets (what, why, how of niche topics)", completed: false },
-      ],
-    },
-  ],
-}
+const getInitialTimeBlocks = () => [
+  {
+    id: crypto.randomUUID(),
+    startTime: "6am",
+    endTime: "12pm",
+    title: "TOP OF FUNNEL",
+    description: "Personal takes, opinions, stories",
+    tasks: [
+      { id: crypto.randomUUID(), text: "Post 1 long-form tweet (personal story)", completed: false },
+      { id: crypto.randomUUID(), text: "Post 3 value tweets (personal opinions, experiences)", completed: false },
+      { id: crypto.randomUUID(), text: "Post 2 image-based tweets (memes, gym, family)", completed: false },
+      { id: crypto.randomUUID(), text: "Spend 30 minutes engaging with audience", completed: false },
+    ],
+  },
+  {
+    id: crypto.randomUUID(),
+    startTime: "12pm",
+    endTime: "6pm",
+    title: "MIDDLE OF FUNNEL",
+    description: "General niche advice, problem-solving, how-to's",
+    tasks: [
+      { id: crypto.randomUUID(), text: "Post 1 long-form tweet (niche advice or insight)", completed: false },
+      { id: crypto.randomUUID(), text: "Post 1 thread (inspirational brand comparison or how-to)", completed: false },
+      { id: crypto.randomUUID(), text: "Post 3 value tweets (what, why, how of niche topics)", completed: false },
+    ],
+  },
+];
 
 export default function ChecklistBuilder() {
-  const [checklist, setChecklist] = useState(initialChecklist)
+  const supabase = createClientComponentClient();
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isSaving, setIsSaving] = useState(false);
+  const [currentDay, setCurrentDay] = useState("Monday");
+  const [checklists, setChecklists] = useState(() => {
+    const initial = {};
+    DAYS_OF_WEEK.forEach(day => {
+      initial[day] = {
+        day,
+        timeBlocks: getInitialTimeBlocks()
+      };
+    });
+    return initial;
+  });
+
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      const checklist = checklists[currentDay];
+
+      // Delete existing checklist for this day first
+      const { error: deleteError } = await supabase
+        .from('checklists')
+        .delete()
+        .match({ day: currentDay });
+
+      if (deleteError) throw deleteError;
+
+      // Create new checklist
+      const { data: checklistData, error: checklistError } = await supabase
+        .from('checklists')
+        .insert({ day: currentDay })
+        .select()
+        .single();
+
+      if (checklistError) throw checklistError;
+
+      // Create time blocks and their tasks
+      for (const block of checklist.timeBlocks) {
+        const { data: blockData, error: blockError } = await supabase
+          .from('time_blocks')
+          .insert({
+            checklist_id: checklistData.id,
+            title: block.title,
+            description: block.description,
+            start_time: block.startTime,
+            end_time: block.endTime
+          })
+          .select()
+          .single();
+
+        if (blockError) throw blockError;
+
+        if (block.tasks?.length > 0) {
+          const tasksToInsert = block.tasks.map(task => ({
+            time_block_id: blockData.id,
+            text: task.text,
+            completed: false
+          }));
+
+          const { error: tasksError } = await supabase
+            .from('tasks')
+            .insert(tasksToInsert);
+
+          if (tasksError) throw tasksError;
+        }
+      }
+
+      toast({ title: 'Success', description: 'Checklist saved successfully!' });
+      router.push('/tasks');
+    } catch (error) {
+      console.error('Error saving checklist:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save checklist. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDayChange = (day) => {
+    setCurrentDay(day);
+  };
 
   const addTask = (blockId) => {
-    setChecklist(prevChecklist => ({
-      ...prevChecklist,
-      timeBlocks: prevChecklist.timeBlocks.map(block => 
-        block.id === blockId
-          ? {
-              ...block,
-              tasks: [
-                ...block.tasks,
-                { id: Math.random().toString(), text: "", completed: false },
-              ],
-            }
-          : block
-      ),
-    }))
-  }
+    setChecklists(prev => ({
+      ...prev,
+      [currentDay]: {
+        ...prev[currentDay],
+        timeBlocks: prev[currentDay].timeBlocks.map(block =>
+          block.id === blockId
+            ? {
+                ...block,
+                tasks: [
+                  ...block.tasks,
+                  { id: crypto.randomUUID(), text: "", completed: false },
+                ],
+              }
+            : block
+        ),
+      }
+    }));
+  };
 
   const updateTask = (blockId, taskId, text) => {
-    setChecklist(prevChecklist => ({
-      ...prevChecklist,
-      timeBlocks: prevChecklist.timeBlocks.map(block => 
-        block.id === blockId
-          ? {
-              ...block,
-              tasks: block.tasks.map(task =>
-                task.id === taskId
-                  ? { ...task, text }
-                  : task
-              ),
-            }
-          : block
-      ),
-    }))
-  }
+    setChecklists(prev => ({
+      ...prev,
+      [currentDay]: {
+        ...prev[currentDay],
+        timeBlocks: prev[currentDay].timeBlocks.map(block =>
+          block.id === blockId
+            ? {
+                ...block,
+                tasks: block.tasks.map(task =>
+                  task.id === taskId
+                    ? { ...task, text }
+                    : task
+                ),
+              }
+            : block
+        ),
+      }
+    }));
+  };
 
   const removeTask = (blockId, taskId) => {
-    setChecklist(prevChecklist => ({
-      ...prevChecklist,
-      timeBlocks: prevChecklist.timeBlocks.map(block => 
-        block.id === blockId
-          ? {
-              ...block,
-              tasks: block.tasks.filter(task => task.id !== taskId),
-            }
-          : block
-      ),
-    }))
-  }
+    setChecklists(prev => ({
+      ...prev,
+      [currentDay]: {
+        ...prev[currentDay],
+        timeBlocks: prev[currentDay].timeBlocks.map(block =>
+          block.id === blockId
+            ? {
+                ...block,
+                tasks: block.tasks.filter(task => task.id !== taskId),
+              }
+            : block
+        ),
+      }
+    }));
+  };
+
+  const currentChecklist = checklists[currentDay];
 
   return (
     <div className="container max-w-4xl py-6">
@@ -113,26 +202,37 @@ export default function ChecklistBuilder() {
           </Link>
           <h1 className="text-3xl font-bold">Checklist Builder</h1>
         </div>
+        <Button 
+          onClick={handleSave} 
+          disabled={isSaving}
+          className="bg-[#FF4400] hover:bg-[#FF4400]/90"
+        >
+          {isSaving ? "Saving..." : "Save Checklist"}
+        </Button>
       </div>
 
       <div className="mb-6">
-        <Label htmlFor="day">Select Day</Label>
-        <Select value={checklist.day} onValueChange={(day) => setChecklist(prev => ({ ...prev, day }))}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Select a day" />
-          </SelectTrigger>
-          <SelectContent>
+        <Tabs 
+          value={currentDay} 
+          onValueChange={handleDayChange}
+          className="w-full"
+        >
+          <TabsList className="w-full justify-between">
             {DAYS_OF_WEEK.map((day) => (
-              <SelectItem key={day} value={day}>
+              <TabsTrigger 
+                key={day} 
+                value={day}
+                className="flex-1"
+              >
                 {day}
-              </SelectItem>
+              </TabsTrigger>
             ))}
-          </SelectContent>
-        </Select>
+          </TabsList>
+        </Tabs>
       </div>
 
       <div className="space-y-6">
-        {checklist.timeBlocks.map((block) => (
+        {currentChecklist.timeBlocks.map((block) => (
           <Card key={block.id}>
             <CardHeader>
               <div className="flex items-center gap-2 text-muted-foreground mb-2">
@@ -163,7 +263,12 @@ export default function ChecklistBuilder() {
                       </Button>
                     </div>
                   ))}
-                  <Button variant="outline" size="sm" onClick={() => addTask(block.id)}>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => addTask(block.id)}
+                    className="mt-2"
+                  >
                     <Plus className="w-4 h-4 mr-2" />
                     Add Task
                   </Button>
@@ -174,5 +279,5 @@ export default function ChecklistBuilder() {
         ))}
       </div>
     </div>
-  )
+  );
 }

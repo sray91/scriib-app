@@ -1,6 +1,7 @@
-"use client"
+'use client';
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSession } from '@supabase/auth-helpers-react'
 import Link from 'next/link'
 import { Progress } from "@/components/ui/progress"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,66 +9,155 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Clock, Edit } from 'lucide-react'
-
-// This would come from your database in a real app
-const initialChecklist = {
-  day: "Monday",
-  timeBlocks: [
-    {
-      id: "1",
-      startTime: "6am",
-      endTime: "12pm",
-      title: "TOP OF FUNNEL",
-      description: "Personal takes, opinions, stories",
-      tasks: [
-        { id: "1", text: "Post 1 long-form tweet (personal story)", completed: false },
-        { id: "2", text: "Post 3 value tweets (personal opinions, experiences)", completed: true },
-        { id: "3", text: "Post 2 image-based tweets (memes, gym, family)", completed: false },
-        { id: "4", text: "Spend 30 minutes engaging with audience", completed: false },
-      ],
-    },
-    {
-      id: "2",
-      startTime: "12pm",
-      endTime: "6pm",
-      title: "MIDDLE OF FUNNEL",
-      description: "General niche advice, problem-solving, how-to's",
-      tasks: [
-        { id: "5", text: "Post 1 long-form tweet (niche advice or insight)", completed: false },
-        { id: "6", text: "Post 1 thread (inspirational brand comparison or how-to)", completed: false },
-        { id: "7", text: "Post 3 value tweets (what, why, how of niche topics)", completed: true },
-      ],
-    },
-  ],
-}
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useToast } from "@/components/ui/use-toast"
 
 export default function TaskList() {
-  const [checklist, setChecklist] = useState(initialChecklist)
+  const session = useSession();
+  const [checklist, setChecklist] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+  const supabase = createClientComponentClient();
 
-  const totalTasks = checklist.timeBlocks.reduce((acc, block) => acc + block.tasks.length, 0)
+  const getCurrentDay = () => {
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const today = new Date();
+    return days[today.getDay()];
+  };
+
+  useEffect(() => {
+    const loadChecklist = async () => {
+      try {
+        setIsLoading(true);
+        const today = getCurrentDay();
+        console.log('Loading checklist for:', today);
+
+        const { data, error } = await supabase
+          .from('checklists')
+          .select(`
+            id,
+            day,
+            time_blocks (
+              id,
+              title,
+              description,
+              start_time,
+              end_time,
+              tasks (
+                id,
+                text,
+                completed
+              )
+            )
+          `)
+          .eq('day', today)
+          .maybeSingle();
+
+        if (error) {
+          if (error.code !== 'PGRST116') {
+            throw error;
+          }
+        }
+
+        if (data) {
+          setChecklist({
+            day: data.day,
+            timeBlocks: data.time_blocks?.map(block => ({
+              id: block.id,
+              startTime: block.start_time,
+              endTime: block.end_time,
+              title: block.title,
+              description: block.description,
+              tasks: block.tasks?.map(task => ({
+                id: task.id,
+                text: task.text,
+                completed: task.completed
+              })) || []
+            })) || []
+          });
+        } else {
+          setChecklist(null);
+        }
+      } catch (error) {
+        console.error('Error loading checklist:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load checklist. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadChecklist();
+  }, [session, supabase, toast]);
+
+  const handleTaskToggle = async (taskId, completed) => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ completed })
+        .eq('id', taskId);
+
+      if (error) throw error;
+
+      setChecklist(prevChecklist => {
+        if (!prevChecklist?.timeBlocks) return prevChecklist;
+        
+        return {
+          ...prevChecklist,
+          timeBlocks: prevChecklist.timeBlocks.map(block => ({
+            ...block,
+            tasks: block.tasks.map(task =>
+              task.id === taskId
+                ? { ...task, completed }
+                : task
+            )
+          }))
+        };
+      });
+    } catch (error) {
+      console.error('Error updating task:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update task. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="container max-w-4xl py-6">
+        <div className="text-center">
+          <p>Loading checklist...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!checklist) {
+    return (
+      <div className="container max-w-4xl py-6">
+        <div className="text-center">
+          <p className="mb-4 text-lg">No checklist found for today</p>
+          <Link href="/tasks/builder">
+            <Button className="bg-[#FF4400] hover:bg-[#FF4400]/90">
+              Create Checklist
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const totalTasks = checklist.timeBlocks.reduce((acc, block) => acc + block.tasks.length, 0);
   const completedTasks = checklist.timeBlocks.reduce(
     (acc, block) => acc + block.tasks.filter(task => task.completed).length,
     0
-  )
-  const progress = (completedTasks / totalTasks) * 100
-
-  const handleTaskToggle = (blockId, taskId) => {
-    setChecklist(prevChecklist => ({
-      ...prevChecklist,
-      timeBlocks: prevChecklist.timeBlocks.map(block => 
-        block.id === blockId
-          ? {
-              ...block,
-              tasks: block.tasks.map(task =>
-                task.id === taskId
-                  ? { ...task, completed: !task.completed }
-                  : task
-              )
-            }
-          : block
-      )
-    }))
-  }
+  );
+  const progress = (completedTasks / totalTasks) * 100;
 
   return (
     <div className="container max-w-4xl py-6">
@@ -109,7 +199,7 @@ export default function TaskList() {
                       <Checkbox 
                         id={task.id} 
                         checked={task.completed}
-                        onCheckedChange={() => handleTaskToggle(block.id, task.id)}
+                        onCheckedChange={(checked) => handleTaskToggle(task.id, checked)}
                       />
                       <label
                         htmlFor={task.id}
@@ -128,5 +218,5 @@ export default function TaskList() {
         ))}
       </div>
     </div>
-  )
+  );
 }
