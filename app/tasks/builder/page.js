@@ -32,13 +32,26 @@ const getInitialTimeBlocks = () => [
   {
     id: crypto.randomUUID(),
     startTime: "12pm",
-    endTime: "6pm",
+    endTime: "4pm",  // Updated time
     title: "MIDDLE OF FUNNEL",
     description: "General niche advice, problem-solving, how-to's",
     tasks: [
       { id: crypto.randomUUID(), text: "Post 1 long-form tweet (niche advice or insight)", completed: false },
       { id: crypto.randomUUID(), text: "Post 1 thread (inspirational brand comparison or how-to)", completed: false },
       { id: crypto.randomUUID(), text: "Post 3 value tweets (what, why, how of niche topics)", completed: false },
+    ],
+  },
+  {
+    id: crypto.randomUUID(),
+    startTime: "4pm",
+    endTime: "12am",
+    title: "TOP OF FUNNEL",
+    description: "Personal takes, opinions, stories",
+    tasks: [
+      { id: crypto.randomUUID(), text: "Post 1 long-form tweet (personal story)", completed: false },
+      { id: crypto.randomUUID(), text: "Post 3 value tweets (personal opinions, experiences)", completed: false },
+      { id: crypto.randomUUID(), text: "Post 2 image-based tweets (memes, gym, family)", completed: false },
+      { id: crypto.randomUUID(), text: "Spend 30 minutes engaging with audience", completed: false },
     ],
   },
 ];
