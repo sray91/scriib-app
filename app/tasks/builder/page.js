@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, Trash2, ArrowLeft } from 'lucide-react'
@@ -15,124 +15,179 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
-const getInitialTimeBlocks = () => [
-  {
-    id: crypto.randomUUID(),
-    startTime: "6am",
-    endTime: "12pm",
-    title: "TOP OF FUNNEL",
-    description: "Personal takes, opinions, stories",
-    tasks: [
-      { id: crypto.randomUUID(), text: "Post 1 long-form tweet (personal story)", completed: false },
-      { id: crypto.randomUUID(), text: "Post 3 value tweets (personal opinions, experiences)", completed: false },
-      { id: crypto.randomUUID(), text: "Post 2 image-based tweets (memes, gym, family)", completed: false },
-      { id: crypto.randomUUID(), text: "Spend 30 minutes engaging with audience", completed: false },
-    ],
-  },
-  {
-    id: crypto.randomUUID(),
-    startTime: "12pm",
-    endTime: "4pm",  // Updated time
-    title: "MIDDLE OF FUNNEL",
-    description: "General niche advice, problem-solving, how-to's",
-    tasks: [
-      { id: crypto.randomUUID(), text: "Post 1 long-form tweet (niche advice or insight)", completed: false },
-      { id: crypto.randomUUID(), text: "Post 1 thread (inspirational brand comparison or how-to)", completed: false },
-      { id: crypto.randomUUID(), text: "Post 3 value tweets (what, why, how of niche topics)", completed: false },
-    ],
-  },
-  {
-    id: crypto.randomUUID(),
-    startTime: "4pm",
-    endTime: "12am",
-    title: "TOP OF FUNNEL",
-    description: "Personal takes, opinions, stories",
-    tasks: [
-      { id: crypto.randomUUID(), text: "Post 1 long-form tweet (personal story)", completed: false },
-      { id: crypto.randomUUID(), text: "Post 3 value tweets (personal opinions, experiences)", completed: false },
-      { id: crypto.randomUUID(), text: "Post 2 image-based tweets (memes, gym, family)", completed: false },
-      { id: crypto.randomUUID(), text: "Spend 30 minutes engaging with audience", completed: false },
-    ],
-  },
-];
-
 export default function ChecklistBuilder() {
   const supabase = createClientComponentClient();
   const router = useRouter();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [currentDay, setCurrentDay] = useState("Monday");
-  const [checklists, setChecklists] = useState(() => {
-    const initial = {};
-    DAYS_OF_WEEK.forEach(day => {
-      initial[day] = {
-        day,
-        timeBlocks: getInitialTimeBlocks()
-      };
-    });
-    return initial;
-  });
+  const [timeBlocks, setTimeBlocks] = useState([]);
+
+  // Load existing template for current day
+  useEffect(() => {
+    const loadTemplate = async () => {
+      try {
+        setIsLoading(true);
+        const { data: blocks, error: blocksError } = await supabase
+          .from('user_time_blocks')
+          .select(`
+            id,
+            title,
+            description,
+            start_time,
+            end_time,
+            day,
+            user_tasks (
+              id,
+              text
+            )
+          `)
+          .eq('day', currentDay)
+          .order('start_time');
+
+        if (blocksError) throw blocksError;
+
+        setTimeBlocks(blocks?.map(block => ({
+          id: block.id,
+          title: block.title || '',
+          description: block.description || '',
+          startTime: block.start_time || '',
+          endTime: block.end_time || '',
+          tasks: block.user_tasks || []
+        })) || []);
+      } catch (error) {
+        console.error('Error loading template:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load template. Please try again.',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadTemplate();
+  }, [currentDay, supabase, toast]);
+
+  const handleDayChange = (day) => {
+    setCurrentDay(day);
+  };
+
+  const addTimeBlock = () => {
+    setTimeBlocks(prev => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        title: "",
+        description: "",
+        startTime: "",
+        endTime: "",
+        tasks: []
+      }
+    ]);
+  };
+
+  const updateTimeBlock = (blockId, field, value) => {
+    setTimeBlocks(prev => prev.map(block =>
+      block.id === blockId
+        ? { ...block, [field]: value }
+        : block
+    ));
+  };
+
+  const removeTimeBlock = (blockId) => {
+    setTimeBlocks(prev => prev.filter(block => block.id !== blockId));
+  };
+
+  const addTask = (blockId) => {
+    setTimeBlocks(prev => prev.map(block =>
+      block.id === blockId
+        ? {
+            ...block,
+            tasks: [
+              ...block.tasks,
+              { id: crypto.randomUUID(), text: "" }
+            ]
+          }
+        : block
+    ));
+  };
+
+  const updateTask = (blockId, taskId, text) => {
+    setTimeBlocks(prev => prev.map(block =>
+      block.id === blockId
+        ? {
+            ...block,
+            tasks: block.tasks.map(task =>
+              task.id === taskId
+                ? { ...task, text }
+                : task
+            )
+          }
+        : block
+    ));
+  };
+
+  const removeTask = (blockId, taskId) => {
+    setTimeBlocks(prev => prev.map(block =>
+      block.id === blockId
+        ? {
+            ...block,
+            tasks: block.tasks.filter(task => task.id !== taskId)
+          }
+        : block
+    ));
+  };
 
   const handleSave = async () => {
     try {
       setIsSaving(true);
-      const checklist = checklists[currentDay];
 
-      // Delete existing checklist for this day first
-      const { error: deleteError } = await supabase
-        .from('checklists')
+      // Delete existing template for this day
+      await supabase
+        .from('user_time_blocks')
         .delete()
-        .match({ day: currentDay });
+        .eq('day', currentDay);
 
-      if (deleteError) throw deleteError;
-
-      // Create new checklist
-      const { data: checklistData, error: checklistError } = await supabase
-        .from('checklists')
-        .insert({ day: currentDay })
-        .select()
-        .single();
-
-      if (checklistError) throw checklistError;
-
-      // Create time blocks and their tasks
-      for (const block of checklist.timeBlocks) {
+      // Save new template
+      for (const block of timeBlocks) {
         const { data: blockData, error: blockError } = await supabase
-          .from('time_blocks')
+          .from('user_time_blocks')
           .insert({
-            checklist_id: checklistData.id,
             title: block.title,
             description: block.description,
             start_time: block.startTime,
-            end_time: block.endTime
+            end_time: block.endTime,
+            day: currentDay
           })
           .select()
           .single();
 
         if (blockError) throw blockError;
 
-        if (block.tasks?.length > 0) {
+        if (block.tasks.length > 0) {
           const tasksToInsert = block.tasks.map(task => ({
             time_block_id: blockData.id,
-            text: task.text,
-            completed: false
+            text: task.text
           }));
 
           const { error: tasksError } = await supabase
-            .from('tasks')
+            .from('user_tasks')
             .insert(tasksToInsert);
 
           if (tasksError) throw tasksError;
         }
       }
 
-      toast({ title: 'Success', description: 'Checklist saved successfully!' });
+      toast({ title: 'Success', description: 'Template saved successfully!' });
       router.push('/tasks');
     } catch (error) {
-      console.error('Error saving checklist:', error);
+      console.error('Error saving template:', error);
       toast({
         title: 'Error',
-        description: 'Failed to save checklist. Please try again.',
+        description: 'Failed to save template. Please try again.',
         variant: 'destructive'
       });
     } finally {
@@ -140,69 +195,15 @@ export default function ChecklistBuilder() {
     }
   };
 
-  const handleDayChange = (day) => {
-    setCurrentDay(day);
-  };
-
-  const addTask = (blockId) => {
-    setChecklists(prev => ({
-      ...prev,
-      [currentDay]: {
-        ...prev[currentDay],
-        timeBlocks: prev[currentDay].timeBlocks.map(block =>
-          block.id === blockId
-            ? {
-                ...block,
-                tasks: [
-                  ...block.tasks,
-                  { id: crypto.randomUUID(), text: "", completed: false },
-                ],
-              }
-            : block
-        ),
-      }
-    }));
-  };
-
-  const updateTask = (blockId, taskId, text) => {
-    setChecklists(prev => ({
-      ...prev,
-      [currentDay]: {
-        ...prev[currentDay],
-        timeBlocks: prev[currentDay].timeBlocks.map(block =>
-          block.id === blockId
-            ? {
-                ...block,
-                tasks: block.tasks.map(task =>
-                  task.id === taskId
-                    ? { ...task, text }
-                    : task
-                ),
-              }
-            : block
-        ),
-      }
-    }));
-  };
-
-  const removeTask = (blockId, taskId) => {
-    setChecklists(prev => ({
-      ...prev,
-      [currentDay]: {
-        ...prev[currentDay],
-        timeBlocks: prev[currentDay].timeBlocks.map(block =>
-          block.id === blockId
-            ? {
-                ...block,
-                tasks: block.tasks.filter(task => task.id !== taskId),
-              }
-            : block
-        ),
-      }
-    }));
-  };
-
-  const currentChecklist = checklists[currentDay];
+  if (isLoading) {
+    return (
+      <div className="container max-w-4xl py-6">
+        <div className="text-center">
+          <p>Loading template...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container max-w-4xl py-6">
@@ -213,15 +214,24 @@ export default function ChecklistBuilder() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <h1 className="text-3xl font-bold">Checklist Builder</h1>
+          <h1 className="text-3xl font-bold">Template Builder</h1>
         </div>
-        <Button 
-          onClick={handleSave} 
-          disabled={isSaving}
-          className="bg-[#FF4400] hover:bg-[#FF4400]/90"
-        >
-          {isSaving ? "Saving..." : "Save Checklist"}
-        </Button>
+        <div className="space-x-4">
+          <Button 
+            variant="outline" 
+            onClick={addTimeBlock}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Time Block
+          </Button>
+          <Button 
+            onClick={handleSave} 
+            disabled={isSaving}
+            className="bg-[#FF4400] hover:bg-[#FF4400]/90"
+          >
+            {isSaving ? "Saving..." : "Save Template"}
+          </Button>
+        </div>
       </div>
 
       <div className="mb-6">
@@ -245,17 +255,49 @@ export default function ChecklistBuilder() {
       </div>
 
       <div className="space-y-6">
-        {currentChecklist.timeBlocks.map((block) => (
+        {timeBlocks.map((block) => (
           <Card key={block.id}>
             <CardHeader>
-              <div className="flex items-center gap-2 text-muted-foreground mb-2">
-                <Clock className="h-4 w-4" />
-                <span className="text-sm">
-                  {block.startTime} - {block.endTime}
-                </span>
+              <div className="space-y-4">
+                <Input
+                  value={block.title}
+                  onChange={(e) => updateTimeBlock(block.id, 'title', e.target.value)}
+                  placeholder="Block Title"
+                  className="text-lg font-semibold"
+                />
+                <Input
+                  value={block.description}
+                  onChange={(e) => updateTimeBlock(block.id, 'description', e.target.value)}
+                  placeholder="Block Description"
+                  className="text-sm text-muted-foreground"
+                />
+                <div className="flex gap-4">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    <Input
+                      value={block.startTime}
+                      onChange={(e) => updateTimeBlock(block.id, 'startTime', e.target.value)}
+                      placeholder="Start Time"
+                      className="w-24"
+                    />
+                    <span>-</span>
+                    <Input
+                      value={block.endTime}
+                      onChange={(e) => updateTimeBlock(block.id, 'endTime', e.target.value)}
+                      placeholder="End Time"
+                      className="w-24"
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeTimeBlock(block.id)}
+                    className="ml-auto"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
-              <CardTitle>{block.title}</CardTitle>
-              <p className="text-sm text-muted-foreground">{block.description}</p>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-full">

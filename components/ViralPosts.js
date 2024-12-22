@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
+import { Toaster } from '@/components/ui/toaster';
 import {
   Dialog,
   DialogContent,
@@ -22,12 +23,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Share2, X } from 'lucide-react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 const POSTS_PER_PAGE = 6;
 
-const TwitterEmbed = ({ tweetId }) => {
+export const TwitterEmbed = ({ tweetId }) => {
   useEffect(() => {
     const script = document.createElement('script');
     script.src = 'https://platform.twitter.com/widgets.js';
@@ -54,11 +55,13 @@ export default function ViralPostSwipeFile() {
   const { toast } = useToast();
   const [posts, setPosts] = useState([]);
   const [newPost, setNewPost] = useState({ url: '', description: '', tag: '' });
-  const [tags, setTags] = useState(['tech', 'marketing', 'design', 'development']);
+  const [tags, setTags] = useState([]);
   const [selectedTag, setSelectedTag] = useState('all');
   const [page, setPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newTag, setNewTag] = useState('');
+  const [shareUrl, setShareUrl] = useState('');
+  const [isTagDialogOpen, setIsTagDialogOpen] = useState(false);
 
   const fetchPosts = async () => {
     if (!supabase?.from) {
@@ -89,9 +92,34 @@ export default function ViralPostSwipeFile() {
     }
   };
 
+  const fetchTags = async () => {
+    if (!supabase?.from || !session?.user?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('tags')
+        .select('*')
+        .eq('user_id', session.user.id);
+
+      if (error) {
+        console.error('Error fetching tags:', error);
+        toast({ 
+          title: 'Error', 
+          description: 'Failed to fetch tags.', 
+          variant: 'destructive' 
+        });
+      } else {
+        setTags(data.map(tag => tag.name)); // Assuming tag table has 'name' field
+      }
+    } catch (error) {
+      console.error('Unexpected error:', error);
+    }
+  };
+
   useEffect(() => {
     if (session) {
       fetchPosts();
+      fetchTags();
     }
   }, [session]);
 
@@ -153,15 +181,34 @@ export default function ViralPostSwipeFile() {
     }
   };
 
-  const handleAddTag = () => {
-    if (!newTag) return;
+  const handleAddTag = async () => {
+    if (!newTag || !session?.user?.id) return;
     if (tags.includes(newTag)) {
       toast({ title: 'Error', description: 'Tag already exists', variant: 'destructive' });
       return;
     }
-    setTags((prev) => [...prev, newTag]);
-    setNewTag('');
-    toast({ title: 'Success', description: 'Tag added successfully' });
+
+    try {
+      const { error } = await supabase
+        .from('tags')
+        .insert([{ 
+          name: newTag,
+          user_id: session.user.id 
+        }]);
+
+      if (error) throw error;
+
+      setTags(prev => [...prev, newTag]);
+      setNewTag('');
+      toast({ title: 'Success', description: 'Tag added successfully' });
+    } catch (error) {
+      console.error('Error adding tag:', error);
+      toast({ 
+        title: 'Error', 
+        description: 'Failed to add tag', 
+        variant: 'destructive' 
+      });
+    }
   };
 
   const handleDeletePost = async (id) => {
@@ -181,6 +228,100 @@ export default function ViralPostSwipeFile() {
     }
   };
 
+  const handleShareTag = async (tag) => {
+    try {
+      if (tag === 'all') {
+        toast({ 
+          title: 'Error', 
+          description: 'Please select a specific tag to share',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      const shareId = Math.random().toString(36).substring(2, 15);
+      const shareUrl = `${window.location.origin}/shared/${shareId}`;
+      
+      // Get posts for this tag
+      const postsToShare = posts
+        .filter(post => post.tag === tag)
+        .map(post => ({
+          id: post.id,
+          tweet_id: post.tweet_id,
+          description: post.description,
+          tag: post.tag
+        }));
+
+      // Save to shared_collections
+      const { error } = await supabase
+        .from('shared_collections')
+        .insert({
+          share_id: shareId,
+          user_id: session?.user?.id,
+          tag: tag,
+          posts: postsToShare  // Make sure your Supabase table column 'posts' is of type JSONB
+        });
+
+      console.log('Save error if any:', error);
+
+      if (error) throw error;
+
+      // Copy to clipboard
+      await navigator.clipboard.writeText(shareUrl);
+      
+      toast({ 
+        title: 'Success', 
+        description: 'Share URL copied to clipboard!',
+        duration: 5000,
+      });
+    } catch (error) {
+      console.error('Error:', error);
+      toast({ 
+        title: 'Error', 
+        description: 'Failed to create share link',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleDeleteTag = async (tagToDelete) => {
+    if (!session?.user?.id) return;
+
+    // Check if tag is in use
+    const postsUsingTag = posts.some(post => post.tag === tagToDelete);
+    if (postsUsingTag) {
+      toast({ 
+        title: 'Cannot Delete Tag', 
+        description: 'There are posts using this tag. Please update or delete those posts first.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('tags')
+        .delete()
+        .eq('name', tagToDelete)
+        .eq('user_id', session.user.id);
+
+      if (error) throw error;
+
+      setTags(prev => prev.filter(tag => tag !== tagToDelete));
+      if (selectedTag === tagToDelete) {
+        setSelectedTag('all');
+      }
+      toast({ title: 'Success', description: 'Tag deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting tag:', error);
+      toast({ 
+        title: 'Error', 
+        description: 'Failed to delete tag', 
+        variant: 'destructive' 
+      });
+    }
+  };
+
   const filteredPosts = selectedTag === 'all' ? posts : posts.filter((post) => post.tag === selectedTag);
 
   const paginatedPosts = filteredPosts.slice((page - 1) * POSTS_PER_PAGE, page * POSTS_PER_PAGE);
@@ -188,21 +329,80 @@ export default function ViralPostSwipeFile() {
   const totalPages = Math.ceil(filteredPosts.length / POSTS_PER_PAGE);
 
   return (
-    <div className="max-w-4xl mx-auto p-4 space-y-6">
-      <div className="flex justify-between items-center">
-        <Select value={selectedTag} onValueChange={setSelectedTag}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by tag" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All tags</SelectItem>
-            {tags.map((tag) => (
-              <SelectItem key={tag} value={tag}>
-                {tag}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <>
+      <div className="max-w-4xl mx-auto p-4 space-y-6">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Select value={selectedTag} onValueChange={setSelectedTag}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by tag" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All tags</SelectItem>
+                {tags.map((tag) => (
+                  <SelectItem key={tag} value={tag}>
+                    {tag}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button 
+              variant="outline" 
+              onClick={() => setIsTagDialogOpen(true)}
+            >
+              Manage Tags
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={() => handleShareTag(selectedTag)}
+              className="flex items-center gap-2"
+            >
+              <Share2 className="h-4 w-4" />
+              Share {selectedTag} posts
+            </Button>
+          </div>
+        </div>
+
+        <Dialog open={isTagDialogOpen} onOpenChange={setIsTagDialogOpen}>
+          <DialogContent className="border-[#FF4400] border-2 bg-white">
+            <DialogHeader>
+              <DialogTitle className="text-[#FF4400] font-bebas-neue text-3xl">
+                MANAGE TAGS
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-4">
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="New tag"
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                />
+                <Button onClick={handleAddTag} variant="outline">
+                  Add Tag
+                </Button>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Existing Tags</Label>
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <Badge key={tag} className="flex items-center gap-1">
+                      {tag}
+                      <button
+                        onClick={() => handleDeleteTag(tag)}
+                        className="ml-1 hover:text-[#FF4400]"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -210,9 +410,11 @@ export default function ViralPostSwipeFile() {
               <Plus className="mr-2 h-4 w-4" /> Add New X Post
             </Button>
           </DialogTrigger>
-          <DialogContent className="border-[#FF4400] border-2">
+          <DialogContent className="border-[#FF4400] border-2 bg-white">
             <DialogHeader>
-              <DialogTitle className="text-[#FF4400] font-bebas-neue text-3xl">ADD NEW X POST</DialogTitle>
+              <DialogTitle className="text-[#FF4400] font-bebas-neue text-3xl">
+                ADD NEW X POST
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <Label htmlFor="url">X POST URL</Label>
@@ -285,6 +487,7 @@ export default function ViralPostSwipeFile() {
           ))}
         </div>
       )}
-    </div>
+      <Toaster />
+    </>
   );
 }
