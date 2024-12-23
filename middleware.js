@@ -8,9 +8,6 @@ export async function middleware(req) {
   const {
     data: { session },
   } = await supabase.auth.getSession()
-
-  console.log("Middleware session:", session); // Debugging to verify session
-
   // Check auth condition
   if (session) {
     // If the user is logged in and tries to access login/signup pages, redirect to home

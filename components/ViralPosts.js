@@ -262,8 +262,6 @@ export default function ViralPostSwipeFile() {
           posts: postsToShare  // Make sure your Supabase table column 'posts' is of type JSONB
         });
 
-      console.log('Save error if any:', error);
-
       if (error) throw error;
 
       // Copy to clipboard
@@ -362,6 +360,54 @@ export default function ViralPostSwipeFile() {
               <Share2 className="h-4 w-4" />
               Share {selectedTag} posts
             </Button>
+
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-[#FF4400] hover:bg-[#FF4400]/90">
+                  <Plus className="mr-2 h-4 w-4" /> Add New X Post
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="border-[#FF4400] border-2 bg-white">
+                <DialogHeader>
+                  <DialogTitle className="text-[#FF4400] font-bebas-neue text-3xl">
+                    ADD NEW X POST
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-4">
+                  <Label htmlFor="url">X POST URL</Label>
+                  <Input
+                    id="url"
+                    placeholder="Enter X post URL"
+                    value={newPost.url}
+                    onChange={(e) => setNewPost({ ...newPost, url: e.target.value })}
+                  />
+                  <Label htmlFor="description">Description</Label>
+                  <Input
+                    id="description"
+                    placeholder="Add a description (optional)"
+                    value={newPost.description}
+                    onChange={(e) => setNewPost({ ...newPost, description: e.target.value })}
+                  />
+                  <Label htmlFor="tag">Tag</Label>
+                  <Select value={newPost.tag} onValueChange={(value) => setNewPost({ ...newPost, tag: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a tag" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="untagged">Untagged</SelectItem>
+                      {tags.map((tag) => (
+                        <SelectItem key={tag} value={tag}>
+                          {tag}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button onClick={handleAddPost} className="w-full bg-[#FF4400] hover:bg-[#FF4400]/90">
+                    ADD X POST
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
@@ -403,54 +449,6 @@ export default function ViralPostSwipeFile() {
             </div>
           </DialogContent>
         </Dialog>
-
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-[#FF4400] hover:bg-[#FF4400]/90">
-              <Plus className="mr-2 h-4 w-4" /> Add New X Post
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="border-[#FF4400] border-2 bg-white">
-            <DialogHeader>
-              <DialogTitle className="text-[#FF4400] font-bebas-neue text-3xl">
-                ADD NEW X POST
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 pt-4">
-              <Label htmlFor="url">X POST URL</Label>
-              <Input
-                id="url"
-                placeholder="Enter X post URL"
-                value={newPost.url}
-                onChange={(e) => setNewPost({ ...newPost, url: e.target.value })}
-              />
-              <Label htmlFor="description">Description</Label>
-              <Input
-                id="description"
-                placeholder="Add a description (optional)"
-                value={newPost.description}
-                onChange={(e) => setNewPost({ ...newPost, description: e.target.value })}
-              />
-              <Label htmlFor="tag">Tag</Label>
-              <Select value={newPost.tag} onValueChange={(value) => setNewPost({ ...newPost, tag: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a tag" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="untagged">Untagged</SelectItem>
-                  {tags.map((tag) => (
-                    <SelectItem key={tag} value={tag}>
-                      {tag}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button onClick={handleAddPost} className="w-full bg-[#FF4400] hover:bg-[#FF4400]/90">
-                ADD X POST
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -465,7 +463,7 @@ export default function ViralPostSwipeFile() {
               <Trash2 className="h-4 w-4" />
             </Button>
             <CardContent>
-              <Badge>{post.tag}</Badge>
+              <Badge className="bg-[#FF4400] hover:bg-[#FF4400]/90">{post.tag}</Badge>
               {post.description && <p>{post.description}</p>}
               <TwitterEmbed tweetId={post.tweet_id} />
             </CardContent>
