@@ -72,8 +72,20 @@ export default function SettingsPage() {
 
   // Handle social account connection
   const handleConnect = async (platform) => {
-    // Store the current accounts in session storage before redirecting
+    // Check for existing accounts of this platform
     const currentAccounts = socialAccounts.filter(acc => acc.platform === platform);
+    
+    // Add a limit check (adjust the number as needed)
+    if (currentAccounts.length >= 10) {
+      toast({
+        title: 'Error',
+        description: `You can only connect up to 10 ${platform} accounts.`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Store the current accounts in session storage before redirecting
     sessionStorage.setItem('existingAccounts', JSON.stringify(currentAccounts));
 
     // Add state parameter to track the auth flow

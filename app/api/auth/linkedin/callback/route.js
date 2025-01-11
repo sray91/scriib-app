@@ -61,7 +61,7 @@ export async function GET(request) {
     // Store the account info with the profile data
     const { data: accountData, error: accountError } = await supabase
       .from('social_accounts')
-      .upsert({
+      .insert({
         user_id: user.id,
         platform: 'linkedin',
         platform_user_id: profileData.sub,
@@ -75,9 +75,6 @@ export async function GET(request) {
         created_at: new Date().toISOString(),
         last_used_at: new Date().toISOString(),
         profile_data: profileData
-      }, {
-        onConflict: 'user_id,platform,platform_user_id',
-        returning: true,
       });
 
     if (accountError) {

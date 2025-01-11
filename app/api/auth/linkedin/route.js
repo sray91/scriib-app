@@ -19,6 +19,7 @@ export async function GET(request) {
       `client_id=${process.env.LINKEDIN_CLIENT_ID}&` +
       `redirect_uri=${encodeURIComponent(process.env.LINKEDIN_REDIRECT_URI)}&` +
       `scope=${encodeURIComponent(scopes)}&` +
+      `prompt=select_account&` +
       `state=${state}`;
 
     // Redirect to LinkedIn's authorization page
