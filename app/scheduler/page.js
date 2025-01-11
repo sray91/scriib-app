@@ -4,6 +4,9 @@
 import { useState, useEffect } from 'react';
 import { Calendar } from 'lucide-react';
 import Image from 'next/image';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+
+const supabase = createClientComponentClient();
 
 export default function ContentScheduler() {
   const [accounts, setAccounts] = useState([]);
@@ -26,10 +29,12 @@ export default function ContentScheduler() {
   }, []);
 
   async function fetchAccounts() {
+    const { data: { user } } = await supabase.auth.getUser();
+    
     const { data, error } = await supabase
       .from('social_accounts')
       .select('*')
-      .eq('user_id', supabase.auth.user().id)
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false });
       
     if (error) {
@@ -200,6 +205,56 @@ export default function ContentScheduler() {
             </button>
           </div>
           <form onSubmit={handleCreatePost}>
+            <div className="mb-6">
+              <label className="block mb-2">Select Accounts</label>
+              <div className="flex gap-4 items-center">
+                {accounts.length === 0 ? (
+                  <div className="text-sm text-gray-500">
+                    No social accounts connected. Please add accounts in Settings.
+                  </div>
+                ) : (
+                  accounts.map((account) => (
+                    <button
+                      key={account.id}
+                      type="button"
+                      onClick={() => {
+                        setNewPost({
+                          ...newPost,
+                          platforms: {
+                            ...newPost.platforms,
+                            [account.id]: !newPost.platforms[account.id]
+                          }
+                        });
+                      }}
+                      className={`flex items-center gap-2 p-2 rounded-lg border-2 transition-all ${
+                        newPost.platforms[account.id]
+                          ? 'border-orange-600 shadow-md bg-orange-50'
+                          : 'border-gray-200 opacity-50'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
+                        {account.platform === 'linkedin' ? (
+                          <svg className="w-4 h-4 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M20.47,2H3.53A1.45,1.45,0,0,0,2.06,3.43V20.57A1.45,1.45,0,0,0,3.53,22H20.47a1.45,1.45,0,0,0,1.47-1.43V3.43A1.45,1.45,0,0,0,20.47,2ZM8.09,18.74h-3v-9h3ZM6.59,8.48h0a1.56,1.56,0,1,1,0-3.12,1.57,1.57,0,1,1,0,3.12ZM18.91,18.74h-3V13.91c0-1.21-.43-2-1.52-2A1.65,1.65,0,0,0,12.85,13a2,2,0,0,0-.1.73v5h-3s0-8.18,0-9h3V11A3,3,0,0,1,15.46,9.5c2,0,3.45,1.29,3.45,4.06Z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4 text-black" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className="text-sm font-medium">{account.screen_name}</span>
+                      {newPost.platforms[account.id] && (
+                        <svg className="w-4 h-4 text-orange-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                          <path d="M20 6L9 17l-5-5" />
+                        </svg>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+
             <div className="mb-4">
               <label className="block mb-2">Content</label>
               <div className="relative">
@@ -265,55 +320,6 @@ export default function ContentScheduler() {
                     </div>
                   ))}
                 </div>
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <div className="flex gap-2 items-center">
-                {accounts.length === 0 ? (
-                  <div className="text-sm text-gray-500">
-                    No social accounts connected. Please add accounts in Settings.
-                  </div>
-                ) : (
-                  accounts.map((account) => (
-                    <button
-                      key={account.id}
-                      onClick={() => {
-                        setNewPost({
-                          ...newPost,
-                          platforms: {
-                            ...newPost.platforms,
-                            [account.id]: !newPost.platforms[account.id]
-                          }
-                        });
-                      }}
-                      className={`relative w-12 h-12 rounded-full border-2 transition-all ${
-                        newPost.platforms[account.id]
-                          ? 'border-orange-600 shadow-md'
-                          : 'border-gray-200 opacity-50'
-                      }`}
-                    >
-                      <div className="w-full h-full rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
-                        {account.platform === 'linkedin' ? (
-                          <svg className="w-6 h-6 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M20.47,2H3.53A1.45,1.45,0,0,0,2.06,3.43V20.57A1.45,1.45,0,0,0,3.53,22H20.47a1.45,1.45,0,0,0,1.47-1.43V3.43A1.45,1.45,0,0,0,20.47,2ZM8.09,18.74h-3v-9h3ZM6.59,8.48h0a1.56,1.56,0,1,1,0-3.12,1.57,1.57,0,1,1,0,3.12ZM18.91,18.74h-3V13.91c0-1.21-.43-2-1.52-2A1.65,1.65,0,0,0,12.85,13a2,2,0,0,0-.1.73v5h-3s0-8.18,0-9h3V11A3,3,0,0,1,15.46,9.5c2,0,3.45,1.29,3.45,4.06Z" />
-                          </svg>
-                        ) : (
-                          <svg className="w-6 h-6 text-black" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                          </svg>
-                        )}
-                      </div>
-                      {newPost.platforms[account.id] && (
-                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-orange-600 rounded-full flex items-center justify-center">
-                          <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                            <path d="M20 6L9 17l-5-5" />
-                          </svg>
-                        </div>
-                      )}
-                    </button>
-                  ))
-                )}
               </div>
             </div>
 
