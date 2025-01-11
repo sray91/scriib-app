@@ -16,7 +16,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 
-const navigation = [
+const betaNavigation = [
   { name: 'Task List', href: '/tasks', icon: LayoutList },
   { name: 'Scheduler', href: '/scheduler', icon: Calendar },
   { name: 'Engagement Lists', href: '/engagement', icon: Users },
@@ -24,6 +24,12 @@ const navigation = [
   { name: 'ICP Builder', href: '/icp', icon: Users },
   { name: 'Ideation Station', href: '/ideation', icon: Lightbulb },
   { name: 'Viral Lookup', href: '/viral', icon: Search },
+]
+
+const navigation = [
+  { name: 'Task List', href: '/tasks', icon: LayoutList },
+  { name: 'Swipe File', href: '/viral', icon: Search },
+  { name: 'Scheduler', href: '/scheduler', icon: Calendar },
 ]
 
 export default function SidebarComponent() {
