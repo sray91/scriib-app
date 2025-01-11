@@ -3,21 +3,23 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 export async function GET(request) {
+  const supabase = createRouteHandlerClient({ cookies });
+  
   try {
-    // Get the base URL from the request
+    const { searchParams } = new URL(request.url);
+    const code = searchParams.get('code');
     const baseURL = new URL(request.url).origin;
-    
-    // Get the code and state from the callback URL
-    const requestUrl = new URL(request.url);
-    const code = requestUrl.searchParams.get('code');
-    const state = requestUrl.searchParams.get('state');
-    
+
+    // Get the current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+
     if (!code) {
       console.error('No code received from LinkedIn');
       return NextResponse.redirect(`${baseURL}/settings?error=no_code`);
     }
 
-    // Exchange the authorization code for an access token
+    // Exchange code for token
     const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
       method: 'POST',
       headers: {
@@ -26,100 +28,67 @@ export async function GET(request) {
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code,
-        redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
         client_id: process.env.LINKEDIN_CLIENT_ID,
         client_secret: process.env.LINKEDIN_CLIENT_SECRET,
+        redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
       }),
     });
 
+    const tokenData = await tokenResponse.json();
+    
     if (!tokenResponse.ok) {
-      console.error('Failed to exchange code for token');
+      console.error('Token exchange failed:', tokenData);
       return NextResponse.redirect(`${baseURL}/settings?error=token_exchange_failed`);
     }
 
-    const tokenData = await tokenResponse.json();
-
-    // Get user's LinkedIn profile data
-    const profileResponse = await fetch('https://api.linkedin.com/v2/me', {
+    // Use LinkedIn's OpenID Connect userinfo endpoint
+    const profileResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
       headers: {
         'Authorization': `Bearer ${tokenData.access_token}`,
-      },
+        'LinkedIn-Version': '202401',
+        'X-Restli-Protocol-Version': '2.0.0',
+        'Accept': 'application/json'
+      }
     });
 
     if (!profileResponse.ok) {
-      console.error('Failed to fetch LinkedIn profile');
+      console.error('Profile fetch failed:', await profileResponse.text());
       return NextResponse.redirect(`${baseURL}/settings?error=profile_fetch_failed`);
     }
 
     const profileData = await profileResponse.json();
-
-    // Initialize Supabase client
-    const supabase = createRouteHandlerClient({ cookies });
     
-    // Get the current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      console.error('No authenticated user found');
-      return NextResponse.redirect(`${baseURL}/login`);
-    }
-
-    // Calculate token expiration time
-    const expiresAt = new Date();
-    expiresAt.setSeconds(expiresAt.getSeconds() + tokenData.expires_in);
-
-    // Check if this LinkedIn account is already connected
-    const { data: existingAccount } = await supabase
+    // Store the account info with the profile data
+    const { data: accountData, error: accountError } = await supabase
       .from('social_accounts')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('platform', 'linkedin')
-      .eq('platform_user_id', profileData.id)
-      .single();
+      .upsert({
+        user_id: user.id,
+        platform: 'linkedin',
+        platform_user_id: profileData.sub,
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        screen_name: profileData.name || 'LinkedIn User',
+        expires_in: tokenData.expires_in || null,
+        expires_at: tokenData.expires_in 
+          ? new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString()
+          : null,
+        created_at: new Date().toISOString(),
+        last_used_at: new Date().toISOString(),
+        profile_data: profileData
+      }, {
+        onConflict: 'user_id,platform,platform_user_id',
+        returning: true,
+      });
 
-    if (existingAccount) {
-      // Update existing account
-      const { error: updateError } = await supabase
-        .from('social_accounts')
-        .update({
-          access_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token,
-          profile_data: profileData,
-          screen_name: `${profileData.localizedFirstName} ${profileData.localizedLastName}`,
-          expires_at: expiresAt.toISOString(),
-          last_used_at: new Date().toISOString(),
-        })
-        .eq('id', existingAccount.id);
-
-      if (updateError) {
-        console.error('Error updating LinkedIn account:', updateError);
-        return NextResponse.redirect(`${baseURL}/settings?error=update_failed`);
-      }
-    } else {
-      // Insert new account
-      const { error: insertError } = await supabase
-        .from('social_accounts')
-        .insert({
-          user_id: user.id,
-          platform: 'linkedin',
-          platform_user_id: profileData.id,
-          access_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token,
-          profile_data: profileData,
-          screen_name: `${profileData.localizedFirstName} ${profileData.localizedLastName}`,
-          expires_at: expiresAt.toISOString(),
-          last_used_at: new Date().toISOString(),
-        });
-
-      if (insertError) {
-        console.error('Error saving LinkedIn account:', insertError);
-        return NextResponse.redirect(`${baseURL}/settings?error=save_failed`);
-      }
+    if (accountError) {
+      console.error('Database error:', accountError);
+      return NextResponse.redirect(`${baseURL}/settings?error=database_error`);
     }
 
-    return NextResponse.redirect(`${baseURL}/settings?success=linkedin_connected`);
+    return NextResponse.redirect(`${baseURL}/settings?success=true`);
   } catch (error) {
-    console.error('LinkedIn OAuth error:', error);
-    return NextResponse.redirect(`${baseURL}/settings?error=oauth_failed`);
+    console.error('LinkedIn callback error:', error);
+    const baseURL = new URL(request.url).origin;
+    return NextResponse.redirect(`${baseURL}/settings?error=callback_failed`);
   }
 } 

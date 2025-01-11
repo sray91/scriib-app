@@ -58,10 +58,13 @@ export default function ContentScheduler() {
   }
 
   async function fetchApprovers() {
+    // Get current user first
+    const { data: { user } } = await supabase.auth.getUser();
+    
     const { data, error } = await supabase
       .from('users')
       .select('id, email')
-      .neq('id', supabase.auth.user().id);
+      .neq('id', user.id);
       
     if (error) {
       console.error('Error fetching approvers:', error);
