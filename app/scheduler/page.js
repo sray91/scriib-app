@@ -2,7 +2,7 @@
 
 // pages/content-scheduler.js
 import { useState, useEffect } from 'react';
-import { Calendar } from 'lucide-react';
+import { Calendar, Send } from 'lucide-react';
 import Image from 'next/image';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
@@ -21,6 +21,7 @@ export default function ContentScheduler() {
   });
   const [approvers, setApprovers] = useState([]);
   const [activeTab, setActiveTab] = useState('compose');
+  const [deletingPosts, setDeletingPosts] = useState({});
 
   useEffect(() => {
     fetchAccounts();
@@ -125,53 +126,178 @@ export default function ContentScheduler() {
     }));
   }
 
-  async function handleCreatePost(e) {
+  async function handleSubmitPost(e) {
     e.preventDefault();
     
-    // First create the post
-    const { data: post, error: postError } = await supabase
-      .from('posts')
-      .insert([{
-        content: newPost.content,
-        platforms: newPost.platforms,
-        scheduled_time: newPost.scheduledTime,
-        approver_id: newPost.requiresApproval ? newPost.approverId : null,
-        status: newPost.requiresApproval ? 'pending_approval' : 'scheduled'
-      }])
-      .single();
+    try {
+      // First create the post
+      const { data: createdPost, error: postError } = await supabase
+        .from('posts')
+        .insert([{
+          content: newPost.content,
+          platforms: newPost.platforms,
+          scheduled_time: newPost.scheduledTime,
+          approver_id: newPost.requiresApproval ? newPost.approverId : null,
+          status: newPost.requiresApproval ? 'pending_approval' : 'scheduled'
+        }])
+        .select()
+        .single();
 
-    if (postError) {
-      console.error('Error creating post:', postError);
-      return;
-    }
-
-    // Then create media file records
-    if (newPost.mediaFiles.length > 0) {
-      const { error: mediaError } = await supabase
-        .from('media_files')
-        .insert(
-          newPost.mediaFiles.map(file => ({
-            post_id: post.id,
-            file_path: file.path,
-            file_type: file.type
-          }))
-        );
-
-      if (mediaError) {
-        console.error('Error saving media files:', mediaError);
+      if (postError) {
+        console.error('Error creating post:', postError);
         return;
       }
-    }
 
-    setNewPost({
-      content: '',
-      platforms: {},
-      scheduledTime: '',
-      requiresApproval: false,
-      approverId: '',
-      mediaFiles: []
-    });
-    fetchPosts();
+      // Store the post ID for later use
+      const postId = createdPost.id;
+
+      // If this is an immediate post, publish to selected platforms
+      if (new Date(createdPost.scheduledTime) <= new Date()) {
+        const linkedInAccounts = accounts.filter(
+          account => account.platform === 'linkedin' && newPost.platforms[account.id]
+        );
+
+        for (const account of linkedInAccounts) {
+          try {
+            const response = await fetch('/api/post/linkedin', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                content: createdPost.content,
+                accessToken: account.access_token,
+                platformUserId: account.platform_user_id,
+                mediaFiles: newPost.mediaFiles,
+              }),
+            });
+
+            const responseData = await response.json();
+            
+            if (!response.ok) {
+              // Handle duplicate post case
+              if (response.status === 422 && responseData.isDuplicate) {
+                // Add a small random string to make the content unique
+                const uniqueContent = `${createdPost.content} ${Math.random().toString(36).substring(7)}`;
+                
+                // Try posting again with modified content
+                const retryResponse = await fetch('/api/post/linkedin', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    content: uniqueContent,
+                    accessToken: account.access_token,
+                    platformUserId: account.platform_user_id,
+                    mediaFiles: newPost.mediaFiles,
+                  }),
+                });
+
+                if (!retryResponse.ok) {
+                  throw new Error(responseData.error || `HTTP error! status: ${response.status}`);
+                }
+              } else {
+                throw new Error(responseData.error || `HTTP error! status: ${response.status}`);
+              }
+            }
+
+            // Update post status using the stored postId
+            await supabase
+              .from('posts')
+              .update({ 
+                status: 'published',
+                published_content: createdPost.content
+              })
+              .eq('id', postId);
+
+          } catch (error) {
+            console.error('Detailed LinkedIn posting error:', error);
+            await supabase
+              .from('posts')
+              .update({ 
+                status: 'failed',
+                error_message: error.message
+              })
+              .eq('id', postId);
+          }
+        }
+      }
+
+      // Handle media files
+      if (newPost.mediaFiles.length > 0) {
+        const { error: mediaError } = await supabase
+          .from('media_files')
+          .insert(
+            newPost.mediaFiles.map(file => ({
+              post_id: postId,
+              file_path: file.path,
+              file_type: file.type
+            }))
+          );
+
+        if (mediaError) {
+          console.error('Error saving media files:', mediaError);
+          return;
+        }
+      }
+
+      // Reset form
+      setNewPost({
+        content: '',
+        platforms: {},
+        scheduledTime: '',
+        requiresApproval: false,
+        approverId: '',
+        mediaFiles: []
+      });
+
+      // Refresh posts list
+      fetchPosts();
+
+    } catch (error) {
+      console.error('Error in handleSubmitPost:', error);
+    }
+  }
+
+  async function handleDeletePost(postId) {
+    try {
+      if (!window.confirm('Are you sure you want to delete this post?')) {
+        return;
+      }
+
+      setDeletingPosts(prev => ({ ...prev, [postId]: true }));
+
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', postId);
+
+      if (error) {
+        throw error;
+      }
+
+      // Also delete any associated media files
+      const { data: mediaFiles } = await supabase
+        .from('media_files')
+        .select('file_path')
+        .eq('post_id', postId);
+
+      if (mediaFiles?.length > 0) {
+        await supabase.storage
+          .from('media')
+          .remove(mediaFiles.map(file => file.file_path));
+      }
+
+      // Refresh the posts list
+      fetchPosts();
+
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      alert('Failed to delete post. Please try again.');
+    } finally {
+      setDeletingPosts(prev => ({ ...prev, [postId]: false }));
+    }
   }
 
   return (
@@ -207,183 +333,218 @@ export default function ContentScheduler() {
               Add Tags <span className="text-xs">▾</span>
             </button>
           </div>
-          <form onSubmit={handleCreatePost}>
-            <div className="mb-6">
-              <label className="block mb-2">Select Accounts</label>
-              <div className="flex gap-4 items-center">
-                {accounts.length === 0 ? (
-                  <div className="text-sm text-gray-500">
-                    No social accounts connected. Please add accounts in Settings.
+          <form onSubmit={handleSubmitPost}>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Content
+                </label>
+                <div className="relative">
+                  <textarea
+                    value={newPost.content}
+                    onChange={(e) =>
+                      setNewPost({ ...newPost, content: e.target.value })
+                    }
+                    className="w-full h-32 p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="What would you like to share?"
+                  />
+                  <div className="absolute bottom-3 right-3 text-sm text-gray-500">
+                    {newPost.content.length}/3000
                   </div>
-                ) : (
-                  accounts.map((account) => (
-                    <button
-                      key={account.id}
-                      type="button"
-                      onClick={() => {
-                        setNewPost({
-                          ...newPost,
-                          platforms: {
-                            ...newPost.platforms,
-                            [account.id]: !newPost.platforms[account.id]
-                          }
-                        });
-                      }}
-                      className={`flex items-center gap-2 p-2 rounded-lg border-2 transition-all ${
-                        newPost.platforms[account.id]
-                          ? 'border-orange-600 shadow-md bg-orange-50'
-                          : 'border-gray-200 opacity-50'
-                      }`}
-                    >
-                      <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
-                        {account.platform === 'linkedin' ? (
-                          <svg className="w-4 h-4 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M20.47,2H3.53A1.45,1.45,0,0,0,2.06,3.43V20.57A1.45,1.45,0,0,0,3.53,22H20.47a1.45,1.45,0,0,0,1.47-1.43V3.43A1.45,1.45,0,0,0,20.47,2ZM8.09,18.74h-3v-9h3ZM6.59,8.48h0a1.56,1.56,0,1,1,0-3.12,1.57,1.57,0,1,1,0,3.12ZM18.91,18.74h-3V13.91c0-1.21-.43-2-1.52-2A1.65,1.65,0,0,0,12.85,13a2,2,0,0,0-.1.73v5h-3s0-8.18,0-9h3V11A3,3,0,0,1,15.46,9.5c2,0,3.45,1.29,3.45,4.06Z" />
-                          </svg>
-                        ) : (
-                          <svg className="w-4 h-4 text-black" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                          </svg>
-                        )}
-                      </div>
-                      <span className="text-sm font-medium">{account.screen_name}</span>
-                      {newPost.platforms[account.id] && (
-                        <svg className="w-4 h-4 text-orange-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                          <path d="M20 6L9 17l-5-5" />
-                        </svg>
-                      )}
-                    </button>
-                  ))
-                )}
+                </div>
               </div>
-            </div>
 
-            <div className="mb-4">
-              <label className="block mb-2">Content</label>
-              <div className="relative">
-                <textarea
-                  value={newPost.content}
-                  onChange={(e) =>
-                    setNewPost({ ...newPost, content: e.target.value })
-                  }
-                  placeholder="Start writing or use the AI Assistant"
-                  className="w-full h-32 p-2 border rounded resize-none"
-                  required
-                />
-                <button className="absolute top-2 right-2 text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
-                  <span role="img" aria-label="sparkles">✨</span>
-                  Use the AI Assistant
-                </button>
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <label className="block mb-2">Media</label>
-              <div className="space-y-4">
-                <input
-                  type="file"
-                  onChange={(e) => handleMediaUpload(Array.from(e.target.files))}
-                  multiple
-                  accept="image/*,video/*"
-                  className="block w-full text-sm text-gray-500
-                    file:mr-4 file:py-2 file:px-4
-                    file:rounded file:border-0
-                    file:text-sm file:font-semibold
-                    file:bg-blue-50 file:text-blue-700
-                    hover:file:bg-blue-100"
-                />
-                
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {newPost.mediaFiles.map((file, index) => (
-                    <div key={index} className="relative">
-                      {file.type.startsWith('image/') ? (
-                        <Image
-                          src={file.url}
-                          alt="Upload preview"
-                          width={500}
-                          height={384}
-                          className="w-full h-32 object-cover rounded"
-                        />
-                      ) : (
-                        <video
-                          src={file.url}
-                          className="w-full h-32 object-cover rounded"
-                          controls
-                        />
-                      )}
-                      <button
-                        onClick={() => handleRemoveMedia(index)}
-                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1
-                          hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Platforms
+                </label>
+                <div className="space-y-2">
+                  {accounts.map((account) => (
+                    <label key={account.id} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={newPost.platforms[account.id] || false}
+                        onChange={(e) =>
+                          setNewPost({
+                            ...newPost,
+                            platforms: {
+                              ...newPost.platforms,
+                              [account.id]: e.target.checked,
+                            },
+                          })
+                        }
+                        className="rounded text-blue-600 focus:ring-blue-500"
+                      />
+                      <span>{account.screen_name} ({account.platform})</span>
+                    </label>
                   ))}
                 </div>
               </div>
-            </div>
 
-            <div className="mb-4">
-              <label className="block mb-2">Schedule Time</label>
-              <input
-                type="datetime-local"
-                value={newPost.scheduledTime}
-                onChange={(e) =>
-                  setNewPost({ ...newPost, scheduledTime: e.target.value })
-                }
-                className="p-2 border rounded"
-                required
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="flex items-center space-x-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Schedule Time
+                </label>
                 <input
-                  type="checkbox"
-                  checked={newPost.requiresApproval}
+                  type="datetime-local"
+                  value={newPost.scheduledTime}
                   onChange={(e) =>
-                    setNewPost({
-                      ...newPost,
-                      requiresApproval: e.target.checked,
-                      approverId: e.target.checked ? newPost.approverId : ''
-                    })
+                    setNewPost({ ...newPost, scheduledTime: e.target.value })
                   }
-                  className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
-                <span>Requires Approval</span>
-              </label>
-            </div>
-
-            {newPost.requiresApproval && (
-              <div className="mb-4">
-                <label className="block mb-2">Approver</label>
-                <select
-                  value={newPost.approverId}
-                  onChange={(e) =>
-                    setNewPost({ ...newPost, approverId: e.target.value })
-                  }
-                  className="p-2 border rounded"
-                  required={newPost.requiresApproval}
-                >
-                  <option value="">Select an approver</option>
-                  {approvers.map((approver) => (
-                    <option key={approver.id} value={approver.id}>
-                      {approver.email}
-                    </option>
-                  ))}
-                </select>
               </div>
-            )}
 
-            <button
-              type="submit"
-              className="bg-[#fb2e01] text-white px-4 py-2 rounded hover:bg-orange-500"
-            >
-              {newPost.requiresApproval ? 'Submit for Approval' : 'Schedule Post'}
-            </button>
+              <div>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={newPost.requiresApproval}
+                    onChange={(e) =>
+                      setNewPost({
+                        ...newPost,
+                        requiresApproval: e.target.checked,
+                        approverId: e.target.checked ? newPost.approverId : '',
+                      })
+                    }
+                    className="rounded text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Requires Approval
+                  </span>
+                </label>
+              </div>
+
+              {newPost.requiresApproval && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Approver
+                  </label>
+                  <select
+                    value={newPost.approverId}
+                    onChange={(e) =>
+                      setNewPost({ ...newPost, approverId: e.target.value })
+                    }
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Select an approver</option>
+                    {approvers.map((approver) => (
+                      <option key={approver.id} value={approver.id}>
+                        {approver.email}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-2">
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>Schedule</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={async (e) => {
+                    try {
+                      const currentTime = new Date().toISOString().slice(0, 16);
+                      // Create a new post object with the current time
+                      const immediatePost = {
+                        ...newPost,
+                        scheduledTime: currentTime
+                      };
+                      
+                      // First create the post
+                      const { data: createdPost, error: postError } = await supabase
+                        .from('posts')
+                        .insert([{
+                          content: immediatePost.content,
+                          platforms: immediatePost.platforms,
+                          scheduled_time: immediatePost.scheduledTime,
+                          approver_id: immediatePost.requiresApproval ? immediatePost.approverId : null,
+                          status: immediatePost.requiresApproval ? 'pending_approval' : 'scheduled'
+                        }])
+                        .select()
+                        .single();
+
+                      if (postError) {
+                        console.error('Error creating post:', postError);
+                        return;
+                      }
+
+                      // Immediately post to selected platforms
+                      const linkedInAccounts = accounts.filter(
+                        account => account.platform === 'linkedin' && immediatePost.platforms[account.id]
+                      );
+
+                      for (const account of linkedInAccounts) {
+                        try {
+                          const response = await fetch('/api/post/linkedin', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                              content: createdPost.content,
+                              accessToken: account.access_token,
+                              platformUserId: account.platform_user_id,
+                              mediaFiles: immediatePost.mediaFiles,
+                            }),
+                          });
+
+                          const responseData = await response.json();
+                          
+                          if (!response.ok) {
+                            throw new Error(responseData.error || `HTTP error! status: ${response.status}`);
+                          }
+
+                          // Update post status
+                          await supabase
+                            .from('posts')
+                            .update({ 
+                              status: 'published',
+                              published_content: createdPost.content
+                            })
+                            .eq('id', createdPost.id);
+
+                        } catch (error) {
+                          console.error('Error posting to LinkedIn:', error);
+                          await supabase
+                            .from('posts')
+                            .update({ 
+                              status: 'failed',
+                              error_message: error.message
+                            })
+                            .eq('id', createdPost.id);
+                        }
+                      }
+
+                      // Reset form
+                      setNewPost({
+                        content: '',
+                        platforms: {},
+                        scheduledTime: '',
+                        requiresApproval: false,
+                        approverId: '',
+                        mediaFiles: []
+                      });
+
+                      // Refresh posts list
+                      fetchPosts();
+
+                    } catch (error) {
+                      console.error('Error posting:', error);
+                    }
+                  }}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center space-x-2"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>Post Now</span>
+                </button>
+              </div>
+            </div>
           </form>
         </div>
       )}
@@ -404,6 +565,47 @@ export default function ContentScheduler() {
                       <Calendar className="w-4 h-4 mr-1" />
                       {new Date(post.scheduled_time).toLocaleString()}
                     </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`px-2 py-1 rounded text-sm ${
+                        post.status === 'approved'
+                          ? 'bg-green-100 text-green-800'
+                          : post.status === 'pending_approval'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : post.status === 'failed'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      {post.status}
+                    </span>
+                    {(post.status === 'scheduled' || post.status === 'failed') && (
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Are you sure you want to delete this post?')) {
+                            handleDeletePost(post.id);
+                          }
+                        }}
+                        className="p-1 text-red-600 hover:bg-red-50 rounded"
+                        title="Delete post"
+                      >
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          className="h-5 w-5" 
+                          fill="none" 
+                          viewBox="0 0 24 24" 
+                          stroke="currentColor"
+                        >
+                          <path 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            strokeWidth={2} 
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" 
+                          />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 </div>
                 
@@ -430,19 +632,6 @@ export default function ContentScheduler() {
                     ))}
                   </div>
                 )}
-                <div className="flex items-center">
-                  <span
-                    className={`px-2 py-1 rounded text-sm ${
-                      post.status === 'approved'
-                        ? 'bg-green-100 text-green-800'
-                        : post.status === 'pending_approval'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}
-                  >
-                    {post.status}
-                  </span>
-                </div>
               </div>
             ))}
           </div>
