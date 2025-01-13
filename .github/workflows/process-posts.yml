@@ -2,18 +2,29 @@ name: Process Scheduled Posts
 
 on:
   schedule:
-    - cron: '*/1 * * * *'  # Runs every minute
-  repository_dispatch:      # Allows external triggers
-    types: [check_posts]
-  workflow_dispatch:        # Allows manual triggers
+    - cron: '*/5 * * * *'  # Run every 5 minutes (GitHub's minimum recommended)
+  workflow_dispatch:        # Manual trigger
 
 jobs:
   process-posts:
     runs-on: ubuntu-latest
     steps:
+      - name: Check environment
+        run: |
+          echo "Checking scheduled posts at $(date)"
+          echo "Using URL: ${{ secrets.APP_URL }}/api/process-scheduled-posts"
+
       - name: Trigger API endpoint
         run: |
-          curl -X GET ${{ secrets.APP_URL }}/api/process-scheduled-posts
-        env:
-          APP_URL: ${{ secrets.APP_URL }}
+          response=$(curl -s -w "\n%{http_code}" ${{ secrets.APP_URL }}/api/process-scheduled-posts)
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          echo "Response body: $body"
+          echo "Status code: $http_code"
+          
+          if [ "$http_code" -ne 200 ]; then
+            echo "Error: API call failed"
+            exit 1
+          fi
 
