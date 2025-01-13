@@ -1,0 +1,15 @@
+name: Process Scheduled Posts
+
+on:
+  schedule:
+    - cron: '*/1 * * * *'  # Runs every minute
+  workflow_dispatch:        # Allows manual triggering
+
+jobs:
+  process-posts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger API endpoint
+        run: |
+          curl -X GET ${{ secrets.APP_URL }}/api/process-scheduled-posts
+
