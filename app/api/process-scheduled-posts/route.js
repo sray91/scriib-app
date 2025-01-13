@@ -2,10 +2,19 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 
 export async function GET(req) {
+  // Add basic authentication
+  const authHeader = req.headers.get('authorization');
+  const expectedToken = process.env.CRON_SECRET;
+
+  // Skip auth check if running locally
+  if (process.env.NODE_ENV === 'production' && authHeader !== `Bearer ${expectedToken}`) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const supabase = createRouteHandlerClient({ cookies })
   
   try {
-    console.log('Checking for scheduled posts...');
+    console.log('Checking for scheduled posts at:', new Date().toISOString());
     
     const { data: duePosts, error: fetchError } = await supabase
       .from('posts')
@@ -18,7 +27,7 @@ export async function GET(req) {
       throw fetchError;
     }
 
-    console.log('Found posts:', duePosts);
+    console.log(`Found ${duePosts?.length || 0} posts to process`);
 
     for (const post of duePosts) {
       console.log('Processing post:', post.id);
@@ -77,11 +86,11 @@ export async function GET(req) {
     return Response.json({ 
       success: true, 
       processed: duePosts?.length || 0,
-      message: `Processed ${duePosts?.length || 0} posts`
+      timestamp: new Date().toISOString()
     })
 
   } catch (error) {
-    console.error('Error in process-scheduled-posts:', error);
+    console.error('Error processing posts:', error);
     return Response.json({ error: error.message }, { status: 500 })
   }
 } 
