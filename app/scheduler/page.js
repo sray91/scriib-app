@@ -275,10 +275,6 @@ export default function ContentScheduler() {
 
   async function handleDeletePost(postId) {
     try {
-      if (!window.confirm('Are you sure you want to delete this post?')) {
-        return;
-      }
-
       setDeletingPosts(prev => ({ ...prev, [postId]: true }));
 
       const { error } = await supabase
