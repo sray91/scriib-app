@@ -3,7 +3,9 @@ name: Process Scheduled Posts
 on:
   schedule:
     - cron: '*/1 * * * *'  # Runs every minute
-  workflow_dispatch:        # Allows manual triggering
+  repository_dispatch:      # Allows external triggers
+    types: [check_posts]
+  workflow_dispatch:        # Allows manual triggers
 
 jobs:
   process-posts:
@@ -12,4 +14,6 @@ jobs:
       - name: Trigger API endpoint
         run: |
           curl -X GET ${{ secrets.APP_URL }}/api/process-scheduled-posts
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
 

@@ -5,16 +5,23 @@ export async function GET(req) {
   const supabase = createRouteHandlerClient({ cookies })
   
   try {
-    // Get all due scheduled posts
+    console.log('Checking for scheduled posts...');
+    
     const { data: duePosts, error: fetchError } = await supabase
       .from('posts')
       .select('*')
       .eq('status', 'scheduled')
       .lte('scheduled_time', new Date().toISOString())
 
-    if (fetchError) throw fetchError
+    if (fetchError) {
+      console.error('Error fetching posts:', fetchError);
+      throw fetchError;
+    }
+
+    console.log('Found posts:', duePosts);
 
     for (const post of duePosts) {
+      console.log('Processing post:', post.id);
       try {
         // Get selected platforms
         const selectedAccounts = Object.entries(post.platforms)
@@ -52,8 +59,10 @@ export async function GET(req) {
           .update({ status: 'published' })
           .eq('id', post.id)
 
+        console.log('Post processed successfully:', post.id);
+
       } catch (error) {
-        console.error(`Error processing post ${post.id}:`, error)
+        console.error('Error processing post:', post.id, error);
         // Mark post as failed
         await supabase
           .from('posts')
@@ -67,11 +76,12 @@ export async function GET(req) {
 
     return Response.json({ 
       success: true, 
-      processed: duePosts.length 
+      processed: duePosts?.length || 0,
+      message: `Processed ${duePosts?.length || 0} posts`
     })
 
   } catch (error) {
-    console.error('Error processing scheduled posts:', error)
+    console.error('Error in process-scheduled-posts:', error);
     return Response.json({ error: error.message }, { status: 500 })
   }
 } 
