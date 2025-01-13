@@ -31,7 +31,7 @@ export async function GET(req) {
   const supabase = createRouteHandlerClient({ cookies })
   
   try {
-    console.log('Checking for scheduled posts at:', new Date().toISOString());
+    console.log('Checking for scheduled posts...');
     
     const { data: duePosts, error: fetchError } = await supabase
       .from('posts')
@@ -39,12 +39,12 @@ export async function GET(req) {
       .eq('status', 'scheduled')
       .lte('scheduled_time', new Date().toISOString())
 
-    if (fetchError) {
-      console.error('Error fetching posts:', fetchError);
-      throw fetchError;
-    }
+    if (fetchError) throw fetchError;
 
     console.log(`Found ${duePosts?.length || 0} posts to process`);
+
+    // Get the base URL from the request
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.creatortask.com';
 
     for (const post of duePosts) {
       console.log('Processing post:', post.id);
@@ -63,7 +63,7 @@ export async function GET(req) {
         // Post to each platform
         for (const account of accounts) {
           if (account.platform === 'twitter') {
-            const response = await fetch(`${req.headers.get('origin')}/api/post/twitter`, {
+            const response = await fetch(`${baseUrl}/api/post/twitter`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -85,11 +85,8 @@ export async function GET(req) {
           .update({ status: 'published' })
           .eq('id', post.id)
 
-        console.log('Post processed successfully:', post.id);
-
       } catch (error) {
         console.error('Error processing post:', post.id, error);
-        // Mark post as failed
         await supabase
           .from('posts')
           .update({ 
@@ -102,12 +99,11 @@ export async function GET(req) {
 
     return Response.json({ 
       success: true, 
-      processed: duePosts?.length || 0,
-      timestamp: new Date().toISOString()
+      processed: duePosts?.length || 0
     })
 
   } catch (error) {
-    console.error('Error processing posts:', error);
+    console.error('Error:', error);
     return Response.json({ error: error.message }, { status: 500 })
   }
 } 
