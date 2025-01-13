@@ -7,10 +7,10 @@ export async function GET(req) {
   try {
     console.log('Checking for scheduled posts...');
     
-    // Get due posts with their associated social accounts
+    // First get due posts
     const { data: duePosts, error: fetchError } = await supabase
       .from('posts')
-      .select('*, social_accounts(*)')
+      .select('*')
       .eq('status', 'scheduled')
       .lte('scheduled_time', new Date().toISOString())
 
@@ -20,30 +20,49 @@ export async function GET(req) {
 
     for (const post of duePosts) {
       try {
-        // Use the existing Twitter posting endpoint
-        const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/post/twitter`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: post.content,
-            accessToken: post.social_accounts.access_token,
-            mediaFiles: post.media_files
-          })
-        });
+        // Get the selected account IDs from the platforms field
+        const selectedAccountIds = Object.entries(post.platforms || {})
+          .filter(([_, isSelected]) => isSelected)
+          .map(([accountId]) => accountId);
 
-        if (!response.ok) {
-          throw new Error(`Failed to post: ${response.statusText}`);
+        // Get the social accounts for this post
+        const { data: accounts } = await supabase
+          .from('social_accounts')
+          .select('*')
+          .in('id', selectedAccountIds);
+
+        console.log(`Processing post ${post.id} for accounts:`, accounts);
+
+        // Post to each selected platform
+        for (const account of accounts) {
+          if (account.platform === 'twitter') {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/post/twitter`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                content: post.content,
+                accessToken: account.access_token,
+                mediaFiles: post.media_files
+              })
+            });
+
+            if (!response.ok) {
+              throw new Error(`Failed to post to Twitter: ${response.statusText}`);
+            }
+          }
         }
 
         // Update post status to published
         await supabase
           .from('posts')
-          .update({ status: 'published' })
+          .update({ 
+            status: 'published',
+            published_at: new Date().toISOString()
+          })
           .eq('id', post.id);
 
       } catch (error) {
         console.error('Error processing post:', post.id, error);
-        // Mark post as failed
         await supabase
           .from('posts')
           .update({ 
