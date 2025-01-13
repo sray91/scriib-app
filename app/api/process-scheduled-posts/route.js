@@ -2,13 +2,30 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 
 export async function GET(req) {
-  // Add basic authentication
+  // Add detailed logging
+  console.log('Incoming request headers:', req.headers);
+  console.log('Expected token:', process.env.CRON_SECRET);
+  
   const authHeader = req.headers.get('authorization');
-  const expectedToken = process.env.CRON_SECRET;
+  console.log('Auth header received:', authHeader);
+  
+  // Check if we're in production
+  console.log('NODE_ENV:', process.env.NODE_ENV);
+  
+  // Log the full comparison
+  console.log('Header comparison:', {
+    received: authHeader,
+    expected: `Bearer ${process.env.CRON_SECRET}`,
+    matches: authHeader === `Bearer ${process.env.CRON_SECRET}`
+  });
 
-  // Skip auth check if running locally
-  if (process.env.NODE_ENV === 'production' && authHeader !== `Bearer ${expectedToken}`) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (process.env.NODE_ENV === 'production' && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    console.log('Auth failed - returning 401');
+    return Response.json({ 
+      error: 'Unauthorized',
+      authReceived: authHeader,
+      expectedFormat: `Bearer ${process.env.CRON_SECRET}` 
+    }, { status: 401 });
   }
 
   const supabase = createRouteHandlerClient({ cookies })
