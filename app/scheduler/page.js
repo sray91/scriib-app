@@ -502,14 +502,16 @@ export default function ContentScheduler() {
                       const linkedInAccounts = accounts.filter(
                         account => account.platform === 'linkedin' && immediatePost.platforms[account.id]
                       );
+                      const twitterAccounts = accounts.filter(
+                        account => account.platform === 'twitter' && immediatePost.platforms[account.id]
+                      );
 
+                      // Post to LinkedIn accounts
                       for (const account of linkedInAccounts) {
                         try {
                           const response = await fetch('/api/post/linkedin', {
                             method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                            },
+                            headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                               content: createdPost.content,
                               accessToken: account.access_token,
@@ -519,7 +521,6 @@ export default function ContentScheduler() {
                           });
 
                           const responseData = await response.json();
-                          
                           if (!response.ok) {
                             throw new Error(responseData.error || `HTTP error! status: ${response.status}`);
                           }
@@ -541,6 +542,92 @@ export default function ContentScheduler() {
 
                         } catch (error) {
                           console.error('Error posting to LinkedIn:', error);
+                          await supabase
+                            .from('posts')
+                            .update({ 
+                              status: 'failed',
+                              error_message: error.message
+                            })
+                            .eq('id', createdPost.id);
+                        }
+                      }
+
+                      // Add debug logging for selected accounts
+                      console.log('Selected Twitter accounts:', twitterAccounts);
+
+                      // Post to Twitter accounts
+                      for (const account of twitterAccounts) {
+                        try {
+                          console.log('Attempting to post to Twitter with account:', account.screen_name);
+                          
+                          // Check if access token exists and is valid
+                          if (!account.access_token) {
+                            throw new Error('No access token available for Twitter account');
+                          }
+
+                          // Check if content is within Twitter's character limit
+                          if (createdPost.content.length > 280) {
+                            throw new Error('Tweet exceeds 280 character limit');
+                          }
+                          
+                          const postData = {
+                            content: createdPost.content,
+                            accessToken: account.access_token,
+                            mediaFiles: immediatePost.mediaFiles?.map(file => ({
+                              url: supabase.storage.from('media').getPublicUrl(file.file_path).publicURL,
+                              type: file.file_type
+                            })) || [],
+                          };
+                          
+                          console.log('Sending post data:', { 
+                            ...postData, 
+                            accessToken: '[REDACTED]',
+                            content: postData.content.substring(0, 50) + '...' 
+                          });
+
+                          const response = await fetch('/api/post/twitter', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(postData),
+                          });
+
+                          if (!response.ok) {
+                            const responseData = await response.json();
+                            console.error('Twitter API error response:', responseData);
+                            throw new Error(responseData.error || `HTTP error! status: ${response.status}`);
+                          }
+
+                          const responseData = await response.json();
+                          console.log('Twitter API success response:', responseData);
+
+                          toast({
+                            title: "Success!",
+                            description: "Your tweet has been published.",
+                            variant: "default",
+                          });
+
+                          // Update post status
+                          const { error: updateError } = await supabase
+                            .from('posts')
+                            .update({ 
+                              status: 'published',
+                              published_content: createdPost.content
+                            })
+                            .eq('id', createdPost.id);
+
+                          if (updateError) {
+                            console.error('Error updating post status:', updateError);
+                          }
+
+                        } catch (error) {
+                          console.error('Detailed error posting to Twitter:', error);
+                          toast({
+                            title: "Error",
+                            description: `Failed to post to Twitter: ${error.message}`,
+                            variant: "destructive",
+                          });
+
+                          // Update post status with error
                           await supabase
                             .from('posts')
                             .update({ 
