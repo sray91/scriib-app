@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { Calendar, Send } from 'lucide-react';
 import Image from 'next/image';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useToast } from "@/components/ui/use-toast";
 
 const supabase = createClientComponentClient();
 
@@ -13,7 +14,7 @@ export default function ContentScheduler() {
   const [posts, setPosts] = useState([]);
   const [newPost, setNewPost] = useState({
     content: '',
-    platforms: {},
+    platforms: {}, 
     scheduledTime: '',
     requiresApproval: false,
     approverId: '',
@@ -22,6 +23,7 @@ export default function ContentScheduler() {
   const [approvers, setApprovers] = useState([]);
   const [activeTab, setActiveTab] = useState('compose');
   const [deletingPosts, setDeletingPosts] = useState({});
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchAccounts();
@@ -128,6 +130,17 @@ export default function ContentScheduler() {
 
   async function handleSubmitPost(e) {
     e.preventDefault();
+    
+    // Add platform validation
+    const selectedPlatforms = Object.values(newPost.platforms).filter(Boolean);
+    if (selectedPlatforms.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please select at least one platform to post to.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     try {
       // First create the post
@@ -449,6 +462,17 @@ export default function ContentScheduler() {
                   type="button"
                   onClick={async (e) => {
                     try {
+                      // Check if any platform is selected
+                      const selectedPlatforms = Object.values(newPost.platforms).filter(Boolean);
+                      if (selectedPlatforms.length === 0) {
+                        toast({
+                          title: "Error",
+                          description: "Please select at least one platform to post to.",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+
                       const currentTime = new Date().toISOString().slice(0, 16);
                       // Create a new post object with the current time
                       const immediatePost = {
@@ -500,6 +524,12 @@ export default function ContentScheduler() {
                             throw new Error(responseData.error || `HTTP error! status: ${response.status}`);
                           }
 
+                          toast({
+                            title: "Success!",
+                            description: "Your post has been published.",
+                            variant: "default",
+                          });
+
                           // Update post status
                           await supabase
                             .from('posts')
@@ -536,6 +566,11 @@ export default function ContentScheduler() {
 
                     } catch (error) {
                       console.error('Error posting:', error);
+                      toast({
+                        title: "Error",
+                        description: error.message || "Failed to create post",
+                        variant: "destructive",
+                      });
                     }
                   }}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center space-x-2"
