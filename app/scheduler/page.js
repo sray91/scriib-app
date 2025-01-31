@@ -2,13 +2,15 @@
 
 // pages/content-scheduler.js
 import { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Send, List, Grid } from 'lucide-react';
+import { Calendar as CalendarIcon, Send, List, Grid, TrashIcon } from 'lucide-react';
 import Image from 'next/image';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useToast } from "@/components/ui/use-toast";
 import { Calendar } from "@/components/ui/calendar";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const supabase = createClientComponentClient();
 
@@ -36,11 +38,47 @@ export default function ContentScheduler() {
   const [view, setView] = useState('list');
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
-
+  const [activeView, setActiveView] = useState('queue'); // 'queue', 'drafts', 'approvals', 'sent'
+  const [isApprovalDialogOpen, setIsApprovalDialogOpen] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [approvalComment, setApprovalComment] = useState('');
+  
+  // Function to check if current user is an approver
+  const [isApprover, setIsApprover] = useState(false);
+  
+  // Add new state for counts
+  const [postCounts, setPostCounts] = useState({
+    queue: 0,
+    drafts: 0,
+    approvals: 0,
+    sent: 0,
+    rejected: 0
+  });
+  
+  // Add new state for post details dialog
+  const [isPostDetailsOpen, setIsPostDetailsOpen] = useState(false);
+  const [editedContent, setEditedContent] = useState('');
+  const [editedScheduledTime, setEditedScheduledTime] = useState(new Date());
+  const [comment, setComment] = useState('');
+  
   useEffect(() => {
     fetchAccounts();
     fetchPosts();
     fetchApprovers();
+    async function checkApproverStatus() {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data } = await supabase.rpc('get_approvers');
+      
+      // Add console logs for debugging
+      console.log('Current user:', user);
+      console.log('Approvers:', data);
+      
+      const isUserApprover = data?.some(approver => approver.id === user?.id) || false;
+      console.log('Is approver:', isUserApprover);
+      
+      setIsApprover(isUserApprover);
+    }
+    checkApproverStatus();
   }, []);
 
   useEffect(() => {
@@ -66,42 +104,102 @@ export default function ContentScheduler() {
   async function fetchPosts() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      console.log('Current user:', user.id);
       
-      const { data, error } = await supabase
+      // First, get all posts to calculate counts
+      const { data: allPosts, error: countError } = await supabase
         .from('posts')
-        .select('*')  // Simplified query first to debug
-        .eq('status', 'scheduled')
-        .eq('user_id', user.id);
-      
-      if (error) {
-        console.error('Error fetching posts:', error);
-        return;
+        .select('*');
+
+      if (countError) throw countError;
+
+      // Update counts regardless of active view
+      setPostCounts({
+        queue: allPosts.filter(p => p.status === 'scheduled').length,
+        drafts: allPosts.filter(p => p.status === 'draft').length,
+        approvals: allPosts.filter(p => p.status === 'pending_approval').length,
+        sent: allPosts.filter(p => p.status === 'published').length,
+        rejected: allPosts.filter(p => p.status === 'rejected').length
+      });
+
+      // Then get posts for current view
+      let query = supabase
+        .from('posts')
+        .select('*');
+
+      if (activeView === 'approvals') {
+        query = query.eq('status', 'pending_approval');
+      } else if (activeView === 'queue') {
+        query = query.eq('status', 'scheduled');
+      } else {
+        const statusMap = {
+          drafts: 'draft',
+          sent: 'published',
+          rejected: 'rejected'
+        };
+        query = query.eq('status', statusMap[activeView]);
       }
+
+      const { data, error } = await query;
       
-      console.log('Raw fetched posts:', data);
+      console.log('Posts query result:', {
+        activeView,
+        query: query.toString(), // Log the actual query
+        postsCount: data?.length,
+        posts: data,
+        error
+      });
+
+      if (error) throw error;
       setPosts(data || []);
-      
+
     } catch (error) {
-      console.error('Error in fetchPosts:', error);
+      console.error('Error fetching posts:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch posts",
+        variant: "destructive",
+      });
     }
   }
 
+  useEffect(() => {
+    console.log('Component mounted or activeView changed:', {
+      activeView,
+      isApprover
+    });
+    fetchPosts();
+  }, [activeView]);
+
   async function fetchApprovers() {
-    // Get current user first
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, email')
-      .neq('id', user.id);
+    try {
+      const { data, error } = await supabase
+        .rpc('get_approvers');
+
+      console.log('Approvers query response:', { data, error });
+
+      if (error) throw error;
       
-    if (error) {
-      console.error('Error fetching approvers:', error);
-      return;
+      // Transform the data to match your component's needs
+      const formattedApprovers = data.map(user => ({
+        id: user.id,
+        email: user.email,
+        full_name: user.raw_user_meta_data?.full_name || user.email
+      }));
+
+      setApprovers(formattedApprovers);
+    } catch (error) {
+      console.error('Detailed error:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load approvers list",
+        variant: "destructive",
+      });
     }
-    setApprovers(data);
   }
+
+  useEffect(() => {
+    fetchApprovers();
+  }, []);
 
   async function handleMediaUpload(files) {
     const uploadedFiles = [];
@@ -163,16 +261,13 @@ export default function ContentScheduler() {
       
       // Check if this is a scheduled post or immediate post
       const isScheduled = e.target.textContent === 'Schedule Post';
-      const currentTime = new Date();
-      const scheduledTime = new Date(newPost.scheduledTime);
+      const isApprovalRequired = newPost.requiresApproval;
       
-      console.log('Creating post:', {
-        content: newPost.content,
-        platforms: newPost.platforms,
-        scheduled_time: newPost.scheduledTime,
-        status: isScheduled ? 'scheduled' : 'published',
-        user_id: user.id
-      });
+      const postStatus = isApprovalRequired 
+        ? 'pending_approval'
+        : isScheduled 
+          ? 'scheduled' 
+          : 'published';
 
       const { data: createdPost, error: postError } = await supabase
         .from('posts')
@@ -180,19 +275,18 @@ export default function ContentScheduler() {
           content: newPost.content,
           platforms: newPost.platforms,
           scheduled_time: newPost.scheduledTime,
-          status: isScheduled ? 'scheduled' : 'published',  // Set status based on button clicked
-          user_id: user.id
+          status: postStatus,
+          user_id: user.id,
+          approver_id: isApprovalRequired ? newPost.approverId : null,
+          requires_approval: isApprovalRequired
         }])
         .select()
         .single();
 
-      if (postError) {
-        console.error('Post creation error:', postError);
-        throw postError;
-      }
+      if (postError) throw postError;
 
-      // Only attempt to post to social media if it's a "Post Now"
-      if (!isScheduled) {
+      // Only attempt to post to social media if it's a "Post Now" and doesn't require approval
+      if (!isScheduled && !isApprovalRequired) {
         // Existing social media posting logic
         // ... Twitter posting code ...
       }
@@ -200,11 +294,12 @@ export default function ContentScheduler() {
       // Success toast
       toast({
         title: "Success",
-        description: isScheduled ? "Post scheduled successfully!" : "Post published successfully!",
+        description: isApprovalRequired 
+          ? "Post sent for approval!"
+          : isScheduled 
+            ? "Post scheduled successfully!" 
+            : "Post published successfully!",
       });
-
-      // Immediately fetch posts to update the list
-      await fetchPosts();
 
       // Reset form and close dialog
       setNewPost({
@@ -263,28 +358,164 @@ export default function ContentScheduler() {
     }
   }
 
+  // Function to handle approval/rejection
+  async function handleApprovalAction(approved) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (approved) {
+        // For approved posts
+        const { error } = await supabase
+          .from('posts')
+          .update({
+            status: 'scheduled', // This post will now show in the Queue
+            approval_status: 'approved',
+            approval_comment: approvalComment,
+            approved_at: new Date().toISOString(),
+            approved_by: user.id
+          })
+          .eq('id', selectedPost.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Post Approved",
+          description: `Post will be published at ${new Date(selectedPost.scheduled_time).toLocaleString()}`,
+        });
+      } else {
+        // For rejected posts
+        const { error } = await supabase
+          .from('posts')
+          .update({
+            status: 'rejected',
+            approval_status: 'rejected',
+            approval_comment: approvalComment,
+            approved_at: new Date().toISOString(),
+            approved_by: user.id
+          })
+          .eq('id', selectedPost.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Post Rejected",
+          description: "Post has been rejected and won't be published",
+        });
+      }
+
+      // Close the dialog and reset state
+      setIsApprovalDialogOpen(false);
+      setApprovalComment('');
+      setSelectedPost(null);
+
+      // Refresh the posts list
+      fetchPosts();
+
+    } catch (error) {
+      console.error('Detailed approval error:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to process approval action",
+        variant: "destructive",
+      });
+    }
+  }
+
+  // Add this to your existing posts rendering logic
+  function renderPostActions(post) {
+    if (isApprover && post.status === 'pending_approval') {
+      return (
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setSelectedPost(post);
+              setIsApprovalDialogOpen(true);
+            }}
+          >
+            Review
+          </Button>
+        </div>
+      );
+    }
+    return null;
+  }
+
+  // Add click handler for posts
+  const handlePostClick = (post) => {
+    setSelectedPost(post);
+    setEditedContent(post.content);
+    setEditedScheduledTime(new Date(post.scheduled_time));
+    setComment('');
+    setIsPostDetailsOpen(true);
+  };
+
+  // Add save handler for edits
+  const handleSaveEdit = async () => {
+    try {
+      const { error } = await supabase
+        .from('posts')
+        .update({
+          content: editedContent,
+          scheduled_time: editedScheduledTime.toISOString(),
+        })
+        .eq('id', selectedPost.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Post updated successfully",
+      });
+      
+      setIsPostDetailsOpen(false);
+      fetchPosts();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update post",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-semibold">All Channels</h1>
-          <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">New</span>
-        </div>
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-8">
-            <button className="text-sm font-medium border-b-2 border-[#fb2e01] text-[#fb2e01] pb-2">
-              Queue <span className="ml-1 bg-gray-100 px-1.5 rounded">0</span>
-            </button>
-            <button className="text-sm font-medium text-gray-600">
-              Drafts <span className="ml-1 bg-gray-100 px-1.5 rounded">0</span>
-            </button>
-            <button className="text-sm font-medium text-gray-600">
-              Approvals <span className="ml-1 bg-purple-100 text-purple-800 px-1.5 rounded">4</span>
-            </button>
-            <button className="text-sm font-medium text-gray-600">
-              Sent <span className="ml-1 bg-gray-100 px-1.5 rounded">486</span>
-            </button>
-          </div>
+        <h1 className="text-2xl font-bold">Content Scheduler</h1>
+      </div>
+
+      <Tabs value={activeView} onValueChange={setActiveView} className="space-y-6">
+        <div className="flex justify-between items-center">
+          <TabsList>
+            <TabsTrigger value="queue">
+              Queue <span className="ml-1 bg-gray-100 px-1.5 rounded">
+                {postCounts.queue}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="drafts">
+              Drafts <span className="ml-1 bg-gray-100 px-1.5 rounded">
+                {postCounts.drafts}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="approvals">
+              Approvals <span className="ml-1 bg-purple-100 text-purple-800 px-1.5 rounded">
+                {postCounts.approvals}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="sent">
+              Sent <span className="ml-1 bg-gray-100 px-1.5 rounded">
+                {postCounts.sent}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="rejected">
+              Rejected <span className="ml-1 bg-red-100 text-red-800 px-1.5 rounded">
+                {postCounts.rejected}
+              </span>
+            </TabsTrigger>
+          </TabsList>
+          
           <Button 
             onClick={() => setIsCreatePostOpen(true)}
             className="bg-[#fb2e01] hover:bg-[#fb2e01]/90"
@@ -292,238 +523,139 @@ export default function ContentScheduler() {
             + New Post
           </Button>
         </div>
-      </div>
 
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex gap-2">
-          <Button
-            variant={view === 'list' ? 'default' : 'outline'}
-            onClick={() => setView('list')}
-            size="sm"
-          >
-            <List className="h-4 w-4 mr-2" />
-            List
-          </Button>
-          <Button
-            variant={view === 'calendar' ? 'default' : 'outline'}
-            onClick={() => setView('calendar')}
-            size="sm"
-          >
-            <CalendarIcon className="h-4 w-4 mr-2" />
-            Calendar
-          </Button>
-        </div>
-        <div className="flex gap-4">
-          <select className="px-3 py-2 border rounded-lg">
-            <option>Channels ▾</option>
-          </select>
-          <select className="px-3 py-2 border rounded-lg">
-            <option>Tags ▾</option>
-          </select>
-          <select className="px-3 py-2 border rounded-lg">
-            <option>New York ▾</option>
-          </select>
-        </div>
-      </div>
-
-      {posts.length === 0 ? (
-        <div className="text-center py-20">
-          <div className="bg-blue-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CalendarIcon className="h-8 w-8 text-blue-500" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">No posts scheduled</h3>
-          <p className="text-gray-500 mb-4">Schedule some posts and they will appear here</p>
-          <Button onClick={() => setIsCreatePostOpen(true)}>
-            + New Post
-          </Button>
-        </div>
-      ) : view === 'list' ? (
-        <div className="space-y-4">
-          {posts && posts.length > 0 ? (
-            posts.map((post) => (
-              <div key={post.id} className="bg-white rounded-lg shadow p-4">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <p className="text-sm text-gray-600">
-                      Scheduled for: {new Date(post.scheduled_time).toLocaleString()}
-                    </p>
-                    <p className="mt-2">{post.content}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-1">
-                      {Object.entries(post.platforms || {}).map(([accountId, isSelected]) => 
-                        isSelected && (
-                          <span key={accountId} className="text-xs bg-gray-100 px-2 py-1 rounded">
-                            {accounts.find(a => a.id === accountId)?.screen_name}
-                          </span>
-                        )
-                      )}
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (window.confirm('Are you sure you want to delete this post?')) {
-                          handleDeletePost(post.id);
-                        }
-                      }}
-                      className="p-1 text-red-600 hover:bg-red-50 rounded"
-                      title="Delete post"
-                    >
-                      <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        className="h-5 w-5" 
-                        fill="none" 
-                        viewBox="0 0 24 24" 
-                        stroke="currentColor"
-                      >
-                        <path 
-                          strokeLinecap="round" 
-                          strokeLinejoin="round" 
-                          strokeWidth={2} 
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" 
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                
-                {post.media_files && post.media_files.length > 0 && (
-                  <div className="grid grid-cols-2 gap-2 mt-4">
-                    {post.media_files.map((file, index) => (
-                      <div key={index} className="relative">
-                        {file.file_type?.startsWith('image/') ? (
-                          <Image
-                            src={supabase.storage.from('media').getPublicUrl(file.file_path).publicURL}
-                            alt="Post media"
-                            width={200}
-                            height={200}
-                            className="rounded-lg object-cover"
-                          />
-                        ) : (
-                          <video
-                            src={supabase.storage.from('media').getPublicUrl(file.file_path).publicURL}
-                            className="rounded-lg"
-                            controls
-                          />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              No scheduled posts found
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg border p-6">
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={setSelectedDate}
-            className="rounded-md border"
-          />
-          <div className="mt-4">
-            <h3 className="font-medium mb-2">Posts for {selectedDate?.toLocaleDateString()}</h3>
-            {posts
-              .filter(post => 
-                new Date(post.scheduled_time).toDateString() === selectedDate?.toDateString()
-              )
-              .map(post => (
-                <div
-                  key={post.id}
-                  className="border rounded p-4 space-y-4"
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="mb-2">{post.content}</p>
-                      <div className="flex items-center text-sm text-gray-500">
-                        <CalendarIcon className="w-4 h-4 mr-1" />
-                        {new Date(post.scheduled_time).toLocaleString('en-US', { 
-                          timeZone: 'America/New_York'
-                        })}
-                      </div>
-                    </div>
+        <TabsContent value="approvals" className="space-y-4">
+          {posts
+            .filter(post => post.status === 'pending_approval')
+            .map((post) => (
+              <div 
+                key={post.id} 
+                className="border rounded-lg p-4 mb-4 cursor-pointer hover:border-gray-400 transition-colors"
+                onClick={() => handlePostClick(post)}
+              >
+                <div className="flex justify-between items-start">
+                  <div className="space-y-3 flex-1">
                     <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
-                        {Object.entries(post.platforms).map(([accountId, isSelected]) => 
-                          isSelected && (
-                            <span key={accountId} className="text-xs bg-gray-100 px-2 py-1 rounded">
-                              {accounts.find(a => a.id === accountId)?.screen_name}
+                      <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">
+                        Pending Approval
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        Scheduled for: {new Date(post.scheduled_time).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="text-gray-800">{post.content}</p>
+                  </div>
+
+                  {isApprover && (
+                    <div className="flex gap-2 ml-4">
+                      <Button
+                        variant="outline"
+                        className="border-red-500 text-red-500 hover:bg-red-50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPost(post);
+                          setIsApprovalDialogOpen(true);
+                        }}
+                      >
+                        Reject
+                      </Button>
+                      <Button
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPost(post);
+                          setApprovalComment('');
+                          handleApprovalAction(true);
+                        }}
+                      >
+                        Approve
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+        </TabsContent>
+
+        <TabsContent value="rejected" className="space-y-4">
+          {posts
+            .filter(post => post.status === 'rejected')
+            .map((post) => (
+              <div key={post.id} className="border rounded-lg p-6 bg-white shadow-sm">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded">
+                      Rejected
+                    </span>
+                    <span className="text-sm text-gray-500">
+                      Rejected at: {new Date(post.approved_at).toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-gray-800">{post.content}</p>
+                  {post.approval_comment && (
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <p className="text-sm text-gray-600">
+                        <span className="font-medium">Rejection reason:</span> {post.approval_comment}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+        </TabsContent>
+
+        <TabsContent value="queue" className="space-y-4">
+          {posts
+            .filter(post => post.status === 'scheduled')
+            .map((post) => (
+              <div 
+                key={post.id} 
+                className="border rounded-lg p-4 mb-4 cursor-pointer hover:border-gray-400 transition-colors"
+                onClick={() => handlePostClick(post)}
+              >
+                <div className="flex justify-between items-start">
+                  <div className="space-y-3 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                        Scheduled
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        Scheduled for: {new Date(post.scheduled_time).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="text-gray-800">{post.content}</p>
+                    
+                    {post.platforms && Object.entries(post.platforms).length > 0 && (
+                      <div className="flex gap-2">
+                        {Object.entries(post.platforms).map(([platform, enabled]) => 
+                          enabled && (
+                            <span key={platform} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                              {platform}
                             </span>
                           )
                         )}
                       </div>
-                      <span
-                        className={`px-2 py-1 rounded text-sm ${
-                          post.status === 'approved'
-                            ? 'bg-green-100 text-green-800'
-                            : post.status === 'pending_approval'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : post.status === 'failed'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}
-                      >
-                        {post.status}
-                      </span>
-                      <button
-                        onClick={() => {
-                          if (window.confirm('Are you sure you want to delete this post?')) {
-                            handleDeletePost(post.id);
-                          }
-                        }}
-                        className="p-1 text-red-600 hover:bg-red-50 rounded"
-                        title="Delete post"
-                      >
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          className="h-5 w-5" 
-                          fill="none" 
-                          viewBox="0 0 24 24" 
-                          stroke="currentColor"
-                        >
-                          <path 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round" 
-                            strokeWidth={2} 
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" 
-                          />
-                        </svg>
-                      </button>
-                    </div>
+                    )}
                   </div>
-                  
-                  {post.media_files && post.media_files.length > 0 && (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {post.media_files.map((file, index) => (
-                        <div key={index} className="relative">
-                          {file.file_type.startsWith('image/') ? (
-                            <Image
-                              src={supabase.storage.from('media').getPublicUrl(file.file_path).publicURL}
-                              alt="Post media"
-                              width={500}
-                              height={384}
-                              className="w-full h-32 object-cover rounded"
-                            />
-                          ) : (
-                            <video
-                              src={supabase.storage.from('media').getPublicUrl(file.file_path).publicURL}
-                              className="w-full h-32 object-cover rounded"
-                              controls
-                            />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
-              ))}
-          </div>
-        </div>
-      )}
+              </div>
+            ))}
+          
+          {posts.filter(post => post.status === 'scheduled').length === 0 && (
+            <div className="text-center py-10 text-gray-500">
+              No scheduled posts
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="drafts">
+          {/* Drafts content */}
+        </TabsContent>
+
+        <TabsContent value="sent">
+          {/* Sent content */}
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={isCreatePostOpen} onOpenChange={setIsCreatePostOpen}>
         <DialogContent className="max-w-6xl h-[80vh] p-0">
@@ -601,26 +733,74 @@ export default function ContentScheduler() {
                 <p>Drag & drop or click to upload media</p>
               </div>
 
+              <div className="mt-6 p-4 border rounded-lg bg-gray-50">
+                <div className="flex items-center gap-2 mb-4">
+                  <input
+                    type="checkbox"
+                    id="requiresApproval"
+                    checked={newPost.requiresApproval}
+                    onChange={(e) => setNewPost(prev => ({
+                      ...prev,
+                      requiresApproval: e.target.checked,
+                      approverId: e.target.checked ? prev.approverId : ''
+                    }))}
+                    className="rounded border-gray-300"
+                  />
+                  <label htmlFor="requiresApproval" className="text-sm font-medium">
+                    Requires Approval
+                  </label>
+                </div>
+
+                {newPost.requiresApproval && (
+                  <div className="mt-2">
+                    <label className="block text-sm font-medium mb-1">
+                      Select Approver
+                    </label>
+                    <select
+                      value={newPost.approverId}
+                      onChange={(e) => setNewPost(prev => ({
+                        ...prev,
+                        approverId: e.target.value
+                      }))}
+                      className="w-full p-2 border rounded-lg"
+                      required={newPost.requiresApproval}
+                    >
+                      <option value="">Select an approver</option>
+                      {approvers.map((approver) => (
+                        <option key={approver.id} value={approver.id}>
+                          {approver.full_name || approver.email}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-between mt-6">
                 <Button variant="outline">
                   Save as Draft
                 </Button>
                 <div className="flex gap-2">
+                  {!newPost.requiresApproval && (
+                    <Button 
+                      variant="outline" 
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        await setNewPost(prev => ({
+                          ...prev,
+                          scheduledTime: new Date().toISOString()
+                        }));
+                        handleSubmitPost(e);
+                      }}
+                    >
+                      Post Now
+                    </Button>
+                  )}
                   <Button 
-                    variant="outline" 
-                    onClick={async (e) => {
-                      e.preventDefault();
-                      await setNewPost(prev => ({
-                        ...prev,
-                        scheduledTime: new Date().toISOString()
-                      }));
-                      handleSubmitPost(e);
-                    }}
+                    onClick={handleSubmitPost}
+                    disabled={newPost.requiresApproval && !newPost.approverId}
                   >
-                    Post Now
-                  </Button>
-                  <Button onClick={handleSubmitPost}>
-                    Schedule Post
+                    {newPost.requiresApproval ? 'Send for Approval' : 'Schedule Post'}
                   </Button>
                 </div>
               </div>
@@ -656,6 +836,184 @@ export default function ContentScheduler() {
               </div>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Approval Dialog */}
+      <Dialog open={isApprovalDialogOpen} onOpenChange={setIsApprovalDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Review Post</DialogTitle>
+          </DialogHeader>
+          
+          <div className="my-4">
+            <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-700">{selectedPost?.content}</p>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                Comments
+              </label>
+              <Textarea
+                value={approvalComment}
+                onChange={(e) => setApprovalComment(e.target.value)}
+                placeholder="Add your review comments here..."
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                onClick={() => handleApprovalAction(false)}
+              >
+                Reject
+              </Button>
+              <Button
+                variant="default"
+                onClick={() => handleApprovalAction(true)}
+              >
+                Approve
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Post Details Dialog */}
+      <Dialog open={isPostDetailsOpen} onOpenChange={setIsPostDetailsOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>
+              {activeView === 'sent' ? 'Post Details' : 
+               activeView === 'approvals' ? 'Review Post' : 
+               'Edit Post'}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="grid grid-cols-2 gap-6">
+            {/* Left side - Edit/View Form */}
+            <div className="space-y-4">
+              {activeView !== 'sent' ? (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Content</label>
+                    <Textarea
+                      value={editedContent}
+                      onChange={(e) => setEditedContent(e.target.value)}
+                      rows={5}
+                      disabled={activeView === 'approvals'}
+                    />
+                  </div>
+
+                  {(activeView === 'queue' || activeView === 'drafts') && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Scheduled Time</label>
+                      <input
+                        type="datetime-local"
+                        value={editedScheduledTime.toISOString().slice(0, 16)}
+                        onChange={(e) => setEditedScheduledTime(new Date(e.target.value))}
+                        className="w-full p-2 border rounded-lg"
+                      />
+                    </div>
+                  )}
+
+                  {activeView === 'approvals' && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Review Comments</label>
+                      <Textarea
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                        placeholder="Add your review comments..."
+                        rows={3}
+                      />
+                    </div>
+                  )}
+                </>
+              ) : (
+                // Read-only view for sent posts
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">Content</label>
+                    <p className="mt-1 p-3 bg-gray-50 rounded-lg">{selectedPost?.content}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Published At</label>
+                    <p className="mt-1 text-sm text-gray-600">
+                      {new Date(selectedPost?.scheduled_time).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Show approval history if available */}
+              {selectedPost?.approval_comment && (
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                  <h4 className="font-medium mb-1">Approval Comments</h4>
+                  <p className="text-sm text-gray-600">{selectedPost.approval_comment}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Right side - Preview */}
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h3 className="text-sm font-medium mb-3">Preview</h3>
+              <div className="bg-white rounded-lg p-4 shadow-sm">
+                <p>{editedContent || selectedPost?.content}</p>
+                
+                {selectedPost?.platforms && Object.entries(selectedPost.platforms).length > 0 && (
+                  <div className="flex gap-2 mt-4">
+                    {Object.entries(selectedPost.platforms).map(([platform, enabled]) => 
+                      enabled && (
+                        <span key={platform} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                          {platform}
+                        </span>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            {activeView === 'approvals' && isApprover && (
+              <div className="flex gap-2">
+                <Button
+                  variant="destructive"
+                  onClick={() => handleApprovalAction(false)}
+                >
+                  Reject
+                </Button>
+                <Button 
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  onClick={() => handleApprovalAction(true)}
+                >
+                  Approve
+                </Button>
+              </div>
+            )}
+            
+            {(activeView === 'queue' || activeView === 'drafts') && (
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setIsPostDetailsOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveEdit}>
+                  Save Changes
+                </Button>
+              </div>
+            )}
+            
+            {activeView === 'sent' && (
+              <Button onClick={() => setIsPostDetailsOpen(false)}>
+                Close
+              </Button>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
