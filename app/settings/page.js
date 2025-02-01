@@ -10,6 +10,8 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useSession } from '@supabase/auth-helpers-react'
 import * as Switch from '@radix-ui/react-switch'
 import TeamsTab from "@/components/settings/TeamsTab";
+import PreferencesTab from "@/components/settings/PreferencesTab";
+import ProfileTab from "@/components/settings/ProfileTab"
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('social')
@@ -379,20 +381,10 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
         <TabsContent value="profile">
-          <Card>
-            <CardContent className="p-6">
-              <h2 className="text-lg font-semibold">Profile Settings</h2>
-              <p className="text-muted-foreground">Manage your profile information</p>
-            </CardContent>
-          </Card>
+          <ProfileTab />
         </TabsContent>
         <TabsContent value="preferences">
-          <Card>
-            <CardContent className="p-6">
-              <h2 className="text-lg font-semibold">Preferences</h2>
-              <p className="text-muted-foreground">Customize your app experience</p>
-            </CardContent>
-          </Card>
+          <PreferencesTab />
         </TabsContent>
         <TabsContent value="shares">
           <Card>
