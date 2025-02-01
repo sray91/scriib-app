@@ -2,7 +2,7 @@
 
 // pages/content-scheduler.js
 import { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Send, List, Grid, TrashIcon } from 'lucide-react';
+import { Calendar as CalendarIcon, Send, List, Grid, TrashIcon, Pencil, Trash2 } from 'lucide-react';
 import Image from 'next/image';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useToast } from "@/components/ui/use-toast";
@@ -61,6 +61,10 @@ export default function ContentScheduler() {
   const [editedContent, setEditedContent] = useState('');
   const [editedScheduledTime, setEditedScheduledTime] = useState(new Date());
   const [comment, setComment] = useState('');
+  
+  // Add these state variables at the top with other states
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [postToEdit, setPostToEdit] = useState(null);
   
   useEffect(() => {
     fetchAccounts();
@@ -409,57 +413,43 @@ export default function ContentScheduler() {
     }
   }
 
-  // Add this to your existing posts rendering logic
-  function renderPostActions(post) {
-    if (isUserApprover && post.status === 'pending_approval') {
-      return (
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setSelectedPost(post);
-              setIsApprovalDialogOpen(true);
-            }}
-          >
-            Review
-          </Button>
-        </div>
-      );
-    }
-    return null;
-  }
-
-  // Add click handler for posts
-  const handlePostClick = (post) => {
-    setSelectedPost(post);
-    setEditedContent(post.content);
-    setEditedScheduledTime(new Date(post.scheduled_time));
-    setComment('');
-    setIsPostDetailsOpen(true);
-  };
-
-  // Add save handler for edits
-  const handleSaveEdit = async () => {
+  // Add this function to handle edit
+  const handleEditPost = async (e) => {
+    e.preventDefault();
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // Check if this needs approval
+      const isApprovalRequired = postToEdit.requiresApproval;
+      const postStatus = isApprovalRequired ? 'pending_approval' : 'scheduled';
+
       const { error } = await supabase
         .from('posts')
         .update({
-          content: editedContent,
-          scheduled_time: editedScheduledTime.toISOString(),
+          content: postToEdit.content,
+          scheduled_time: postToEdit.scheduled_time,
+          platforms: postToEdit.platforms,
+          status: postStatus,
+          approver_id: isApprovalRequired ? postToEdit.approverId : null,
+          requires_approval: isApprovalRequired,
+          media_files: postToEdit.mediaFiles
         })
-        .eq('id', selectedPost.id);
+        .eq('id', postToEdit.id);
 
       if (error) throw error;
 
       toast({
         title: "Success",
-        description: "Post updated successfully",
+        description: isApprovalRequired 
+          ? "Post submitted for approval" 
+          : "Post updated successfully",
       });
       
-      setIsPostDetailsOpen(false);
+      setIsEditDialogOpen(false);
+      setPostToEdit(null);
       fetchPosts();
     } catch (error) {
+      console.error('Error updating post:', error);
       toast({
         title: "Error",
         description: "Failed to update post",
@@ -467,6 +457,34 @@ export default function ContentScheduler() {
       });
     }
   };
+
+  // Modify the post rendering to include edit/delete buttons
+  const renderPostActions = (post) => (
+    <div className="flex items-center gap-2 ml-2" onClick={e => e.stopPropagation()}>
+      <Button
+        size="icon"
+        variant="ghost"
+        onClick={(e) => {
+          e.stopPropagation();
+          setPostToEdit(post);
+          setIsEditDialogOpen(true);
+        }}
+      >
+        <Pencil className="h-4 w-4" />
+      </Button>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="text-red-500 hover:text-red-700"
+        onClick={(e) => {
+          e.stopPropagation();
+          handleDeletePost(post.id);
+        }}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  );
 
   const checkApproverStatus = async () => {
     try {
@@ -496,6 +514,19 @@ export default function ContentScheduler() {
     } catch (error) {
       console.error('Error checking approver status:', error);
       setIsUserApprover(false);
+    }
+  };
+
+  // Modify handlePostClick to handle different post types
+  const handlePostClick = (post) => {
+    if (post.status === 'pending_approval' && isUserApprover) {
+      // Use ApprovalWorkflow for approval posts
+      setSelectedPost(post);
+      setIsPostDetailsOpen(true);
+    } else {
+      // Open edit dialog for other posts
+      setPostToEdit(post);
+      setIsEditDialogOpen(true);
     }
   };
 
@@ -563,34 +594,19 @@ export default function ContentScheduler() {
                       </span>
                     </div>
                     <p className="text-gray-800">{post.content}</p>
+                    {post.platforms && Object.entries(post.platforms).length > 0 && (
+                      <div className="flex gap-2">
+                        {Object.entries(post.platforms).map(([platform, enabled]) => 
+                          enabled && (
+                            <span key={platform} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                              {platform}
+                            </span>
+                          )
+                        )}
+                      </div>
+                    )}
                   </div>
-
-                  {isUserApprover && (
-                    <div className="flex gap-2 ml-4">
-                      <Button
-                        variant="outline"
-                        className="border-red-500 text-red-500 hover:bg-red-50"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedPost(post);
-                          setIsApprovalDialogOpen(true);
-                        }}
-                      >
-                        Reject
-                      </Button>
-                      <Button
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedPost(post);
-                          setApprovalComment('');
-                          handleApprovalAction(true);
-                        }}
-                      >
-                        Approve
-                      </Button>
-                    </div>
-                  )}
+                  {renderPostActions(post)}
                 </div>
               </div>
             ))}
@@ -630,7 +646,6 @@ export default function ContentScheduler() {
               <div 
                 key={post.id} 
                 className="border rounded-lg p-4 mb-4 cursor-pointer hover:border-gray-400 transition-colors"
-                onClick={() => handlePostClick(post)}
               >
                 <div className="flex justify-between items-start">
                   <div className="space-y-3 flex-1">
@@ -656,6 +671,7 @@ export default function ContentScheduler() {
                       </div>
                     )}
                   </div>
+                  {renderPostActions(post)}
                 </div>
               </div>
             ))}
@@ -898,6 +914,163 @@ export default function ContentScheduler() {
                 Approve
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Edit Post</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Content</label>
+              <Textarea
+                value={postToEdit?.content || ''}
+                onChange={(e) => setPostToEdit(prev => ({
+                  ...prev,
+                  content: e.target.value
+                }))}
+                rows={4}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Schedule Time</label>
+              <input
+                type="datetime-local"
+                value={postToEdit?.scheduled_time ? new Date(postToEdit.scheduled_time)
+                  .toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                  }).replace(/(\d+)\/(\d+)\/(\d+), (\d+):(\d+)/, '$3-$1-$2T$4:$5') : ''}
+                onChange={(e) => {
+                  const date = new Date(e.target.value);
+                  setPostToEdit(prev => ({
+                    ...prev,
+                    scheduled_time: date.toISOString()
+                  }));
+                }}
+                className="w-full p-2 border rounded-lg"
+              />
+            </div>
+
+            {/* Add Media Upload Section */}
+            <div 
+              className="border-2 border-dashed rounded-lg p-4 text-center"
+              onDrop={async (e) => {
+                e.preventDefault();
+                const files = Array.from(e.dataTransfer.files);
+                await handleMediaUpload(files);
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onClick={() => document.getElementById('media-upload').click()}
+            >
+              <input
+                id="media-upload"
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => handleMediaUpload(Array.from(e.target.files))}
+              />
+              <p>Drag & drop or click to upload media</p>
+            </div>
+
+            {/* Show Media Preview */}
+            {postToEdit?.mediaFiles && postToEdit.mediaFiles.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {postToEdit.mediaFiles.map((file, index) => (
+                  <div key={index} className="relative">
+                    {file.type?.startsWith('image/') ? (
+                      <Image
+                        src={file.url}
+                        alt="Preview"
+                        width={200}
+                        height={200}
+                        className="rounded-lg object-cover"
+                      />
+                    ) : (
+                      <video
+                        src={file.url}
+                        className="rounded-lg"
+                        controls
+                      />
+                    )}
+                    <Button
+                      size="icon"
+                      variant="destructive"
+                      className="absolute top-2 right-2"
+                      onClick={() => handleRemoveMedia(index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add Approval Section */}
+            <div className="p-4 border rounded-lg bg-gray-50">
+              <div className="flex items-center gap-2 mb-4">
+                <input
+                  type="checkbox"
+                  id="requiresApproval"
+                  checked={postToEdit?.requiresApproval}
+                  onChange={(e) => setPostToEdit(prev => ({
+                    ...prev,
+                    requiresApproval: e.target.checked,
+                    approverId: e.target.checked ? prev.approverId : ''
+                  }))}
+                  className="rounded border-gray-300"
+                />
+                <label htmlFor="requiresApproval" className="text-sm font-medium">
+                  Requires Approval
+                </label>
+              </div>
+
+              {postToEdit?.requiresApproval && (
+                <div className="mt-2">
+                  <label className="block text-sm font-medium mb-1">
+                    Select Approver
+                  </label>
+                  <select
+                    value={postToEdit.approverId}
+                    onChange={(e) => setPostToEdit(prev => ({
+                      ...prev,
+                      approverId: e.target.value
+                    }))}
+                    className="w-full p-2 border rounded-lg"
+                    required={postToEdit.requiresApproval}
+                  >
+                    <option value="">Select an approver</option>
+                    {approvers.map((approver) => (
+                      <option key={approver.id} value={approver.id}>
+                        {approver.users.raw_user_meta_data?.full_name || approver.email}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleEditPost}
+              disabled={postToEdit?.requiresApproval && !postToEdit.approverId}
+            >
+              {postToEdit?.requiresApproval ? 'Submit for Approval' : 'Save Changes'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
