@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ApprovalWorkflow from '@/components/ApprovalWorkflow';
 
 const supabase = createClientComponentClient();
 
@@ -44,7 +45,7 @@ export default function ContentScheduler() {
   const [approvalComment, setApprovalComment] = useState('');
   
   // Function to check if current user is an approver
-  const [isApprover, setIsApprover] = useState(false);
+  const [isUserApprover, setIsUserApprover] = useState(false);
   
   // Add new state for counts
   const [postCounts, setPostCounts] = useState({
@@ -65,19 +66,6 @@ export default function ContentScheduler() {
     fetchAccounts();
     fetchPosts();
     fetchApprovers();
-    async function checkApproverStatus() {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data } = await supabase.rpc('get_approvers');
-      
-      // Add console logs for debugging
-      console.log('Current user:', user);
-      console.log('Approvers:', data);
-      
-      const isUserApprover = data?.some(approver => approver.id === user?.id) || false;
-      console.log('Is approver:', isUserApprover);
-      
-      setIsApprover(isUserApprover);
-    }
     checkApproverStatus();
   }, []);
 
@@ -165,26 +153,43 @@ export default function ContentScheduler() {
   useEffect(() => {
     console.log('Component mounted or activeView changed:', {
       activeView,
-      isApprover
+      isUserApprover
     });
     fetchPosts();
   }, [activeView]);
 
   async function fetchApprovers() {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No authenticated user found');
+
       const { data, error } = await supabase
-        .rpc('get_approvers');
+        .from('user_teams')
+        .select(`
+          user_id,
+          role,
+          users:auth_user_list!user_id (
+            id,
+            email,
+            raw_user_meta_data
+          )
+        `)
+        .eq('role', 'approver');
 
       console.log('Approvers query response:', { data, error });
 
       if (error) throw error;
       
       // Transform the data to match your component's needs
-      const formattedApprovers = data.map(user => ({
-        id: user.id,
-        email: user.email,
-        full_name: user.raw_user_meta_data?.full_name || user.email
-      }));
+      const formattedApprovers = data
+        .filter(item => item.users) // Ensure user exists
+        .map(item => ({
+          id: item.users.id,
+          email: item.users.email,
+          users: {
+            raw_user_meta_data: item.users.raw_user_meta_data
+          }
+        }));
 
       setApprovers(formattedApprovers);
     } catch (error) {
@@ -358,64 +363,47 @@ export default function ContentScheduler() {
     }
   }
 
-  // Function to handle approval/rejection
-  async function handleApprovalAction(approved) {
+  // Update the handleApprovalAction function:
+  async function handleApprovalAction(approved, comment) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
-      if (approved) {
-        // For approved posts
-        const { error } = await supabase
-          .from('posts')
-          .update({
-            status: 'scheduled', // This post will now show in the Queue
-            approval_status: 'approved',
-            approval_comment: approvalComment,
-            approved_at: new Date().toISOString(),
-            approved_by: user.id
-          })
-          .eq('id', selectedPost.id);
+      const updateData = approved ? {
+        status: 'scheduled',
+        approval_status: 'approved',
+        approval_comment: comment,
+        approved_at: new Date().toISOString(),
+        approved_by: user.id
+      } : {
+        status: 'rejected',
+        approval_status: 'rejected',
+        approval_comment: comment,
+        approved_at: new Date().toISOString(),
+        approved_by: user.id
+      };
 
-        if (error) throw error;
+      const { error } = await supabase
+        .from('posts')
+        .update(updateData)
+        .eq('id', selectedPost.id);
 
-        toast({
-          title: "Post Approved",
-          description: `Post will be published at ${new Date(selectedPost.scheduled_time).toLocaleString()}`,
-        });
-      } else {
-        // For rejected posts
-        const { error } = await supabase
-          .from('posts')
-          .update({
-            status: 'rejected',
-            approval_status: 'rejected',
-            approval_comment: approvalComment,
-            approved_at: new Date().toISOString(),
-            approved_by: user.id
-          })
-          .eq('id', selectedPost.id);
+      if (error) throw error;
 
-        if (error) throw error;
+      toast({
+        title: approved ? "Post Approved" : "Post Rejected",
+        description: approved 
+          ? `Post will be published at ${new Date(selectedPost.scheduled_time).toLocaleString()}`
+          : "Post has been rejected and won't be published",
+      });
 
-        toast({
-          title: "Post Rejected",
-          description: "Post has been rejected and won't be published",
-        });
-      }
-
-      // Close the dialog and reset state
-      setIsApprovalDialogOpen(false);
-      setApprovalComment('');
       setSelectedPost(null);
-
-      // Refresh the posts list
       fetchPosts();
 
     } catch (error) {
-      console.error('Detailed approval error:', error);
+      console.error('Error:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to process approval action",
+        description: "Failed to process approval action",
         variant: "destructive",
       });
     }
@@ -423,7 +411,7 @@ export default function ContentScheduler() {
 
   // Add this to your existing posts rendering logic
   function renderPostActions(post) {
-    if (isApprover && post.status === 'pending_approval') {
+    if (isUserApprover && post.status === 'pending_approval') {
       return (
         <div className="flex items-center gap-2">
           <Button
@@ -477,6 +465,37 @@ export default function ContentScheduler() {
         description: "Failed to update post",
         variant: "destructive",
       });
+    }
+  };
+
+  const checkApproverStatus = async () => {
+    try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Check if user is an approver either through user_teams or direct is_approver flag
+      const { data, error } = await supabase
+        .from('users')
+        .select(`
+          is_approver,
+          user_teams!inner (
+            role
+          )
+        `)
+        .eq('id', user.id)
+        .single();
+
+      if (error) throw error;
+
+      // User is an approver if they have is_approver flag or are a team approver
+      const isApprover = data.is_approver || 
+        (data.user_teams || []).some(team => team.role === 'approver');
+
+      setIsUserApprover(isApprover);
+    } catch (error) {
+      console.error('Error checking approver status:', error);
+      setIsUserApprover(false);
     }
   };
 
@@ -546,7 +565,7 @@ export default function ContentScheduler() {
                     <p className="text-gray-800">{post.content}</p>
                   </div>
 
-                  {isApprover && (
+                  {isUserApprover && (
                     <div className="flex gap-2 ml-4">
                       <Button
                         variant="outline"
@@ -768,7 +787,7 @@ export default function ContentScheduler() {
                       <option value="">Select an approver</option>
                       {approvers.map((approver) => (
                         <option key={approver.id} value={approver.id}>
-                          {approver.full_name || approver.email}
+                          {approver.users.raw_user_meta_data?.full_name || approver.email}
                         </option>
                       ))}
                     </select>
@@ -883,139 +902,18 @@ export default function ContentScheduler() {
         </DialogContent>
       </Dialog>
 
-      {/* Post Details Dialog */}
-      <Dialog open={isPostDetailsOpen} onOpenChange={setIsPostDetailsOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>
-              {activeView === 'sent' ? 'Post Details' : 
-               activeView === 'approvals' ? 'Review Post' : 
-               'Edit Post'}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="grid grid-cols-2 gap-6">
-            {/* Left side - Edit/View Form */}
-            <div className="space-y-4">
-              {activeView !== 'sent' ? (
-                <>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Content</label>
-                    <Textarea
-                      value={editedContent}
-                      onChange={(e) => setEditedContent(e.target.value)}
-                      rows={5}
-                      disabled={activeView === 'approvals'}
-                    />
-                  </div>
-
-                  {(activeView === 'queue' || activeView === 'drafts') && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Scheduled Time</label>
-                      <input
-                        type="datetime-local"
-                        value={editedScheduledTime.toISOString().slice(0, 16)}
-                        onChange={(e) => setEditedScheduledTime(new Date(e.target.value))}
-                        className="w-full p-2 border rounded-lg"
-                      />
-                    </div>
-                  )}
-
-                  {activeView === 'approvals' && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Review Comments</label>
-                      <Textarea
-                        value={comment}
-                        onChange={(e) => setComment(e.target.value)}
-                        placeholder="Add your review comments..."
-                        rows={3}
-                      />
-                    </div>
-                  )}
-                </>
-              ) : (
-                // Read-only view for sent posts
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Content</label>
-                    <p className="mt-1 p-3 bg-gray-50 rounded-lg">{selectedPost?.content}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Published At</label>
-                    <p className="mt-1 text-sm text-gray-600">
-                      {new Date(selectedPost?.scheduled_time).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Show approval history if available */}
-              {selectedPost?.approval_comment && (
-                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                  <h4 className="font-medium mb-1">Approval Comments</h4>
-                  <p className="text-sm text-gray-600">{selectedPost.approval_comment}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Right side - Preview */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-sm font-medium mb-3">Preview</h3>
-              <div className="bg-white rounded-lg p-4 shadow-sm">
-                <p>{editedContent || selectedPost?.content}</p>
-                
-                {selectedPost?.platforms && Object.entries(selectedPost.platforms).length > 0 && (
-                  <div className="flex gap-2 mt-4">
-                    {Object.entries(selectedPost.platforms).map(([platform, enabled]) => 
-                      enabled && (
-                        <span key={platform} className="text-xs bg-gray-100 px-2 py-1 rounded">
-                          {platform}
-                        </span>
-                      )
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            {activeView === 'approvals' && isApprover && (
-              <div className="flex gap-2">
-                <Button
-                  variant="destructive"
-                  onClick={() => handleApprovalAction(false)}
-                >
-                  Reject
-                </Button>
-                <Button 
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => handleApprovalAction(true)}
-                >
-                  Approve
-                </Button>
-              </div>
-            )}
-            
-            {(activeView === 'queue' || activeView === 'drafts') && (
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setIsPostDetailsOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSaveEdit}>
-                  Save Changes
-                </Button>
-              </div>
-            )}
-            
-            {activeView === 'sent' && (
-              <Button onClick={() => setIsPostDetailsOpen(false)}>
-                Close
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ApprovalWorkflow
+        post={selectedPost}
+        isOpen={isPostDetailsOpen}
+        onClose={() => setIsPostDetailsOpen(false)}
+        onApprove={async (comment) => {
+          await handleApprovalAction(true, comment);
+        }}
+        onReject={async (comment) => {
+          await handleApprovalAction(false, comment);
+        }}
+        isApprover={isUserApprover}
+      />
     </div>
   );
 }

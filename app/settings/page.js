@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useSession } from '@supabase/auth-helpers-react'
 import * as Switch from '@radix-ui/react-switch'
+import TeamsTab from "@/components/settings/TeamsTab";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('social')
@@ -256,21 +257,29 @@ export default function SettingsPage() {
 
   async function fetchUsers() {
     try {
-      const { data, error } = await supabase.rpc('get_users')
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase.rpc('get_users');
       
       if (error) {
-        console.error('Error fetching users:', error)
-        throw error
+        console.error('Error fetching users:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load users. " + error.message,
+          variant: "destructive",
+        });
+        return;
       }
       
-      console.log('Fetched users:', data)
-      setUsers(data || [])
+      setUsers(data || []);
     } catch (error) {
+      console.error('Error in fetchUsers:', error);
       toast({
         title: "Error",
-        description: "Failed to load users",
+        description: "Failed to load users. Please try again later.",
         variant: "destructive",
-      })
+      });
     }
   }
 
@@ -285,6 +294,7 @@ export default function SettingsPage() {
           {isAdmin && (
             <TabsTrigger value="admin">Admin</TabsTrigger>
           )}
+          <TabsTrigger value="teams">Teams</TabsTrigger>
         </TabsList>
 
         <TabsContent value="social">
@@ -445,41 +455,45 @@ export default function SettingsPage() {
                   <div>
                     <h2 className="text-lg font-semibold mb-4">User Management</h2>
                     <div className="space-y-4">
-                      {users.map((user) => (
-                        <div 
-                          key={user.user_id} 
-                          className="flex items-center justify-between p-4 border rounded-lg"
-                        >
-                          <div>
-                            <p className="font-medium">{user.user_email}</p>
-                            <p className="text-sm text-muted-foreground">
-                              Joined: {new Date(user.user_created_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2">
-                              <label className="text-sm">Approver:</label>
-                              <Switch.Root
-                                checked={user.is_approver}
-                                onCheckedChange={(checked) => handleRoleChange(user.user_id, checked)}
-                                className="w-[42px] h-[25px] bg-gray-200 rounded-full relative data-[state=checked]:bg-green-600 outline-none cursor-pointer"
-                              >
-                                <Switch.Thumb className="block w-[21px] h-[21px] bg-white rounded-full transition-transform duration-100 translate-x-0.5 will-change-transform data-[state=checked]:translate-x-[19px]" />
-                              </Switch.Root>
+                      {users.length === 0 ? (
+                        <p className="text-muted-foreground">No users found or still loading...</p>
+                      ) : (
+                        users.map((user) => (
+                          <div 
+                            key={user.user_id} 
+                            className="flex items-center justify-between p-4 border rounded-lg"
+                          >
+                            <div>
+                              <p className="font-medium">{user.user_email}</p>
+                              <p className="text-sm text-muted-foreground">
+                                Joined: {new Date(user.user_created_at).toLocaleDateString()}
+                              </p>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <label className="text-sm">Admin:</label>
-                              <Switch.Root
-                                checked={user.is_admin}
-                                onCheckedChange={(checked) => handleAdminChange(user.user_id, checked)}
-                                className="w-[42px] h-[25px] bg-gray-200 rounded-full relative data-[state=checked]:bg-green-600 outline-none cursor-pointer"
-                              >
-                                <Switch.Thumb className="block w-[21px] h-[21px] bg-white rounded-full transition-transform duration-100 translate-x-0.5 will-change-transform data-[state=checked]:translate-x-[19px]" />
-                              </Switch.Root>
+                            <div className="flex items-center gap-4">
+                              <div className="flex items-center gap-2">
+                                <label className="text-sm">Approver:</label>
+                                <Switch.Root
+                                  checked={user.is_approver}
+                                  onCheckedChange={(checked) => handleRoleChange(user.user_id, checked)}
+                                  className="w-[42px] h-[25px] bg-gray-200 rounded-full relative data-[state=checked]:bg-green-600 outline-none cursor-pointer"
+                                >
+                                  <Switch.Thumb className="block w-[21px] h-[21px] bg-white rounded-full transition-transform duration-100 translate-x-0.5 will-change-transform data-[state=checked]:translate-x-[19px]" />
+                                </Switch.Root>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <label className="text-sm">Admin:</label>
+                                <Switch.Root
+                                  checked={user.is_admin}
+                                  onCheckedChange={(checked) => handleAdminChange(user.user_id, checked)}
+                                  className="w-[42px] h-[25px] bg-gray-200 rounded-full relative data-[state=checked]:bg-green-600 outline-none cursor-pointer"
+                                >
+                                  <Switch.Thumb className="block w-[21px] h-[21px] bg-white rounded-full transition-transform duration-100 translate-x-0.5 will-change-transform data-[state=checked]:translate-x-[19px]" />
+                                </Switch.Root>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>
@@ -487,6 +501,9 @@ export default function SettingsPage() {
             </Card>
           </TabsContent>
         )}
+        <TabsContent value="teams">
+          <TeamsTab />
+        </TabsContent>
       </Tabs>
     </div>
   )
