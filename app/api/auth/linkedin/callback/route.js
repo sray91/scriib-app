@@ -38,22 +38,27 @@ export async function GET(request) {
     
     if (!tokenResponse.ok) {
       console.error('Token exchange failed:', tokenData);
-      return NextResponse.redirect(`${baseURL}/settings?error=token_exchange_failed`);
+      // Log more details about the error
+      console.error('Status:', tokenResponse.status);
+      console.error('Response:', tokenData);
+      return NextResponse.redirect(`${baseURL}/settings?error=token_exchange_failed&details=${encodeURIComponent(tokenData.error_description || 'Unknown error')}`);
     }
 
-    // Use LinkedIn's OpenID Connect userinfo endpoint
+    // Use LinkedIn's OpenID Connect userinfo endpoint with updated version
     const profileResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
       headers: {
         'Authorization': `Bearer ${tokenData.access_token}`,
-        'LinkedIn-Version': '202401',
+        'LinkedIn-Version': '202304',  // Updated version
         'X-Restli-Protocol-Version': '2.0.0',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
       }
     });
 
     if (!profileResponse.ok) {
-      console.error('Profile fetch failed:', await profileResponse.text());
-      return NextResponse.redirect(`${baseURL}/settings?error=profile_fetch_failed`);
+      const errorText = await profileResponse.text();
+      console.error('Profile fetch failed:', errorText);
+      console.error('Status:', profileResponse.status);
+      return NextResponse.redirect(`${baseURL}/settings?error=profile_fetch_failed&status=${profileResponse.status}`);
     }
 
     const profileData = await profileResponse.json();
