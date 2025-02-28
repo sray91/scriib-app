@@ -41,7 +41,6 @@ const PostForge = () => {
     
     try {
       // Here you would make an API call to your backend
-      // This is a placeholder for the actual API call
       const response = await fetchAIResponse(userMessage, currentPost);
       
       // Add AI response to chat
@@ -60,35 +59,69 @@ const PostForge = () => {
       }
     } catch (error) {
       console.error('Error getting AI response:', error);
-      toast({
-        title: "Error",
-        description: "Sorry, I encountered an error while processing your request.",
-        variant: "destructive",
-      });
+      // Error message is now handled in fetchAIResponse
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Placeholder for the actual API call
+  // Replace the placeholder fetchAIResponse function with this implementation
   const fetchAIResponse = async (message, currentPostDraft) => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    setIsLoading(true);
     
-    // This is where you would make the actual API call to your backend
-    // which would handle:
-    // 1. Looking at past LinkedIn posts
-    // 2. Checking top-performing posts
-    // 3. Creating/updating the post
-    
-    // Placeholder response
-    return {
-      message: `I've analyzed your past LinkedIn posts and current trends. Here's an updated version of your post.`,
-      updatedPost: currentPostDraft ? 
-        `${currentPostDraft}\n\nImproved with more engaging hooks and better formatting.` : 
-        `Here's a draft based on your input: "${message}"\n\nThis is crafted to match your style while incorporating elements from top-performing posts.`,
-      isSignificantUpdate: true
-    };
+    try {
+      // Prepare the request payload
+      const payload = {
+        userMessage: message,
+        currentDraft: currentPostDraft || null,
+        action: currentPostDraft ? 'refine' : 'create'
+      };
+      
+      // Make the API call to your backend
+      const response = await fetch('/api/postforge', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      return {
+        message: data.assistantMessage,
+        updatedPost: data.postContent,
+        isSignificantUpdate: data.isSignificantUpdate
+      };
+    } catch (error) {
+      console.error('Error in fetchAIResponse:', error);
+      
+      // Check if it's a rate limit error
+      if (error.message && (
+        error.message.includes('rate limit') || 
+        error.message.includes('quota') || 
+        error.message.includes('429')
+      )) {
+        // Add a specific error message to the chat
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: "I'm sorry, but we've hit the API rate limit. Please try again later or contact support if this persists."
+        }]);
+      } else {
+        // Add a generic error message to the chat
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: "I'm sorry, but I encountered an error processing your request. Please try again."
+        }]);
+      }
+      
+      throw error;
+    }
   };
 
   // Handle audio recording
@@ -152,27 +185,75 @@ const PostForge = () => {
     }
   };
 
-  const handleGenerateNewPost = () => {
+  const handleGenerateNewPost = async () => {
     setIsLoading(true);
-    // Simulate generating a completely new post
-    setTimeout(() => {
-      const newPost = "This is a completely new post generated based on your profile and current LinkedIn trends.";
-      setCurrentPost(newPost);
+    
+    try {
+      // Call the API to generate a new post
+      const response = await fetch('/api/postforge', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userMessage: 'Generate a new post about my professional expertise and recent industry trends',
+          currentDraft: null,
+          action: 'create'
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      setCurrentPost(data.postContent);
       setPostHistory(prev => [...prev, { 
         timestamp: new Date().toISOString(),
-        content: newPost 
+        content: data.postContent 
       }]);
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: "I've created a new post for you based on your profile and current LinkedIn trends." 
+        content: data.assistantMessage
       }]);
-      setIsLoading(false);
       
       toast({
         title: "New post generated",
         description: "Created based on your profile and current trends",
       });
-    }, 2000);
+    } catch (error) {
+      console.error('Error generating new post:', error);
+      
+      // Check if it's a rate limit error
+      const errorMessage = error.message || '';
+      if (errorMessage.includes('rate limit') || errorMessage.includes('quota') || errorMessage.includes('429')) {
+        toast({
+          title: "API Rate Limit Exceeded",
+          description: "We've hit our API usage limit. Please try again later.",
+          variant: "destructive",
+        });
+        
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: "I'm sorry, but we've hit the API rate limit. Please try again later or contact support if this persists."
+        }]);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to generate a new post",
+          variant: "destructive",
+        });
+        
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: "I'm sorry, but I encountered an error generating your post. Please try again."
+        }]);
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const copyToClipboard = () => {

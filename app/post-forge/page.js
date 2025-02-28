@@ -1,7 +1,7 @@
 import React from 'react'
 import PostForge from '@/components/PostForge'
 
-const page = () => {
+const PostForgePage = () => {
   return (
     <div>
       <PostForge />
@@ -9,4 +9,4 @@ const page = () => {
   )
 }
 
-export default page
+export default PostForgePage

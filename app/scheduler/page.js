@@ -2,7 +2,7 @@
 
 // pages/content-scheduler.js
 import { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Send, List, Grid, TrashIcon, Pencil, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Send, List, Grid, TrashIcon, Pencil, Trash2, FileIcon } from 'lucide-react';
 import Image from 'next/image';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useToast } from "@/components/ui/use-toast";
@@ -11,13 +11,79 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ApprovalWorkflow from '@/components/ApprovalWorkflow';
+import { Label } from "@/components/ui/label";
 
 const supabase = createClientComponentClient();
 
-// Helper function to format date for Supabase
-function formatDateForSupabase(date) {
-  // Format as: YYYY-MM-DD HH:mm:ssZ
-  return date.toISOString();  // This will give us the correct timezone format
+// Add this function to handle image display
+function MediaPreview({ file, index, isEditMode = false }) {
+  // For blob URLs, we need to use regular img tag
+  const isBlobUrl = file.url.startsWith('blob:');
+  
+  if (file.type.startsWith('image/')) {
+    return (
+      <div className="relative h-[200px] w-full">
+        {isBlobUrl ? (
+          // Use regular img tag for blob URLs
+          <img
+            src={file.url}
+            alt="Preview"
+            className="rounded-lg object-cover w-full h-full"
+          />
+        ) : (
+          // Use Next.js Image for remote URLs
+          <Image
+            src={file.url}
+            alt="Preview"
+            fill
+            className="rounded-lg object-cover"
+            unoptimized={isBlobUrl}
+          />
+        )}
+        <button
+          onClick={() => handleRemoveMedia(index, isEditMode)}
+          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 z-10"
+          aria-label="Remove media"
+          type="button"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  } else if (file.type.startsWith('video/')) {
+    return (
+      <div className="relative">
+        <video
+          src={file.url}
+          className="rounded-lg w-full h-auto"
+          controls
+        />
+        <button
+          onClick={() => handleRemoveMedia(index, isEditMode)}
+          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 z-10"
+          aria-label="Remove media"
+          type="button"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  } else {
+    return (
+      <div className="relative flex items-center justify-center bg-gray-100 rounded-lg p-4">
+        <FileIcon className="h-8 w-8 text-gray-500" />
+        <span className="ml-2 text-sm">{file.path.split('/').pop()}</span>
+        <button
+          onClick={() => handleRemoveMedia(index, isEditMode)}
+          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 z-10"
+          aria-label="Remove media"
+          type="button"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  }
 }
 
 export default function ContentScheduler() {
@@ -234,22 +300,7 @@ export default function ContentScheduler() {
         description: "Uploading your media files...",
       });
       
-      // First, check if we need to create a bucket
-      try {
-        // Try to create the bucket (will fail if it already exists, which is fine)
-        await supabase.storage.createBucket('media', {
-          public: true
-        });
-        console.log('Media bucket created or already exists');
-      } catch (bucketError) {
-        // If error is not "bucket already exists", log it but continue
-        if (!bucketError.message?.includes('already exists')) {
-          console.warn('Note about bucket creation:', bucketError);
-        }
-      }
-      
       // For testing purposes, let's create mock media files instead of actual uploads
-      // This will allow us to test the UI without relying on storage permissions
       for (const file of files) {
         // Create a mock URL for the file
         const mockUrl = URL.createObjectURL(file);
@@ -265,26 +316,30 @@ export default function ContentScheduler() {
         });
       }
       
+      // Determine if we're in edit mode by checking if postToEdit exists
+      const isEditMode = !!postToEdit;
+      console.log('Is edit mode:', isEditMode, 'postToEdit:', postToEdit);
+      
       // Update state with new media files
-      if (postToEdit) {
+      if (isEditMode) {
         // If editing a post
         setPostToEdit(prev => {
-          const updatedPost = {
+          const updatedMediaFiles = [...(prev.mediaFiles || []), ...uploadedFiles];
+          console.log('Updated media files in edit mode:', updatedMediaFiles);
+          return {
             ...prev,
-            mediaFiles: [...(prev.mediaFiles || []), ...uploadedFiles]
+            mediaFiles: updatedMediaFiles
           };
-          console.log('Updated post with media:', updatedPost);
-          return updatedPost;
         });
       } else {
         // If creating a new post
         setNewPost(prev => {
-          const updatedPost = {
+          const updatedMediaFiles = [...(prev.mediaFiles || []), ...uploadedFiles];
+          console.log('Updated media files in new post:', updatedMediaFiles);
+          return {
             ...prev,
-            mediaFiles: [...(prev.mediaFiles || []), ...uploadedFiles]
+            mediaFiles: updatedMediaFiles
           };
-          console.log('Updated new post with media:', updatedPost);
-          return updatedPost;
         });
       }
       
@@ -304,22 +359,28 @@ export default function ContentScheduler() {
     }
   }
 
-  async function handleRemoveMedia(index) {
-    const fileToRemove = newPost.mediaFiles[index];
-    
-    const { error } = await supabase.storage
-      .from('media')
-      .remove([fileToRemove.path]);
-      
-    if (error) {
-      console.error('Error removing file:', error);
-      return;
+  async function handleRemoveMedia(index, isEditMode = false) {
+    if (isEditMode) {
+      // Remove from postToEdit
+      setPostToEdit(prev => {
+        const updatedMediaFiles = [...(prev.mediaFiles || [])];
+        updatedMediaFiles.splice(index, 1);
+        return {
+          ...prev,
+          mediaFiles: updatedMediaFiles
+        };
+      });
+    } else {
+      // Remove from newPost
+      setNewPost(prev => {
+        const updatedMediaFiles = [...(prev.mediaFiles || [])];
+        updatedMediaFiles.splice(index, 1);
+        return {
+          ...prev,
+          mediaFiles: updatedMediaFiles
+        };
+      });
     }
-    
-    setNewPost(prev => ({
-      ...prev,
-      mediaFiles: prev.mediaFiles.filter((_, i) => i !== index)
-    }));
   }
 
   async function handleSubmitPost(e) {
@@ -937,41 +998,12 @@ export default function ContentScheduler() {
                 {newPost.mediaFiles && newPost.mediaFiles.length > 0 && (
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     {newPost.mediaFiles.map((file, index) => (
-                      <div key={index} className="relative">
-                        {file.type.startsWith('image/') ? (
-                          <div className="relative">
-                            <Image
-                              src={file.url}
-                              alt="Preview"
-                              width={200}
-                              height={200}
-                              className="rounded-lg object-cover"
-                            />
-                            <button
-                              onClick={() => handleRemoveMedia(index)}
-                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
-                              aria-label="Remove media"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="relative">
-                            <video
-                              src={file.url}
-                              className="rounded-lg w-full h-auto"
-                              controls
-                            />
-                            <button
-                              onClick={() => handleRemoveMedia(index)}
-                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
-                              aria-label="Remove media"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                      <MediaPreview 
+                        key={index} 
+                        file={file} 
+                        index={index} 
+                        isEditMode={false} 
+                      />
                     ))}
                   </div>
                 )}
@@ -1026,158 +1058,121 @@ export default function ContentScheduler() {
       </Dialog>
 
       {/* Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-3xl">
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+        if (!open) setIsEditDialogOpen(false);
+      }}>
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>Edit Post</DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Content</label>
-              <Textarea
-                value={postToEdit?.content || ''}
-                onChange={(e) => setPostToEdit(prev => ({
-                  ...prev,
-                  content: e.target.value
-                }))}
-                rows={4}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Schedule Time</label>
-              <input
-                type="datetime-local"
-                value={postToEdit?.scheduled_time ? new Date(postToEdit.scheduled_time)
-                  .toLocaleString('en-US', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: false
-                  }).replace(/(\d+)\/(\d+)\/(\d+), (\d+):(\d+)/, '$3-$1-$2T$4:$5') : ''}
-                onChange={(e) => {
-                  const date = new Date(e.target.value);
-                  setPostToEdit(prev => ({
-                    ...prev,
-                    scheduled_time: date.toISOString()
-                  }));
-                }}
-                className="w-full p-2 border rounded-lg"
-              />
-            </div>
-
-            {/* Add Media Upload Section */}
-            <div 
-              className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer"
-              onDrop={(e) => {
-                e.preventDefault();
-                handleMediaUpload(e);
-              }}
-              onDragOver={(e) => e.preventDefault()}
-              onClick={() => document.getElementById('edit-media-upload').click()}
-            >
-              <input
-                id="edit-media-upload"
-                type="file"
-                multiple
-                className="hidden"
-                onChange={handleMediaUpload}
-              />
-              <p>Drag & drop or click to upload media</p>
-            </div>
-
-            {/* Show Media Preview */}
-            {postToEdit?.mediaFiles && postToEdit.mediaFiles.length > 0 && (
-              <div className="grid grid-cols-2 gap-2">
-                {postToEdit.mediaFiles.map((file, index) => (
-                  <div key={index} className="relative">
-                    {file.type?.startsWith('image/') ? (
-                      <Image
-                        src={file.url}
-                        alt="Preview"
-                        width={200}
-                        height={200}
-                        className="rounded-lg object-cover"
-                      />
-                    ) : (
-                      <video
-                        src={file.url}
-                        className="rounded-lg"
-                        controls
-                      />
-                    )}
-                    <Button
-                      size="icon"
-                      variant="destructive"
-                      className="absolute top-2 right-2"
-                      onClick={() => handleRemoveMedia(index)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Add Approval Section */}
-            <div className="p-4 border rounded-lg bg-gray-50">
-              <div className="flex items-center gap-2 mb-4">
-                <input
-                  type="checkbox"
-                  id="requiresApproval"
-                  checked={postToEdit?.requiresApproval}
-                  onChange={(e) => setPostToEdit(prev => ({
-                    ...prev,
-                    requiresApproval: e.target.checked,
-                    approverId: e.target.checked ? prev.approverId : ''
-                  }))}
-                  className="rounded border-gray-300"
-                />
-                <label htmlFor="requiresApproval" className="text-sm font-medium">
-                  Requires Approval
-                </label>
-              </div>
-
-              {postToEdit?.requiresApproval && (
-                <div className="mt-2">
-                  <label className="block text-sm font-medium mb-1">
-                    Select Approver
-                  </label>
-                  <select
-                    value={postToEdit.approverId}
-                    onChange={(e) => setPostToEdit(prev => ({
-                      ...prev,
-                      approverId: e.target.value
-                    }))}
-                    className="w-full p-2 border rounded-lg"
-                    required={postToEdit.requiresApproval}
-                  >
-                    <option value="">Select an approver</option>
-                    {approvers.map((approver) => (
-                      <option key={approver.id} value={approver.id}>
-                        {approver.users.raw_user_meta_data?.full_name || approver.email}
-                      </option>
-                    ))}
-                  </select>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <form onSubmit={handleEditPost}>
+                <div className="mb-4">
+                  <Label htmlFor="edit-content">Content</Label>
+                  <Textarea
+                    id="edit-content"
+                    value={postToEdit?.content || ''}
+                    onChange={(e) => setPostToEdit(prev => ({ ...prev, content: e.target.value }))}
+                    className="w-full"
+                    rows={5}
+                  />
                 </div>
-              )}
+                
+                <div 
+                  className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer mb-4"
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    handleMediaUpload(e);
+                  }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onClick={() => document.getElementById('edit-media-upload').click()}
+                >
+                  <input
+                    id="edit-media-upload"
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={handleMediaUpload}
+                  />
+                  <p>Drag & drop or click to upload media</p>
+                </div>
+                
+                <div className="flex justify-end mt-4">
+                  <Button type="submit">Update Post</Button>
+                </div>
+              </form>
+            </div>
+            
+            <div className="w-full p-6 bg-gray-50 rounded-lg">
+              <h3 className="text-lg font-semibold mb-4">Preview</h3>
+              <div className="bg-white rounded-lg p-4 shadow">
+                <p className="whitespace-pre-wrap">{postToEdit?.content}</p>
+                
+                {/* Debug info */}
+                <div className="text-xs text-gray-500 mt-2 mb-2">
+                  Media files: {postToEdit?.mediaFiles ? postToEdit.mediaFiles.length : 0}
+                </div>
+                
+                {/* Media preview */}
+                {postToEdit?.mediaFiles && postToEdit.mediaFiles.length > 0 && (
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    {postToEdit.mediaFiles.map((file, index) => (
+                      <div key={index} className="relative">
+                        {file.type.startsWith('image/') ? (
+                          <div className="relative h-[200px] w-full">
+                            <img
+                              src={file.url}
+                              alt="Preview"
+                              className="rounded-lg object-cover w-full h-full"
+                            />
+                            <button
+                              onClick={() => handleRemoveMedia(index, true)}
+                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 z-10"
+                              aria-label="Remove media"
+                              type="button"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : file.type.startsWith('video/') ? (
+                          <div className="relative">
+                            <video
+                              src={file.url}
+                              className="rounded-lg w-full h-auto"
+                              controls
+                            />
+                            <button
+                              onClick={() => handleRemoveMedia(index, true)}
+                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 z-10"
+                              aria-label="Remove media"
+                              type="button"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="relative flex items-center justify-center bg-gray-100 rounded-lg p-4">
+                            <FileIcon className="h-8 w-8 text-gray-500" />
+                            <span className="ml-2 text-sm">{file.path.split('/').pop()}</span>
+                            <button
+                              onClick={() => handleRemoveMedia(index, true)}
+                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 z-10"
+                              aria-label="Remove media"
+                              type="button"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleEditPost}
-              disabled={postToEdit?.requiresApproval && !postToEdit.approverId}
-            >
-              {postToEdit?.requiresApproval ? 'Submit for Approval' : 'Save Changes'}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
