@@ -22,7 +22,6 @@ const betaNavigation = [
   { name: 'Engagement Lists', href: '/engagement', icon: Users },
   { name: 'Content Strategy', href: '/content', icon: GalleryVerticalEnd },
   { name: 'ICP Builder', href: '/icp', icon: Users },
-  { name: 'Ideation Station', href: '/ideation', icon: Lightbulb },
   { name: 'Viral Lookup', href: '/viral', icon: Search },
 ]
 
@@ -30,6 +29,7 @@ const navigation = [
   { name: 'Task List', href: '/tasks', icon: LayoutList },
   { name: 'Swipe File', href: '/viral', icon: Search },
   { name: 'Scheduler', href: '/scheduler', icon: Calendar },
+  { name: 'Post Forge', href: '/post-forge', icon: Lightbulb },
 ]
 
 export default function SidebarComponent() {
