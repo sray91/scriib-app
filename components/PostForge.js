@@ -17,11 +17,17 @@ const PostForge = () => {
   const [postHistory, setPostHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [activeTab, setActiveTab] = useState('chat');
+  const [processingSteps, setProcessingSteps] = useState([]);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [pastPosts, setPastPosts] = useState([]);
+  const [trendingPosts, setTrendingPosts] = useState([]);
+  const [showingExamples, setShowingExamples] = useState(false);
   
   const { toast } = useToast();
   const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  const audioChunksRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const processingTimerRef = useRef(null);
 
   // Scroll to bottom of messages
   useEffect(() => {
@@ -38,13 +44,54 @@ const PostForge = () => {
     // Add user message to chat
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsLoading(true);
+    setShowingExamples(false);
+    
+    // Start showing processing steps
+    setProcessingSteps([
+      "Analyzing your request...",
+      "Looking at your past LinkedIn posts to learn your voice...",
+      "Studying top-performing content for inspiration...",
+      "Crafting content that matches your style..."
+    ]);
+    setCurrentStep(0);
+    
+    // Show processing steps one by one
+    processingTimerRef.current = setInterval(() => {
+      setCurrentStep(prev => {
+        const newStep = prev < 3 ? prev + 1 : prev;
+        
+        // When we reach the step about past posts, fetch and display them
+        if (newStep === 1 && !showingExamples) {
+          fetchExamplePosts();
+        }
+        
+        return newStep;
+      });
+    }, 1500);
     
     try {
       // Here you would make an API call to your backend
       const response = await fetchAIResponse(userMessage, currentPost);
       
+      // Clear the processing timer
+      clearInterval(processingTimerRef.current);
+      
+      // If the API returned custom processing steps, update them
+      if (response.processingSteps) {
+        setProcessingSteps(response.processingSteps);
+        setCurrentStep(response.processingSteps.length - 1);
+      }
+      
       // Add AI response to chat
-      setMessages(prev => [...prev, { role: 'assistant', content: response.message }]);
+      setMessages(prev => [
+        ...prev, 
+        ...processingSteps.slice(0, currentStep + 1).map(step => ({ 
+          role: 'assistant', 
+          content: step,
+          isProcessingStep: true
+        })),
+        { role: 'assistant', content: response.message }
+      ]);
       
       // If the AI generated a new post version, update it
       if (response.updatedPost) {
@@ -62,6 +109,260 @@ const PostForge = () => {
       // Error message is now handled in fetchAIResponse
     } finally {
       setIsLoading(false);
+      setProcessingSteps([]);
+      setCurrentStep(0);
+      clearInterval(processingTimerRef.current);
+      setShowingExamples(false);
+    }
+  };
+
+  // Function to fetch and display example posts
+  const fetchExamplePosts = async () => {
+    setShowingExamples(true);
+    
+    try {
+      // Fetch past posts from the API
+      const pastPostsResponse = await fetch('/api/postforge/user-posts', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!pastPostsResponse.ok) {
+        throw new Error('Failed to fetch your past posts');
+      }
+      
+      const pastPostsData = await pastPostsResponse.json();
+      
+      // Add message about past posts
+      setMessages(prev => [
+        ...prev,
+        { 
+          role: 'assistant', 
+          content: "Looking at your past LinkedIn posts to learn your voice...",
+          isProcessingStep: true
+        }
+      ]);
+      
+      // If no past posts or error, show a message about it
+      if (!pastPostsData.posts || pastPostsData.posts.length === 0) {
+        const errorMessage = pastPostsData.error || "No LinkedIn posts found.";
+        const isApiRestriction = errorMessage.includes('API') || 
+                                 errorMessage.includes('restrictions') ||
+                                 errorMessage.includes('permissions');
+        const extensionAvailable = pastPostsData.extensionAvailable;
+        
+        // If we have profile data, at least show that
+        const profileInfo = pastPostsData.profileData ? 
+          `Connected as ${pastPostsData.profileData.name}` : 
+          '';
+        
+        setMessages(prev => [
+          ...prev,
+          { 
+            role: 'assistant', 
+            content: errorMessage,
+            isProcessingStep: true,
+            isWarning: true
+          },
+          ...(profileInfo ? [{
+            role: 'assistant',
+            content: profileInfo,
+            isProcessingStep: true
+          }] : []),
+          ...(extensionAvailable ? [{
+            role: 'assistant',
+            content: "💡 Try our Chrome extension to import your LinkedIn posts directly! [Download Extension](https://your-extension-url)",
+            isProcessingStep: true,
+            isExtensionPromo: true
+          }] : []),
+          ...(isApiRestriction ? [{
+            role: 'assistant',
+            content: "I'll still create great content for you based on best practices and your input. Please provide some details about your professional background and the type of content you'd like to create.",
+            isProcessingStep: true
+          }] : [])
+        ]);
+      } else {
+        // Add past posts to chat
+        setMessages(prev => [
+          ...prev,
+          ...pastPostsData.posts.map(post => ({
+            role: 'assistant',
+            content: post.content,
+            isExample: true,
+            exampleType: 'past',
+            engagement: post.engagement
+          }))
+        ]);
+      }
+      
+      setPastPosts(pastPostsData.posts || []);
+      
+      // After a delay, fetch trending posts
+      setTimeout(async () => {
+        setCurrentStep(2);
+        
+        try {
+          // Fetch trending posts from the API
+          const trendingPostsResponse = await fetch('/api/postforge/trending-posts', {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          });
+          
+          if (!trendingPostsResponse.ok) {
+            throw new Error('Failed to fetch trending posts');
+          }
+          
+          const trendingPostsData = await trendingPostsResponse.json();
+          
+          // Add message about trending posts
+          setMessages(prev => [
+            ...prev,
+            { 
+              role: 'assistant', 
+              content: "Studying top-performing content for inspiration...",
+              isProcessingStep: true
+            }
+          ]);
+          
+          // If no trending posts or error, show a message about it
+          if (!trendingPostsData.posts || trendingPostsData.posts.length === 0) {
+            setMessages(prev => [
+              ...prev,
+              { 
+                role: 'assistant', 
+                content: trendingPostsData.error || "No trending posts available at the moment.",
+                isProcessingStep: true,
+                isWarning: true
+              }
+            ]);
+          } else {
+            // Add trending posts to chat
+            setMessages(prev => [
+              ...prev,
+              ...trendingPostsData.posts.map(post => ({
+                role: 'assistant',
+                content: post.content,
+                isExample: true,
+                exampleType: 'trending',
+                engagement: post.engagement
+              }))
+            ]);
+          }
+          
+          setTrendingPosts(trendingPostsData.posts || []);
+        } catch (error) {
+          console.error('Error fetching trending posts:', error);
+          setMessages(prev => [
+            ...prev,
+            { 
+              role: 'assistant', 
+              content: "Studying top-performing content for inspiration...",
+              isProcessingStep: true
+            },
+            { 
+              role: 'assistant', 
+              content: "Unable to fetch trending posts: " + error.message,
+              isProcessingStep: true,
+              isWarning: true
+            }
+          ]);
+        }
+      }, 2000);
+      
+    } catch (error) {
+      console.error('Error fetching past posts:', error);
+      setMessages(prev => [
+        ...prev,
+        { 
+          role: 'assistant', 
+          content: "Looking at your past LinkedIn posts to learn your voice...",
+          isProcessingStep: true
+        },
+        { 
+          role: 'assistant', 
+          content: "Unable to access your LinkedIn posts: " + error.message,
+          isProcessingStep: true,
+          isWarning: true
+        }
+      ]);
+      
+      // Still try to fetch trending posts after a delay
+      setTimeout(() => {
+        setCurrentStep(2);
+        fetchTrendingPosts();
+      }, 2000);
+    }
+  };
+
+  // Separate function to fetch trending posts (used in error handling)
+  const fetchTrendingPosts = async () => {
+    try {
+      const trendingPostsResponse = await fetch('/api/postforge/trending-posts', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!trendingPostsResponse.ok) {
+        throw new Error('Failed to fetch trending posts');
+      }
+      
+      const trendingPostsData = await trendingPostsResponse.json();
+      
+      setMessages(prev => [
+        ...prev,
+        { 
+          role: 'assistant', 
+          content: "Studying top-performing content for inspiration...",
+          isProcessingStep: true
+        }
+      ]);
+      
+      if (!trendingPostsData.posts || trendingPostsData.posts.length === 0) {
+        setMessages(prev => [
+          ...prev,
+          { 
+            role: 'assistant', 
+            content: "No trending posts available at the moment. Using AI-generated examples instead.",
+            isProcessingStep: true,
+            isWarning: true
+          }
+        ]);
+      } else {
+        setMessages(prev => [
+          ...prev,
+          ...trendingPostsData.posts.map(post => ({
+            role: 'assistant',
+            content: post.content,
+            isExample: true,
+            exampleType: 'trending',
+            engagement: post.engagement
+          }))
+        ]);
+      }
+      
+      setTrendingPosts(trendingPostsData.posts || []);
+    } catch (error) {
+      console.error('Error fetching trending posts:', error);
+      setMessages(prev => [
+        ...prev,
+        { 
+          role: 'assistant', 
+          content: "Studying top-performing content for inspiration...",
+          isProcessingStep: true
+        },
+        { 
+          role: 'assistant', 
+          content: "Unable to fetch trending posts. Using AI-generated examples instead.",
+          isProcessingStep: true,
+          isWarning: true
+        }
+      ]);
     }
   };
 
@@ -96,7 +397,8 @@ const PostForge = () => {
       return {
         message: data.assistantMessage,
         updatedPost: data.postContent,
-        isSignificantUpdate: data.isSignificantUpdate
+        isSignificantUpdate: data.isSignificantUpdate,
+        processingSteps: data.processingSteps
       };
     } catch (error) {
       console.error('Error in fetchAIResponse:', error);
@@ -118,6 +420,27 @@ const PostForge = () => {
           role: 'assistant', 
           content: "I'm sorry, but I encountered an error processing your request. Please try again."
         }]);
+      }
+      
+      // If LinkedIn API restrictions are detected
+      if (error.message && (
+        error.message.includes('API restrictions') || error.message.includes('LinkedIn no longer allows')
+      )) {
+        setMessages(prev => [
+          ...prev,
+          { 
+            role: 'assistant', 
+            content: "LinkedIn API restrictions prevent us from accessing your posts directly. Try our Chrome extension instead!",
+            isProcessingStep: true,
+            isWarning: true
+          },
+          {
+            role: 'assistant',
+            content: "💡 [Download our Chrome Extension](https://your-extension-url) to import your LinkedIn posts directly.",
+            isProcessingStep: true,
+            isExtensionPromo: true
+          }
+        ]);
       }
       
       throw error;
@@ -187,6 +510,30 @@ const PostForge = () => {
 
   const handleGenerateNewPost = async () => {
     setIsLoading(true);
+    setShowingExamples(false);
+    
+    // Start showing processing steps
+    setProcessingSteps([
+      "Analyzing your professional profile...",
+      "Looking at your past LinkedIn posts to learn your voice...",
+      "Studying top-performing content for inspiration...",
+      "Crafting a personalized post..."
+    ]);
+    setCurrentStep(0);
+    
+    // Show processing steps one by one
+    processingTimerRef.current = setInterval(() => {
+      setCurrentStep(prev => {
+        const newStep = prev < 3 ? prev + 1 : prev;
+        
+        // When we reach the step about past posts, fetch and display them
+        if (newStep === 1 && !showingExamples) {
+          fetchExamplePosts();
+        }
+        
+        return newStep;
+      });
+    }, 1500);
     
     try {
       // Call the API to generate a new post
@@ -202,6 +549,9 @@ const PostForge = () => {
         }),
       });
       
+      // Clear the processing timer
+      clearInterval(processingTimerRef.current);
+      
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || `API error: ${response.status}`);
@@ -209,15 +559,30 @@ const PostForge = () => {
       
       const data = await response.json();
       
+      // If the API returned custom processing steps, update them
+      if (data.processingSteps) {
+        setProcessingSteps(data.processingSteps);
+        setCurrentStep(data.processingSteps.length - 1);
+      }
+      
       setCurrentPost(data.postContent);
       setPostHistory(prev => [...prev, { 
         timestamp: new Date().toISOString(),
         content: data.postContent 
       }]);
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: data.assistantMessage
-      }]);
+      
+      // Add processing steps to messages
+      const processingMessages = processingSteps.slice(0, currentStep + 1).map(step => ({
+        role: 'assistant',
+        content: step,
+        isProcessingStep: true
+      }));
+      
+      setMessages(prev => [
+        ...prev,
+        ...processingMessages,
+        { role: 'assistant', content: data.assistantMessage }
+      ]);
       
       toast({
         title: "New post generated",
@@ -253,6 +618,10 @@ const PostForge = () => {
       }
     } finally {
       setIsLoading(false);
+      setProcessingSteps([]);
+      setCurrentStep(0);
+      clearInterval(processingTimerRef.current);
+      setShowingExamples(false);
     }
   };
 
@@ -262,6 +631,21 @@ const PostForge = () => {
       title: "Copied to clipboard",
       description: "Your post has been copied to the clipboard",
     });
+  };
+
+  // Clean up the interval when component unmounts
+  useEffect(() => {
+    return () => {
+      if (processingTimerRef.current) {
+        clearInterval(processingTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Add this function to your PostForge component
+  const getExtensionUrl = () => {
+    // When you publish to Chrome Web Store, replace this with the actual URL
+    return process.env.NEXT_PUBLIC_EXTENSION_URL || 'https://chrome.google.com/webstore/detail/your-extension-id';
   };
 
   return (
@@ -302,18 +686,54 @@ const PostForge = () => {
                   {messages.map((msg, index) => (
                     <div 
                       key={index}
-                      className={`p-3 rounded-lg max-w-[80%] ${
+                      className={`p-3 rounded-lg ${
                         msg.role === 'user' 
-                          ? 'ml-auto bg-[#fb2e01] text-white' 
-                          : 'bg-gray-100 text-gray-800'
+                          ? 'ml-auto bg-[#fb2e01] text-white max-w-[80%]' 
+                          : msg.isProcessingStep
+                            ? msg.isWarning
+                              ? 'bg-yellow-50 text-yellow-700 italic border border-yellow-100 max-w-full'
+                              : 'bg-gray-50 text-gray-600 italic border border-gray-100 max-w-full'
+                            : msg.isExample
+                              ? msg.exampleType === 'past'
+                                ? 'bg-blue-50 border border-blue-100 text-gray-800 max-w-full'
+                                : 'bg-green-50 border border-green-100 text-gray-800 max-w-full'
+                              : 'bg-gray-100 text-gray-800 max-w-[80%]'
                       }`}
                     >
-                      <p className="text-sm">{msg.content}</p>
+                      {msg.isWarning && (
+                        <div className="flex items-center mb-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-yellow-500 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                        </div>
+                      )}
+                      {msg.isExample && (
+                        <div className="flex justify-between items-center mb-2">
+                          <span className={`text-xs px-2 py-1 rounded ${
+                            msg.exampleType === 'past' 
+                              ? 'bg-blue-100 text-blue-800' 
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {msg.exampleType === 'past' ? 'Your Past Post' : 'Trending Post'}
+                          </span>
+                          <span className="text-xs text-gray-500 flex items-center gap-1">
+                            <span>👍 {msg.engagement?.likes || 0}</span>
+                            <span>💬 {msg.engagement?.comments || 0}</span>
+                            <span>🔄 {msg.engagement?.shares || 0}</span>
+                          </span>
+                        </div>
+                      )}
+                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                     </div>
                   ))}
-                  {isLoading && (
-                    <div className="flex justify-center my-4">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#fb2e01]"></div>
+                  {isLoading && processingSteps.length > 0 && !showingExamples && (
+                    <div className="p-3 rounded-lg bg-gray-50 text-gray-600 italic border border-gray-100">
+                      <p className="text-sm">{processingSteps[currentStep]}</p>
+                      <div className="mt-1 flex space-x-1">
+                        <div className="animate-pulse h-1 w-1 rounded-full bg-gray-400"></div>
+                        <div className="animate-pulse delay-150 h-1 w-1 rounded-full bg-gray-400"></div>
+                        <div className="animate-pulse delay-300 h-1 w-1 rounded-full bg-gray-400"></div>
+                      </div>
                     </div>
                   )}
                   <div ref={messagesEndRef} />

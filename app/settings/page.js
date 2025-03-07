@@ -12,6 +12,8 @@ import * as Switch from '@radix-ui/react-switch'
 import TeamsTab from "@/components/settings/TeamsTab";
 import PreferencesTab from "@/components/settings/PreferencesTab";
 import ProfileTab from "@/components/settings/ProfileTab"
+import { useLinkedInAuthStatus } from '@/components/settings/SocialAccountsTab'
+import { useSearchParams } from 'next/navigation'
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('social')
@@ -22,6 +24,9 @@ export default function SettingsPage() {
   const { toast } = useToast()
   const [isAdmin, setIsAdmin] = useState(false)
   const [users, setUsers] = useState([])
+  const searchParams = useSearchParams()
+
+  useLinkedInAuthStatus();
 
   // Fetch social accounts
   const fetchSocialAccounts = async () => {
@@ -74,18 +79,17 @@ export default function SettingsPage() {
       fetchSharedCollections();
       fetchSocialAccounts();
     }
-  }, [session]);
+  }, [session, searchParams]);
 
   // Handle social account connection
   const handleConnect = async (platform) => {
     // Check for existing accounts of this platform
-    const currentAccounts = socialAccounts.filter(acc => acc.platform === platform);
+    const currentAccounts = socialAccounts.filter(account => account.platform === platform);
     
-    // Add a limit check (adjust the number as needed)
-    if (currentAccounts.length >= 10) {
+    if (currentAccounts.length > 0) {
       toast({
-        title: 'Error',
-        description: `You can only connect up to 10 ${platform} accounts.`,
+        title: 'Account already connected',
+        description: `You already have a ${platform} account connected.`,
         variant: 'destructive'
       });
       return;
@@ -286,19 +290,18 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4">
-      <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+    <div className="container py-8 max-w-5xl">
+      <h1 className="text-3xl font-bold mb-8">Settings</h1>
+      
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
           <TabsTrigger value="social">Social Accounts</TabsTrigger>
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="preferences">Preferences</TabsTrigger>
           <TabsTrigger value="shares">Shared Pages</TabsTrigger>
-          {isAdmin && (
-            <TabsTrigger value="admin">Admin</TabsTrigger>
-          )}
           <TabsTrigger value="teams">Teams</TabsTrigger>
         </TabsList>
-
+        
         <TabsContent value="social">
           <Card>
             <CardContent className="p-6">

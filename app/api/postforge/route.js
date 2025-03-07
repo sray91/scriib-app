@@ -232,7 +232,13 @@ ${userMessage}`
     return {
       assistantMessage,
       postContent,
-      isSignificantUpdate
+      isSignificantUpdate,
+      processingSteps: [
+        "Analyzed your past LinkedIn posts to understand your writing style",
+        "Reviewed top-performing content for inspiration",
+        "Generated content that matches your voice while optimizing for engagement",
+        action === 'refine' ? "Refined your draft based on your feedback" : "Created a new post based on your idea"
+      ]
     };
   } catch (error) {
     console.error("Error generating post content:", error);
