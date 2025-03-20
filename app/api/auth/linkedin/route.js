@@ -14,12 +14,18 @@ export async function GET(request) {
     console.log('LinkedIn auth initialization with state:', state);
     console.log('Using redirect URI:', process.env.LINKEDIN_REDIRECT_URI);
 
-    // Update the scopes for OpenID Connect
+    // Update the scopes for Member Data Portability API
     const scopes = [
       'r_liteprofile',
       'r_emailaddress',
       'w_member_social',
-      'r_member_social'
+      'r_member_social',
+      'r_1st_connections_size',
+      'r_ads',
+      'r_ads_reporting',
+      'r_organization_social',
+      'rw_organization_admin',
+      'r_organization_admin'
     ].join(' ');
 
     const authUrl = `https://www.linkedin.com/oauth/v2/authorization?` +

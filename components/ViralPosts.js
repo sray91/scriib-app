@@ -328,9 +328,9 @@ export default function ViralPostSwipeFile() {
 
   return (
     <>
-      <div className="max-w-4xl mx-auto p-4 space-y-6">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
+      <div className="max-w-4xl mx-auto p-4 pt-16 md:pt-4 space-y-6">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <Select value={selectedTag} onValueChange={setSelectedTag}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter by tag" />
@@ -360,55 +360,55 @@ export default function ViralPostSwipeFile() {
               <Share2 className="h-4 w-4" />
               Share {selectedTag} posts
             </Button>
-
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-[#FF4400] hover:bg-[#FF4400]/90">
-                  <Plus className="mr-2 h-4 w-4" /> Add New X Post
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="border-[#FF4400] border-2 bg-white">
-                <DialogHeader>
-                  <DialogTitle className="text-[#FF4400] font-bebas-neue text-3xl">
-                    ADD NEW X POST
-                  </DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <Label htmlFor="url">X POST URL</Label>
-                  <Input
-                    id="url"
-                    placeholder="Enter X post URL"
-                    value={newPost.url}
-                    onChange={(e) => setNewPost({ ...newPost, url: e.target.value })}
-                  />
-                  <Label htmlFor="description">Description</Label>
-                  <Input
-                    id="description"
-                    placeholder="Add a description (optional)"
-                    value={newPost.description}
-                    onChange={(e) => setNewPost({ ...newPost, description: e.target.value })}
-                  />
-                  <Label htmlFor="tag">Tag</Label>
-                  <Select value={newPost.tag} onValueChange={(value) => setNewPost({ ...newPost, tag: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a tag" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="untagged">Untagged</SelectItem>
-                      {tags.map((tag) => (
-                        <SelectItem key={tag} value={tag}>
-                          {tag}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button onClick={handleAddPost} className="w-full bg-[#FF4400] hover:bg-[#FF4400]/90">
-                    ADD X POST
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
           </div>
+
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-[#FF4400] hover:bg-[#FF4400]/90 mt-2 md:mt-0 w-full md:w-auto">
+                <Plus className="mr-2 h-4 w-4" /> Add New X Post
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="border-[#FF4400] border-2 bg-white">
+              <DialogHeader>
+                <DialogTitle className="text-[#FF4400] font-bebas-neue text-3xl">
+                  ADD NEW X POST
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-4">
+                <Label htmlFor="url">X POST URL</Label>
+                <Input
+                  id="url"
+                  placeholder="Enter X post URL"
+                  value={newPost.url}
+                  onChange={(e) => setNewPost({ ...newPost, url: e.target.value })}
+                />
+                <Label htmlFor="description">Description</Label>
+                <Input
+                  id="description"
+                  placeholder="Add a description (optional)"
+                  value={newPost.description}
+                  onChange={(e) => setNewPost({ ...newPost, description: e.target.value })}
+                />
+                <Label htmlFor="tag">Tag</Label>
+                <Select value={newPost.tag} onValueChange={(value) => setNewPost({ ...newPost, tag: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a tag" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="untagged">Untagged</SelectItem>
+                    {tags.map((tag) => (
+                      <SelectItem key={tag} value={tag}>
+                        {tag}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button onClick={handleAddPost} className="w-full bg-[#FF4400] hover:bg-[#FF4400]/90">
+                  ADD X POST
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <Dialog open={isTagDialogOpen} onOpenChange={setIsTagDialogOpen}>
@@ -451,7 +451,7 @@ export default function ViralPostSwipeFile() {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto px-4">
         {paginatedPosts.map((post) => (
           <Card key={post.id} className="relative">
             <Button
