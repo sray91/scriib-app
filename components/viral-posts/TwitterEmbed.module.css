@@ -1,0 +1,10 @@
+.twitterEmbed {
+  transform: scale(0.85);
+  transform-origin: 0 0;
+  max-width: 100%;
+}
+
+.twitterEmbedContainer {
+  width: 100%;
+  overflow: hidden;
+} 
