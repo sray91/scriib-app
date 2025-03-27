@@ -1,6 +1,6 @@
 'use client'
 
-import { GalleryVerticalEnd, LayoutList, Calendar, Users, Lightbulb, Search, Settings, LogOut, Menu, X } from 'lucide-react'
+import { GalleryVerticalEnd, LayoutList, Calendar, Users, Lightbulb, Search, Settings, LogOut, Menu, X, PenTool } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
@@ -18,19 +18,15 @@ import {
 } from '@/components/ui/sidebar'
 
 const betaNavigation = [
-  { name: 'Task List', href: '/tasks', icon: LayoutList },
-  { name: 'Scheduler', href: '/scheduler', icon: Calendar },
   { name: 'Engagement Lists', href: '/engagement', icon: Users },
   { name: 'Content Strategy', href: '/content', icon: GalleryVerticalEnd },
   { name: 'ICP Builder', href: '/icp', icon: Users },
-  { name: 'Viral Lookup', href: '/viral', icon: Search },
 ]
 
 const navigation = [
-  { name: 'Task List', href: '/tasks', icon: LayoutList },
   { name: 'Swipe File', href: '/viral', icon: Search },
-  { name: 'Scheduler', href: '/scheduler', icon: Calendar },
   { name: 'CoCreate', href: '/cocreate', icon: Lightbulb },
+  { name: 'Post Forge', href: '/post-forge', icon: PenTool },
 ]
 
 export default function SidebarComponent() {

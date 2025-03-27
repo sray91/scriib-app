@@ -8,35 +8,33 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Clock } from 'lucide-react'
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
-export default function ChecklistBuilder() {
+export default function PostTemplateBuilder() {
   const supabase = createClientComponentClient();
   const router = useRouter();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentDay, setCurrentDay] = useState("Monday");
-  const [timeBlocks, setTimeBlocks] = useState([]);
+  const [postTemplates, setPostTemplates] = useState([]);
 
   // Load existing template for current day
   useEffect(() => {
     const loadTemplate = async () => {
       try {
         setIsLoading(true);
-        const { data: blocks, error: blocksError } = await supabase
+        const { data: templates, error: templatesError } = await supabase
           .from('user_time_blocks')
           .select(`
             id,
             title,
             description,
-            start_time,
-            end_time,
             day,
             user_tasks (
               id,
@@ -44,23 +42,21 @@ export default function ChecklistBuilder() {
             )
           `)
           .eq('day', currentDay)
-          .order('start_time');
+          .order('created_at');
 
-        if (blocksError) throw blocksError;
+        if (templatesError) throw templatesError;
 
-        setTimeBlocks(blocks?.map(block => ({
-          id: block.id,
-          title: block.title || '',
-          description: block.description || '',
-          startTime: block.start_time || '',
-          endTime: block.end_time || '',
-          tasks: block.user_tasks || []
+        setPostTemplates(templates?.map(template => ({
+          id: template.id,
+          title: template.title || '',
+          description: template.description || '',
+          contentIdeas: template.user_tasks || []
         })) || []);
       } catch (error) {
-        console.error('Error loading template:', error);
+        console.error('Error loading templates:', error);
         toast({
           title: 'Error',
-          description: 'Failed to load template. Please try again.',
+          description: 'Failed to load post templates. Please try again.',
           variant: 'destructive'
         });
       } finally {
@@ -75,69 +71,67 @@ export default function ChecklistBuilder() {
     setCurrentDay(day);
   };
 
-  const addTimeBlock = () => {
-    setTimeBlocks(prev => [
+  const addPostTemplate = () => {
+    setPostTemplates(prev => [
       ...prev,
       {
         id: crypto.randomUUID(),
         title: "",
         description: "",
-        startTime: "",
-        endTime: "",
-        tasks: []
+        contentIdeas: []
       }
     ]);
   };
 
-  const updateTimeBlock = (blockId, field, value) => {
-    setTimeBlocks(prev => prev.map(block =>
-      block.id === blockId
-        ? { ...block, [field]: value }
-        : block
+  const updatePostTemplate = (templateId, field, value) => {
+    setPostTemplates(prev => prev.map(template =>
+      template.id === templateId
+        ? { ...template, [field]: value }
+        : template
     ));
   };
 
-  const removeTimeBlock = (blockId) => {
-    setTimeBlocks(prev => prev.filter(block => block.id !== blockId));
+  const removePostTemplate = (templateId) => {
+    setPostTemplates(prev => prev.filter(template => template.id !== templateId));
   };
 
-  const addTask = (blockId) => {
-    setTimeBlocks(prev => prev.map(block =>
-      block.id === blockId
+  const addContentIdea = (templateId) => {
+    setPostTemplates(prev => prev.map(template =>
+      template.id === templateId
         ? {
-            ...block,
-            tasks: [
-              ...block.tasks,
+            ...template,
+            contentIdeas: [
+              ...template.contentIdeas,
               { id: crypto.randomUUID(), text: "" }
             ]
           }
-        : block
+        : template
     ));
   };
 
-  const updateTask = (blockId, taskId, text) => {
-    setTimeBlocks(prev => prev.map(block =>
-      block.id === blockId
+  const updateContentIdea = (templateId, ideaId, text) => {
+    setPostTemplates(prev => prev.map(template =>
+      template.id === templateId
         ? {
-            ...block,
-            tasks: block.tasks.map(task =>
-              task.id === taskId
-                ? { ...task, text }
-                : task
+            ...template,
+            contentIdeas: template.contentIdeas.map(idea =>
+              idea.id === ideaId
+                ? { ...idea, text }
+                : idea
             )
           }
-        : block
+        : template
     ));
   };
 
-  const removeTask = (blockId, taskId) => {
-    setTimeBlocks(prev => prev.map(block =>
-      block.id === blockId
+  const removeContentIdea = (templateId, ideaId) => {
+    setPostTemplates(prev => prev.map(template =>
+      template.id === templateId
         ? {
-            ...block,
-            tasks: block.tasks.filter(task => task.id !== taskId)
+            ...template,
+            contentIdeas: template.contentIdeas.filter(idea => idea.id !== ideaId)
           }
-        : block
+        : template
     ));
   };
 
@@ -145,49 +139,47 @@ export default function ChecklistBuilder() {
     try {
       setIsSaving(true);
 
-      // Delete existing template for this day
+      // Delete existing templates for this day
       await supabase
         .from('user_time_blocks')
         .delete()
         .eq('day', currentDay);
 
-      // Save new template
-      for (const block of timeBlocks) {
-        const { data: blockData, error: blockError } = await supabase
+      // Save new templates
+      for (const template of postTemplates) {
+        const { data: templateData, error: templateError } = await supabase
           .from('user_time_blocks')
           .insert({
-            title: block.title,
-            description: block.description,
-            start_time: block.startTime,
-            end_time: block.endTime,
+            title: template.title,
+            description: template.description,
             day: currentDay
           })
           .select()
           .single();
 
-        if (blockError) throw blockError;
+        if (templateError) throw templateError;
 
-        if (block.tasks.length > 0) {
-          const tasksToInsert = block.tasks.map(task => ({
-            time_block_id: blockData.id,
-            text: task.text
+        if (template.contentIdeas.length > 0) {
+          const ideasToInsert = template.contentIdeas.map(idea => ({
+            time_block_id: templateData.id,
+            text: idea.text
           }));
 
-          const { error: tasksError } = await supabase
+          const { error: ideasError } = await supabase
             .from('user_tasks')
-            .insert(tasksToInsert);
+            .insert(ideasToInsert);
 
-          if (tasksError) throw tasksError;
+          if (ideasError) throw ideasError;
         }
       }
 
-      toast({ title: 'Success', description: 'Template saved successfully!' });
-      router.push('/tasks');
+      toast({ title: 'Success', description: 'Post templates saved successfully!' });
+      router.push('/post-forge');
     } catch (error) {
-      console.error('Error saving template:', error);
+      console.error('Error saving templates:', error);
       toast({
         title: 'Error',
-        description: 'Failed to save template. Please try again.',
+        description: 'Failed to save post templates. Please try again.',
         variant: 'destructive'
       });
     } finally {
@@ -199,7 +191,7 @@ export default function ChecklistBuilder() {
     return (
       <div className="container max-w-4xl py-6">
         <div className="text-center">
-          <p>Loading template...</p>
+          <p>Loading templates...</p>
         </div>
       </div>
     );
@@ -209,27 +201,27 @@ export default function ChecklistBuilder() {
     <div className="container max-w-4xl py-6">
       <div className="flex justify-between items-center mb-8">
         <div className="flex items-center">
-          <Link href="/tasks" className="mr-4">
+          <Link href="/post-forge" className="mr-4">
             <Button variant="ghost" size="icon">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <h1 className="text-3xl font-bold">Template Builder</h1>
+          <h1 className="text-3xl font-bold">Post Template Builder</h1>
         </div>
         <div className="space-x-4">
           <Button 
             variant="outline" 
-            onClick={addTimeBlock}
+            onClick={addPostTemplate}
           >
             <Plus className="w-4 h-4 mr-2" />
-            Add Time Block
+            Add Post Template
           </Button>
           <Button 
             onClick={handleSave} 
             disabled={isSaving}
             className="bg-[#FF4400] hover:bg-[#FF4400]/90"
           >
-            {isSaving ? "Saving..." : "Save Template"}
+            {isSaving ? "Saving..." : "Save Templates"}
           </Button>
         </div>
       </div>
@@ -255,44 +247,29 @@ export default function ChecklistBuilder() {
       </div>
 
       <div className="space-y-6">
-        {timeBlocks.map((block) => (
-          <Card key={block.id}>
+        {postTemplates.map((template) => (
+          <Card key={template.id}>
             <CardHeader>
               <div className="space-y-4">
                 <Input
-                  value={block.title}
-                  onChange={(e) => updateTimeBlock(block.id, 'title', e.target.value)}
-                  placeholder="Block Title"
+                  value={template.title}
+                  onChange={(e) => updatePostTemplate(template.id, 'title', e.target.value)}
+                  placeholder="Post Template Title"
                   className="text-lg font-semibold"
                 />
-                <Input
-                  value={block.description}
-                  onChange={(e) => updateTimeBlock(block.id, 'description', e.target.value)}
-                  placeholder="Block Description"
-                  className="text-sm text-muted-foreground"
+                <Textarea
+                  value={template.description}
+                  onChange={(e) => updatePostTemplate(template.id, 'description', e.target.value)}
+                  placeholder="Post description or template content"
+                  className="text-sm"
+                  rows={3}
                 />
-                <div className="flex gap-4">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
-                    <Input
-                      value={block.startTime}
-                      onChange={(e) => updateTimeBlock(block.id, 'startTime', e.target.value)}
-                      placeholder="Start Time"
-                      className="w-24"
-                    />
-                    <span>-</span>
-                    <Input
-                      value={block.endTime}
-                      onChange={(e) => updateTimeBlock(block.id, 'endTime', e.target.value)}
-                      placeholder="End Time"
-                      className="w-24"
-                    />
-                  </div>
+                <div className="flex justify-end">
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => removeTimeBlock(block.id)}
-                    className="ml-auto"
+                    onClick={() => removePostTemplate(template.id)}
+                    className="text-red-500 hover:text-red-700"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -300,19 +277,20 @@ export default function ChecklistBuilder() {
               </div>
             </CardHeader>
             <CardContent>
+              <h3 className="text-sm font-medium mb-3">Content Ideas</h3>
               <ScrollArea className="h-full">
                 <div className="space-y-4">
-                  {block.tasks.map((task) => (
-                    <div key={task.id} className="flex gap-2">
+                  {template.contentIdeas.map((idea) => (
+                    <div key={idea.id} className="flex gap-2">
                       <Input
-                        value={task.text}
-                        onChange={(e) => updateTask(block.id, task.id, e.target.value)}
-                        placeholder="Enter task"
+                        value={idea.text}
+                        onChange={(e) => updateContentIdea(template.id, idea.id, e.target.value)}
+                        placeholder="Enter content idea"
                       />
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => removeTask(block.id, task.id)}
+                        onClick={() => removeContentIdea(template.id, idea.id)}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -321,11 +299,11 @@ export default function ChecklistBuilder() {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={() => addTask(block.id)}
+                    onClick={() => addContentIdea(template.id)}
                     className="mt-2"
                   >
                     <Plus className="w-4 h-4 mr-2" />
-                    Add Task
+                    Add Content Idea
                   </Button>
                 </div>
               </ScrollArea>
