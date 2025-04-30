@@ -5,12 +5,12 @@ import { useSession } from '@supabase/auth-helpers-react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useToast } from '@/components/ui/use-toast';
 import { Toaster } from '@/components/ui/toaster';
-import { TwitterEmbed } from './viral-posts/TwitterEmbed';
-import PostsList from './viral-posts/PostsList';
-import AddPostDialog from './viral-posts/AddPostDialog';
-import TagsManager from './viral-posts/TagsManager';
-import PostsFilter from './viral-posts/PostsFilter';
-import Pagination from './viral-posts/Pagination';
+import { TwitterEmbed } from './TwitterEmbed';
+import PostsList from './PostsList';
+import AddPostDialog from './AddPostDialog';
+import TagsManager from './TagsManager';
+import PostsFilter from './PostsFilter';
+import Pagination from './Pagination';
 
 const POSTS_PER_PAGE = 6;
 

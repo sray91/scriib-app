@@ -1,4 +1,4 @@
-import ViralPostSwipeFile from '@/components/ViralPosts'
+import ViralPostSwipeFile from '@/components/viral-posts/ViralPosts'
 import React from 'react'
 
 const page = () => {

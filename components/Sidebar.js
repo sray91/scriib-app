@@ -1,6 +1,6 @@
 'use client'
 
-import { GalleryVerticalEnd, LayoutList, Calendar, Users, Lightbulb, Search, Settings, LogOut, Menu, X, PenTool } from 'lucide-react'
+import { GalleryVerticalEnd, LayoutList, Calendar, Users, Lightbulb, Search, Settings, LogOut, Menu, X, PenTool, Image as ImageIcon } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
@@ -27,6 +27,7 @@ const navigation = [
   { name: 'Swipe File', href: '/viral', icon: Search },
   { name: 'CoCreate', href: '/cocreate', icon: Lightbulb },
   { name: 'Post Forge', href: '/post-forge', icon: PenTool },
+  { name: 'Infogen', href: '/infogen', icon: ImageIcon },
 ]
 
 export default function SidebarComponent() {
