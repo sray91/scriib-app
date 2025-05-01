@@ -4,6 +4,9 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 export default function ScheduledPostsList({ day, posts, onCreatePost, onEditPost, onDeletePost }) {
+  // Filter posts for the specific day
+  const filteredPosts = posts.filter(post => post.day_of_week === day);
+  
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
@@ -16,7 +19,7 @@ export default function ScheduledPostsList({ day, posts, onCreatePost, onEditPos
         </Button>
       </div>
       
-      {posts.length === 0 ? (
+      {filteredPosts.length === 0 ? (
         <div className="text-center py-8 border rounded-lg">
           <p className="text-gray-500">No posts scheduled for {day}</p>
           <Button 
@@ -28,7 +31,7 @@ export default function ScheduledPostsList({ day, posts, onCreatePost, onEditPos
         </div>
       ) : (
         <div className="space-y-4">
-          {posts.map((post) => (
+          {filteredPosts.map((post) => (
             <Card 
               key={post.id} 
               className="relative hover:border-gray-400 transition-colors group"

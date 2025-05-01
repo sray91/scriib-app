@@ -106,25 +106,11 @@ export default function PostForge() {
         if (error) throw error;
         setScheduledPosts(posts || []);
       } else {
-        // Original code for fetching posts for a specific day
-        // Get the date range for the current week
-        const today = new Date();
-        const dayOfWeek = DAYS_OF_WEEK.indexOf(activeDay);
-        const currentDayDate = new Date(today);
-        
-        // Adjust to get the date for the selected day
-        const diff = dayOfWeek - today.getDay() + (dayOfWeek < today.getDay() ? 7 : 0);
-        currentDayDate.setDate(today.getDate() + diff);
-        
-        // Format as YYYY-MM-DD
-        const formattedDate = currentDayDate.toISOString().split('T')[0];
-
+        // For daily view, simply filter by day_of_week
         const { data: posts, error } = await supabase
           .from('posts')
           .select('*')
           .eq('day_of_week', activeDay)
-          .gte('scheduled_time', `${formattedDate}T00:00:00`)
-          .lte('scheduled_time', `${formattedDate}T23:59:59`)
           .order('scheduled_time');
 
         if (error) throw error;
@@ -362,14 +348,16 @@ export default function PostForge() {
               size="sm"
               onClick={() => setView('list')}
             >
-              <List className="h-4 w-4" />
+              <List className="h-4 w-4 mr-2" />
+              Daily View
             </Button>
             <Button
               variant={view === 'kanban' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setView('kanban')}
             >
-              <Calendar className="h-4 w-4" />
+              <Calendar className="h-4 w-4 mr-2" />
+              Weekly View
             </Button>
           </div>
           <Button
