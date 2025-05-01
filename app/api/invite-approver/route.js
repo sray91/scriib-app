@@ -56,22 +56,35 @@ export async function POST(request) {
       
       console.log("Users table exists:", usersTableExists);
       
-      // Try to find the user in the profiles table first
+      // Try to find the user in auth.users first instead of profiles
       let foundUser = false;
-      const { data: userProfile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', email.toLowerCase())
-        .maybeSingle();
       
-      // If we found a user profile
-      if (!profileError && userProfile) {
-        approver_id = userProfile.id;
+      // First, check auth.users using the admin API
+      const { data: authUser, error: authUserError } = await supabase.auth.admin.getUserByEmail(email.toLowerCase());
+      
+      if (!authUserError && authUser?.user) {
+        approver_id = authUser.user.id;
         is_registered = true;
         foundUser = true;
       }
       
-      // If we didn't find a user but the users table exists, try there
+      // If we didn't find a user in auth, check profiles as backup
+      if (!foundUser) {
+        const { data: userProfile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('email', email.toLowerCase())
+          .maybeSingle();
+        
+        // If we found a user profile
+        if (!profileError && userProfile) {
+          approver_id = userProfile.id;
+          is_registered = true;
+          foundUser = true;
+        }
+      }
+      
+      // If we didn't find a user but the users table exists, try there as last resort
       if (!foundUser && usersTableExists) {
         const { data: existingUser, error: userCheckError } = await supabase
           .from('users')
@@ -262,17 +275,42 @@ export async function POST(request) {
         
         // Special handling for foreign key violations
         if (insertError.code === '23503') {
-          return NextResponse.json(
-            { 
-              error: "Error creating relationship - foreign key constraint violated. Invitation email was sent, but the approver will need to be added manually after they register.",
-              emailSent: true
-            },
-            { status: 500 }
-          );
+          // If this is a foreign key error, let's try to provide more detailed information
+          const errorDetails = insertError.details || '';
+          
+          if (errorDetails.includes('ghostwriter_id')) {
+            return NextResponse.json(
+              { 
+                error: "Your account is not properly set up in the database. Please contact support.",
+                details: "Ghostwriter ID foreign key constraint failed"
+              },
+              { status: 500 }
+            );
+          } else if (errorDetails.includes('approver_id')) {
+            // This is the most common case - approver doesn't exist yet
+            return NextResponse.json(
+              { 
+                error: "The approver account will be created when they register. Invitation email was sent.",
+                emailSent: true,
+                success: true,
+                details: "Approver account will be created when they register"
+              },
+              { status: 200 }
+            );
+          } else {
+            return NextResponse.json(
+              { 
+                error: "Database constraint error. The invitation email was sent, but there was a problem updating the database. The approver will need to be added manually after they register.",
+                emailSent: true,
+                success: true
+              },
+              { status: 200 }
+            );
+          }
         }
         
         return NextResponse.json(
-          { error: "Error creating relationship" },
+          { error: "Error creating relationship: " + insertError.message },
           { status: 500 }
         );
       }

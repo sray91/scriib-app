@@ -66,18 +66,22 @@ export async function GET(request) {
       
       // Get the site URL from environment or the request
       const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || requestUrl.origin
-      console.log("Site URL for redirect:", siteUrl)
+      
+      // Remove trailing slash if it exists
+      const normalizedSiteUrl = siteUrl.endsWith('/') ? siteUrl.slice(0, -1) : siteUrl
+      
+      console.log("Site URL for redirect:", normalizedSiteUrl)
       
       if (ghostwriter) {
         // If this is an approver invitation, redirect to the accept page
-        const acceptUrl = new URL(`/accept?ghostwriter=${ghostwriter}`, siteUrl)
+        const acceptUrl = new URL(`/accept?ghostwriter=${ghostwriter}`, normalizedSiteUrl)
         if (email) {
           acceptUrl.searchParams.set('email', email)
         }
         redirectUrl = acceptUrl
       } else if (next) {
         // If there's a next parameter, redirect there
-        redirectUrl = new URL(next.startsWith('/') ? next : `/${next}`, siteUrl)
+        redirectUrl = new URL(next.startsWith('/') ? next : `/${next}`, normalizedSiteUrl)
         
         // If the next URL is the accept page and we have an email, add it to the query params
         if ((next.includes('/accept') || redirectUrl.pathname.includes('/accept')) && email) {
@@ -85,7 +89,7 @@ export async function GET(request) {
         }
       } else {
         // Otherwise, redirect to the dashboard or home page
-        redirectUrl = new URL('/', siteUrl)
+        redirectUrl = new URL('/', normalizedSiteUrl)
       }
       
       console.log("Redirecting to:", redirectUrl.toString())

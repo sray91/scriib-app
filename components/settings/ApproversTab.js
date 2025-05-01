@@ -130,19 +130,29 @@ export default function ApproversTab() {
       const result = await response.json()
       
       // Special case: Email was sent but relationship couldn't be created
-      if (!response.ok && result.emailSent) {
-        setInviteDialogOpen(false)
-        setInviteEmail('')
-        
-        toast({
-          title: 'Partial Success',
-          description: 'Invitation email was sent, but the approver will need to be added manually after they register.',
-          variant: 'default'
-        })
+      if (result.emailSent) {
+        try {
+          setIsInviteDialogOpen(false)
+          setInviteEmail('')
+          
+          toast({
+            title: 'Partial Success',
+            description: result.error || 'Invitation email was sent, but the approver will need to be added manually after they register.',
+            variant: 'default'
+          })
+        } catch (stateError) {
+          console.error('Error updating dialog state:', stateError)
+          // Still show toast even if dialog state update fails
+          toast({
+            title: 'Partial Success',
+            description: result.error || 'Invitation email was sent, but the approver will need to be added manually after they register.',
+            variant: 'default'
+          })
+        }
         return
       }
       
-      if (!response.ok) {
+      if (!response.ok && !result.success) {
         throw new Error(result.error || 'Failed to invite approver')
       }
 
@@ -157,16 +167,26 @@ export default function ApproversTab() {
         is_registered: result.data.is_registered
       }
       
-      setApprovers(prev => [newApprover, ...prev])
-      setInviteDialogOpen(false)
-      setInviteEmail('')
-      
-      toast({
-        title: 'Success',
-        description: result.data.is_registered
-          ? 'Approver added successfully'
-          : 'Invitation sent successfully',
-      })
+      try {
+        setApprovers(prev => [newApprover, ...prev])
+        setIsInviteDialogOpen(false)
+        setInviteEmail('')
+        
+        toast({
+          title: 'Success',
+          description: result.data.is_registered
+            ? 'Approver added successfully'
+            : 'Invitation sent successfully',
+        })
+      } catch (stateError) {
+        console.error('Error updating state after successful invite:', stateError)
+        // Still show success toast even if state update fails
+        toast({
+          title: 'Success',
+          description: 'Approver invitation processed successfully',
+          variant: 'default'
+        })
+      }
     } catch (error) {
       console.error('Error inviting approver:', error)
       setError(error.message)

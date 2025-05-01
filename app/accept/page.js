@@ -65,25 +65,39 @@ export default function AcceptInvitationPage() {
           return
         }
         
-        // Get ghostwriter data
-        const { data: ghostwriterUserData, error: userError } = await supabase
-          .from('users')
-          .select('id, email, user_metadata')
-          .eq('id', ghostwriterId)
-          .single()
+        // Get ghostwriter data from auth.users via RPC
+        const { data: ghostwriterUserData, error: userError } = await supabase.rpc(
+          'get_user_details',
+          { user_id: ghostwriterId }
+        )
           
-        if (userError) {
-          console.error('Error fetching ghostwriter data:', userError)
-          setError('Could not find the user who invited you.')
-          setIsProcessing(false)
-          return
+        if (userError || !ghostwriterUserData) {
+          // Fallback to checking profiles table
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('id, email, full_name')
+            .eq('id', ghostwriterId)
+            .single()
+            
+          if (profileError || !profileData) {
+            console.error('Error fetching ghostwriter data:', userError || profileError)
+            setError('Could not find the user who invited you.')
+            setIsProcessing(false)
+            return
+          }
+          
+          setGhostwriterData({
+            id: profileData.id,
+            email: profileData.email,
+            name: profileData.full_name || profileData.email.split('@')[0]
+          })
+        } else {
+          setGhostwriterData({
+            id: ghostwriterUserData.id,
+            email: ghostwriterUserData.email,
+            name: ghostwriterUserData.full_name || ghostwriterUserData.email.split('@')[0]
+          })
         }
-        
-        setGhostwriterData({
-          id: ghostwriterUserData.id,
-          email: ghostwriterUserData.email,
-          name: ghostwriterUserData.user_metadata?.full_name || ghostwriterUserData.email.split('@')[0]
-        })
         
         // Check if relationship already exists
         const { data: existingLink, error: linkError } = await supabase
