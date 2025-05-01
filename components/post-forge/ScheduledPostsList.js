@@ -11,23 +11,11 @@ export default function ScheduledPostsList({ day, posts, onCreatePost, onEditPos
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">Scheduled Posts</h2>
-        <Button 
-          size="sm"
-          onClick={onCreatePost}
-        >
-          <Plus className="mr-2 h-4 w-4" /> New Post
-        </Button>
       </div>
       
       {filteredPosts.length === 0 ? (
         <div className="text-center py-8 border rounded-lg">
           <p className="text-gray-500">No posts scheduled for {day}</p>
-          <Button 
-            className="mt-4"
-            onClick={onCreatePost}
-          >
-            <Plus className="mr-2 h-4 w-4" /> Create Post
-          </Button>
         </div>
       ) : (
         <div className="space-y-4">

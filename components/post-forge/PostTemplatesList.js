@@ -11,15 +11,12 @@ export default function PostTemplatesList({ day, templates, isLoading, onCreateP
       </div>
       
       {isLoading ? (
-        <p>Loading templates...</p>
+        <div className="text-center py-8 border rounded-lg">
+          <p className="text-gray-500">Loading templates...</p>
+        </div>
       ) : templates.length === 0 ? (
         <div className="text-center py-8 border rounded-lg">
-          <p className="text-gray-500 mb-4">No post templates for {day}</p>
-          <Link href="/post-forge/builder">
-            <Button variant="outline">
-              Create Templates
-            </Button>
-          </Link>
+          <p className="text-gray-500">No templates found for {day}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -41,10 +38,10 @@ export default function PostTemplatesList({ day, templates, isLoading, onCreateP
                   </div>
                 )}
                 <Button 
-                  className="mt-4 w-full"
+                  className="mt-4 w-full bg-green-600 hover:bg-green-700"
                   onClick={() => onCreatePost(template.id)}
                 >
-                  Create Post <ArrowRight className="ml-2 h-4 w-4" />
+                  Use Template <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </CardContent>
             </Card>

@@ -3,7 +3,7 @@ import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -96,14 +96,6 @@ export default function WeeklyKanbanView({
               {!isMobile && (
                 <div className="flex justify-between items-center mb-2 px-2">
                   <h3 className="font-medium">{day}</h3>
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    className="h-8 w-8 p-0" 
-                    onClick={() => onCreatePost(day)}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
                 </div>
               )}
               
@@ -116,17 +108,6 @@ export default function WeeklyKanbanView({
                       snapshot.isDraggingOver ? 'bg-gray-100' : 'bg-gray-50'
                     }`}
                   >
-                    {isMobile && (
-                      <div className="flex justify-end mb-2">
-                        <Button 
-                          size="sm" 
-                          onClick={() => onCreatePost(day)}
-                        >
-                          <Plus className="mr-2 h-4 w-4" /> New Post
-                        </Button>
-                      </div>
-                    )}
-                    
                     {posts
                       .filter(post => post.day_of_week === day)
                       .map((post, index) => (

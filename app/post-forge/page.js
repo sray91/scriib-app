@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Calendar as List, Calendar } from 'lucide-react';
+import { Calendar as List, Calendar, Plus } from 'lucide-react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ export default function PostForge() {
   const [scheduledPosts, setScheduledPosts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [view, setView] = useState('list');
+  const [isNextWeek, setIsNextWeek] = useState(false);
   const [isGeneratingContent, setIsGeneratingContent] = useState(false);
   const [isPostEditorOpen, setIsPostEditorOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
@@ -75,7 +76,7 @@ export default function PostForge() {
 
   async function fetchScheduledPosts() {
     try {
-      // If in kanban view, fetch posts for all days in the current week
+      // If in kanban view, fetch posts for all days in the current week or next week
       if (view === 'kanban') {
         // Get the date range for the current week
         const today = new Date();
@@ -86,6 +87,11 @@ export default function PostForge() {
         const daysFromMonday = currentDay === 0 ? 6 : currentDay - 1; // Adjust for Sunday
         startOfWeek.setDate(today.getDate() - daysFromMonday);
         startOfWeek.setHours(0, 0, 0, 0);
+        
+        // If planning for next week, add 7 days
+        if (isNextWeek) {
+          startOfWeek.setDate(startOfWeek.getDate() + 7);
+        }
         
         // Calculate the end of the week (Sunday)
         const endOfWeek = new Date(startOfWeek);
@@ -212,6 +218,12 @@ export default function PostForge() {
         const targetDate = new Date(today);
         const diff = dayIndex - today.getDay() + (dayIndex < today.getDay() ? 7 : 0);
         targetDate.setDate(today.getDate() + diff);
+        
+        // If planning for next week, add 7 days
+        if (isNextWeek) {
+          targetDate.setDate(targetDate.getDate() + 7);
+        }
+        
         targetDate.setHours(12, 0, 0, 0);
 
         setSelectedPost({
@@ -232,6 +244,12 @@ export default function PostForge() {
       const targetDate = new Date(today);
       const diff = dayIndex - today.getDay() + (dayIndex < today.getDay() ? 7 : 0);
       targetDate.setDate(today.getDate() + diff);
+      
+      // If planning for next week, add 7 days
+      if (isNextWeek) {
+        targetDate.setDate(targetDate.getDate() + 7);
+      }
+      
       targetDate.setHours(12, 0, 0, 0);
 
       setSelectedPost({
@@ -338,113 +356,194 @@ export default function PostForge() {
   }
 
   return (
-    <div className="container max-w-7xl mx-auto p-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-        <h1 className="text-2xl font-bold">Post Forge</h1>
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          <div className="flex items-center space-x-2">
+    <>
+      <style jsx global>{`
+        .btn-primary {
+          background-color: #fb2e01 !important;
+          color: white !important;
+        }
+        .btn-primary:hover {
+          background-color: #e02a01 !important;
+        }
+        .btn-secondary {
+          background-color: #2563eb !important;
+          color: white !important;
+        }
+        .btn-secondary:hover {
+          background-color: #1d4ed8 !important;
+        }
+        .btn-success {
+          background-color: #16a34a !important;
+          color: white !important;
+        }
+        .btn-success:hover {
+          background-color: #15803d !important;
+        }
+      `}</style>
+
+      <div className="container max-w-7xl mx-auto p-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+          <h1 className="text-2xl font-bold">Post Forge</h1>
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            <div className="flex items-center space-x-2">
+              <Button
+                variant={view === 'list' ? 'default' : 'outline'}
+                size="sm"
+                className={view === 'list' ? 'bg-slate-700 hover:bg-slate-800' : ''}
+                onClick={() => {
+                  setView('list');
+                  setIsNextWeek(false);
+                }}
+              >
+                <List className="h-4 w-4 mr-2" />
+                Daily View
+              </Button>
+              <Button
+                variant={view === 'kanban' && !isNextWeek ? 'default' : 'outline'}
+                size="sm"
+                className={view === 'kanban' && !isNextWeek ? 'bg-slate-700 hover:bg-slate-800' : ''}
+                onClick={() => {
+                  setView('kanban');
+                  setIsNextWeek(false);
+                }}
+              >
+                <Calendar className="h-4 w-4 mr-2" />
+                Weekly View
+              </Button>
+              <Button
+                variant={isNextWeek ? 'default' : 'outline'}
+                size="sm"
+                className={isNextWeek ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                onClick={() => {
+                  setView('kanban');
+                  setIsNextWeek(true);
+                }}
+              >
+                <Calendar className="h-4 w-4 mr-2" />
+                Next Week
+              </Button>
+            </div>
             <Button
-              variant={view === 'list' ? 'default' : 'outline'}
+              onClick={() => {
+                setSelectedPost({
+                  content: '',
+                  platforms: {},
+                  scheduledTime: new Date(new Date().setHours(12, 0, 0, 0)).toISOString(),
+                  requiresApproval: false,
+                  approverId: '',
+                  mediaFiles: [],
+                  day_of_week: activeDay
+                });
+                setIsCreatingNewPost(true);
+                setIsPostEditorOpen(true);
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white"
               size="sm"
-              onClick={() => setView('list')}
             >
-              <List className="h-4 w-4 mr-2" />
-              Daily View
+              <Plus className="mr-2 h-4 w-4" /> New Post
             </Button>
             <Button
-              variant={view === 'kanban' ? 'default' : 'outline'}
+              onClick={generateWeeklyContent}
+              disabled={isGeneratingContent}
+              className="bg-[#fb2e01] hover:bg-[#fb2e01]/90 text-white"
               size="sm"
-              onClick={() => setView('kanban')}
             >
-              <Calendar className="h-4 w-4 mr-2" />
-              Weekly View
+              {isGeneratingContent ? "Generating..." : "Generate Weekly Content"}
             </Button>
+            <Link href="/post-forge/builder">
+              <Button variant="outline" size="sm">
+                Manage Post Templates
+              </Button>
+            </Link>
           </div>
-          <Button
-            onClick={generateWeeklyContent}
-            disabled={isGeneratingContent}
-            className="bg-[#fb2e01] hover:bg-[#fb2e01]/90"
-            size="sm"
-          >
-            {isGeneratingContent ? "Generating..." : "Generate Weekly Content"}
-          </Button>
-          <Link href="/post-forge/builder">
-            <Button variant="outline" size="sm">
-              Manage Post Templates
-            </Button>
-          </Link>
         </div>
-      </div>
 
-      {view === 'kanban' ? (
-        <WeeklyKanbanView
-          posts={scheduledPosts}
-          onCreatePost={(day) => {
-            setActiveDay(day);
-            handleCreatePost();
-          }}
-          onEditPost={handleEditPost}
-          onMovePost={handleMovePost}
-          onDeletePost={handleDeletePost}
-        />
-      ) : (
-        <Tabs value={activeDay} onValueChange={setActiveDay} className="space-y-6">
-          <div className="overflow-x-auto pb-2">
-            <TabsList className="w-full min-w-max justify-between">
-              {DAYS_OF_WEEK.map((day) => (
-                <TabsTrigger 
-                  key={day} 
-                  value={day}
-                  className="flex-1"
+        {view === 'kanban' ? (
+          <div>
+            {isNextWeek && (
+              <div className="bg-blue-50 p-3 rounded-md mb-4 flex items-center justify-between">
+                <p className="text-blue-700 text-sm font-medium">
+                  You&apos;re viewing next week&apos;s content plan (starting {new Date(new Date().setDate(new Date().getDate() + 7 - new Date().getDay() + 1)).toLocaleDateString()})
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsNextWeek(false)}
                 >
-                  {day}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </div>
-
-          {DAYS_OF_WEEK.map((day) => (
-            <TabsContent key={day} value={day} className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Post Templates Section */}
-                <PostTemplatesList 
-                  day={day}
-                  templates={postTemplates}
-                  isLoading={isLoading}
-                  onCreatePost={handleCreatePost}
-                />
-
-                {/* Scheduled Posts Section */}
-                <ScheduledPostsList
-                  day={day}
-                  posts={scheduledPosts}
-                  onCreatePost={() => handleCreatePost()}
-                  onEditPost={handleEditPost}
-                  onDeletePost={handleDeletePost}
-                />
+                  Back to Current Week
+                </Button>
               </div>
-            </TabsContent>
-          ))}
-        </Tabs>
-      )}
+            )}
+            <WeeklyKanbanView
+              posts={scheduledPosts}
+              onCreatePost={(day) => {
+                setActiveDay(day);
+                handleCreatePost();
+              }}
+              onEditPost={handleEditPost}
+              onMovePost={handleMovePost}
+              onDeletePost={handleDeletePost}
+            />
+          </div>
+        ) : (
+          <Tabs value={activeDay} onValueChange={setActiveDay} className="space-y-6">
+            <div className="overflow-x-auto pb-2">
+              <TabsList className="w-full min-w-max justify-between">
+                {DAYS_OF_WEEK.map((day) => (
+                  <TabsTrigger 
+                    key={day} 
+                    value={day}
+                    className="flex-1"
+                  >
+                    {day}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
 
-      {/* Post Editor Dialog */}
-      <PostEditorDialog
-        isOpen={isPostEditorOpen}
-        onOpenChange={(open) => {
-          if (!open) {
+            {DAYS_OF_WEEK.map((day) => (
+              <TabsContent key={day} value={day} className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Post Templates Section */}
+                  <PostTemplatesList 
+                    day={day}
+                    templates={postTemplates}
+                    isLoading={isLoading}
+                    onCreatePost={handleCreatePost}
+                  />
+
+                  {/* Scheduled Posts Section */}
+                  <ScheduledPostsList
+                    day={day}
+                    posts={scheduledPosts}
+                    onCreatePost={() => handleCreatePost()}
+                    onEditPost={handleEditPost}
+                    onDeletePost={handleDeletePost}
+                  />
+                </div>
+              </TabsContent>
+            ))}
+          </Tabs>
+        )}
+
+        {/* Post Editor Dialog */}
+        <PostEditorDialog
+          isOpen={isPostEditorOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsPostEditorOpen(false);
+              fetchScheduledPosts(); // Refresh posts when dialog closes
+            }
+          }}
+          post={selectedPost}
+          isNew={isCreatingNewPost}
+          onSave={() => {
+            fetchScheduledPosts();
             setIsPostEditorOpen(false);
-            fetchScheduledPosts(); // Refresh posts when dialog closes
-          }
-        }}
-        post={selectedPost}
-        isNew={isCreatingNewPost}
-        onSave={() => {
-          fetchScheduledPosts();
-          setIsPostEditorOpen(false);
-        }}
-        onClose={() => setIsPostEditorOpen(false)}
-      />
-    </div>
+          }}
+          onClose={() => setIsPostEditorOpen(false)}
+        />
+      </div>
+    </>
   );
 } 
