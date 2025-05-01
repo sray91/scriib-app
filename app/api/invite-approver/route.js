@@ -113,7 +113,10 @@ export async function POST(request) {
         const { error: signupError } = await supabase.auth.signInWithOtp({
           email: email,
           options: {
-            emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/accept?ghostwriter=${user.id}`
+            // Use a dedicated environment variable if available, fall back to constructed URL
+            emailRedirectTo: process.env.APPROVER_CALLBACK_URL 
+              ? `${process.env.APPROVER_CALLBACK_URL}?ghostwriter=${user.id}`
+              : `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?ghostwriter=${user.id}`
           }
         });
         
@@ -190,6 +193,58 @@ export async function POST(request) {
       }
     } else {
       // Create new link
+      
+      // Log the data we're trying to insert for debugging
+      console.log("Attempting to create link with:", {
+        ghostwriter_id: user.id,
+        approver_id: approver_id
+      });
+      
+      // Check if the users exist in the database
+      if (usersTableExists) {
+        const { data: gwCheck, error: gwError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', user.id)
+          .single();
+          
+        if (gwError) {
+          console.error("Ghostwriter doesn't exist in users table:", gwError);
+          
+          // Try to create the ghostwriter record
+          const { error: gwInsertError } = await supabase
+            .from('users')
+            .insert({
+              id: user.id,
+              email: user.email,
+              created_at: new Date().toISOString()
+            });
+            
+          if (gwInsertError) {
+            console.error("Failed to create ghostwriter record:", gwInsertError);
+            return NextResponse.json(
+              { error: "Could not create relationship - ghostwriter record issue" },
+              { status: 500 }
+            );
+          }
+        }
+        
+        const { data: apCheck, error: apError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', approver_id)
+          .single();
+          
+        if (apError) {
+          console.error("Approver doesn't exist in users table:", apError);
+          return NextResponse.json(
+            { error: "Could not create relationship - approver record issue" },
+            { status: 500 }
+          );
+        }
+      }
+      
+      // Now try to create the link
       const { data, error: insertError } = await supabase
         .from('ghostwriter_approver_link')
         .insert({
@@ -202,6 +257,18 @@ export async function POST(request) {
 
       if (insertError) {
         console.error("Error creating link:", insertError);
+        
+        // Special handling for foreign key violations
+        if (insertError.code === '23503') {
+          return NextResponse.json(
+            { 
+              error: "Error creating relationship - foreign key constraint violated. Invitation email was sent, but the approver will need to be added manually after they register.",
+              emailSent: true
+            },
+            { status: 500 }
+          );
+        }
+        
         return NextResponse.json(
           { error: "Error creating relationship" },
           { status: 500 }

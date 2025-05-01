@@ -1,5 +1,11 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
+## Environment Variables
+
+This project requires several environment variables to be set up for authentication and other functionality. 
+
+See [Environment Variables Documentation](./docs/ENVIRONMENT_VARIABLES.md) for details about required variables and how to set them up.
+
 ## Getting Started
 
 First, run the development server:

@@ -129,6 +129,19 @@ export default function ApproversTab() {
 
       const result = await response.json()
       
+      // Special case: Email was sent but relationship couldn't be created
+      if (!response.ok && result.emailSent) {
+        setInviteDialogOpen(false)
+        setInviteEmail('')
+        
+        toast({
+          title: 'Partial Success',
+          description: 'Invitation email was sent, but the approver will need to be added manually after they register.',
+          variant: 'default'
+        })
+        return
+      }
+      
       if (!response.ok) {
         throw new Error(result.error || 'Failed to invite approver')
       }
