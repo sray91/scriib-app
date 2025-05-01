@@ -25,11 +25,53 @@ export default function ViralPostSwipeFile() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isTagDialogOpen, setIsTagDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionChecked, setSessionChecked] = useState(false);
 
   // Reset to page 1 when changing tags
   useEffect(() => {
     setPage(1);
   }, [selectedTag]);
+
+  // Check session and trigger a manual fetch if needed
+  useEffect(() => {
+    // Session can be null while loading or undefined if not initialized yet
+    if (session === null) {
+      // Session is explicitly null, meaning the user is not logged in
+      setIsLoading(false);
+      setSessionChecked(true);
+    } else if (session) {
+      // User is logged in, good to proceed
+      setSessionChecked(true);
+      fetchPosts();
+      fetchTags();
+    }
+  }, [session]);
+
+  // Add a fallback mechanism if session doesn't initialize quickly
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!sessionChecked) {
+        console.log('Session not initialized after timeout, fetching directly from supabase');
+        // Direct check with supabase client
+        supabase.auth.getSession().then(({ data: { session: activeSession }, error }) => {
+          if (error) {
+            console.error('Error getting session:', error);
+            setIsLoading(false);
+          } else if (activeSession) {
+            console.log('Session found manually, fetching data');
+            fetchPosts();
+            fetchTags();
+          } else {
+            console.log('No active session found');
+            setIsLoading(false);
+          }
+          setSessionChecked(true);
+        });
+      }
+    }, 3000); // 3 second timeout as a fallback
+
+    return () => clearTimeout(timer);
+  }, [sessionChecked]);
 
   const fetchPosts = async () => {
     if (!supabase?.from) {
@@ -44,10 +86,25 @@ export default function ViralPostSwipeFile() {
 
     setIsLoading(true);
     try {
+      // Get current user ID if session isn't available
+      let userId = session?.user?.id;
+      
+      if (!userId) {
+        const { data } = await supabase.auth.getUser();
+        userId = data?.user?.id;
+        console.log('Fetched user ID directly:', userId);
+      }
+      
+      if (!userId) {
+        console.error('No user ID available');
+        setIsLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('reference_posts')
         .select('*')
-        .eq('user_id', session?.user?.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -65,13 +122,26 @@ export default function ViralPostSwipeFile() {
   };
 
   const fetchTags = async () => {
-    if (!supabase?.from || !session?.user?.id) return;
-
+    if (!supabase?.from) return;
+    
     try {
+      // Get current user ID if session isn't available
+      let userId = session?.user?.id;
+      
+      if (!userId) {
+        const { data } = await supabase.auth.getUser();
+        userId = data?.user?.id;
+      }
+      
+      if (!userId) {
+        console.error('No user ID available for fetching tags');
+        return;
+      }
+
       const { data, error } = await supabase
         .from('tags')
         .select('*')
-        .eq('user_id', session.user.id);
+        .eq('user_id', userId);
 
       if (error) {
         console.error('Error fetching tags:', error);
@@ -96,26 +166,6 @@ export default function ViralPostSwipeFile() {
       console.error('Unexpected error:', error);
     }
   };
-
-  useEffect(() => {
-    if (session) {
-      fetchPosts();
-      fetchTags();
-    }
-  }, [session]);
-
-  // Debug logging
-  useEffect(() => {
-    console.log('Current state:', {
-      posts: posts.length,
-      tags: tags.length,
-      selectedTag,
-      page,
-      filteredPosts: filteredPosts.length,
-      paginatedPosts: paginatedPosts.length,
-      totalPages
-    });
-  }, [posts, tags, selectedTag, page]);
 
   const handleAddPost = async (newPostData) => {
     if (!supabase?.from) {
@@ -316,6 +366,19 @@ export default function ViralPostSwipeFile() {
   const filteredPosts = selectedTag === 'all' ? posts : posts.filter((post) => post.tag === selectedTag);
   const paginatedPosts = filteredPosts.slice((page - 1) * POSTS_PER_PAGE, page * POSTS_PER_PAGE);
   const totalPages = Math.ceil(filteredPosts.length / POSTS_PER_PAGE);
+  
+  // Debug logging moved here after variables are defined
+  useEffect(() => {
+    console.log('Current state:', {
+      posts: posts.length,
+      tags: tags.length,
+      selectedTag,
+      page,
+      filteredPosts: filteredPosts.length,
+      paginatedPosts: paginatedPosts.length,
+      totalPages
+    });
+  }, [posts, tags, selectedTag, page, filteredPosts, paginatedPosts, totalPages]);
 
   return (
     <>
@@ -328,6 +391,13 @@ export default function ViralPostSwipeFile() {
             onManageTags={() => setIsTagDialogOpen(true)}
             onShareTag={handleShareTag}
           />
+
+          <button 
+            onClick={() => setIsDialogOpen(true)}
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium bg-[#FF4400] text-white shadow-sm hover:bg-[#FF4400]/90 h-10 px-4 py-2"
+          >
+            Add New X Post
+          </button>
 
           <AddPostDialog 
             isOpen={isDialogOpen}
