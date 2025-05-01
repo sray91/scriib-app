@@ -160,54 +160,20 @@ export default function PostsDashboard() {
       
       console.log('Fetching posts for user ID:', currentUser.id);
       
-      // IMPORTANT: Log the exact query we're executing for debugging
-      console.log(`Query: .or(user_id.eq.${currentUser.id},approver_id.eq.${currentUser.id},ghostwriter_id.eq.${currentUser.id})`);
-      
-      // First, just try getting ALL posts to see if we can retrieve draft posts
-      console.log("Attempting to retrieve ALL posts from database without filters:");
-      const { data: allPosts, error: allPostsError } = await supabase
-        .from('posts')
-        .select('id, content, status')
-        .limit(20);
-      
-      if (allPostsError) {
-        console.error('Error checking for all posts:', allPostsError);
-      } else {
-        console.log('ALL posts query found:', allPosts.length, 'posts');
-        console.log('Posts by status:');
-        const statusCounts = {};
-        allPosts.forEach(post => {
-          const status = post.status || 'null';
-          statusCounts[status] = (statusCounts[status] || 0) + 1;
-        });
-        console.log('Status counts:', statusCounts);
-        console.log('All post statuses:', allPosts.map(p => ({ id: p.id.substring(0,8), status: p.status })));
-      }
-      
-      // Use a simpler query that doesn't rely on relationship definitions - Get ALL posts
+      // Explicitly fetch only posts owned by this user
       const { data, error } = await supabase
         .from('posts')
         .select('*')
+        .eq('user_id', currentUser.id)
         .order('created_at', { ascending: false })
-        .limit(50);  // Limit to avoid loading too much
+        .limit(50);
 
       if (error) {
         console.error('Supabase error when fetching posts:', error);
         throw error;
       }
 
-      console.log('Posts data retrieved:', data ? data.length : 0, 'posts found');
-
-      // DIAGNOSTIC: Log raw data directly from the database
-      console.log('🔍 RAW DATABASE POSTS:');
-      data.forEach(post => {
-        console.log(`ID: ${post.id.substring(0, 8)}, Raw Status: "${post.status}", Type: ${typeof post.status}`);
-      });
-
-      // Try a desperate approach - directly check for any draft posts in raw data
-      const rawDrafts = data.filter(p => String(p.status || '').toLowerCase().includes('draft'));
-      console.log(`Direct database check found ${rawDrafts.length} draft posts:`, 
-        rawDrafts.map(p => ({ id: p.id.substring(0,8), status: p.status })));
+      console.log('Posts data retrieved:', data ? data.length : 0, 'posts found for user ID:', currentUser.id);
 
       // Manually fetch user data for each unique user ID in the posts
       const userIds = new Set();

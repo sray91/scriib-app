@@ -29,6 +29,15 @@ export default function PostTemplateBuilder() {
     const loadTemplate = async () => {
       try {
         setIsLoading(true);
+        
+        // Get the current user
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError) {
+          console.error('Error fetching user:', userError);
+          throw userError;
+        }
+
+        // Load user-specific templates
         const { data: templates, error: templatesError } = await supabase
           .from('user_time_blocks')
           .select(`
@@ -36,12 +45,14 @@ export default function PostTemplateBuilder() {
             title,
             description,
             day,
+            user_id,
             user_tasks (
               id,
               text
             )
           `)
           .eq('day', currentDay)
+          .eq('user_id', user.id)  // Filter by user_id
           .order('created_at');
 
         if (templatesError) throw templatesError;
@@ -139,6 +150,10 @@ export default function PostTemplateBuilder() {
     try {
       setIsSaving(true);
 
+      // Get the current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+
       // Delete existing templates for this day
       await supabase
         .from('user_time_blocks')
@@ -152,7 +167,8 @@ export default function PostTemplateBuilder() {
           .insert({
             title: template.title,
             description: template.description,
-            day: currentDay
+            day: currentDay,
+            user_id: user.id
           })
           .select()
           .single();
