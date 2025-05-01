@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { TwitterEmbed } from '@/components/viral-posts/ViralPosts';
+import { TwitterEmbed } from '@/components/viral-posts/TwitterEmbed';
 import Image from 'next/image';
 import Link from 'next/link';
 
