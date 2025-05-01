@@ -250,7 +250,6 @@ export default function SettingsPage() {
 
   return (
     <div className="container py-8 max-w-5xl">
-      <h1 className="text-3xl font-bold mb-8">Settings</h1>
       
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid grid-cols-7 w-full">
