@@ -429,9 +429,21 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
   // Add a function to handle deletion
   const handleDelete = (e) => {
     e.preventDefault();
-    if (window.confirm("Are you sure you want to delete this post?")) {
-      if (onDelete && post?.id) {
-        onDelete(post.id);
+    
+    if (window.confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
+      if (onDelete && typeof onDelete === 'function') {
+        if (post?.id) {
+          onDelete(post.id);
+        } else {
+          onDelete();
+        }
+      } else {
+        console.warn('Delete handler not provided');
+        toast({
+          title: "Error",
+          description: "Delete functionality is not available in this context",
+          variant: "destructive",
+        });
       }
     }
   };
@@ -708,7 +720,7 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
 
         <div className="flex justify-between items-center mt-6">
           <div className="flex gap-2">
-            {!isNew && onDelete && (
+            {!isNew && onDelete && typeof onDelete === 'function' && (
               <Button 
                 variant="destructive" 
                 onClick={handleDelete}

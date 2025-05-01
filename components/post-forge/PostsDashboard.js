@@ -307,8 +307,42 @@ export default function PostsDashboard() {
 
   const handleCloseEditor = () => {
     setIsPostEditorOpen(false)
-    setSelectedPost(null)
   }
+
+  const handleDeletePost = async (postId) => {
+    if (!postId) return;
+    
+    try {
+      toast({
+        title: 'Deleting post...',
+        description: 'Please wait while we delete the post.',
+      });
+      
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', postId);
+
+      if (error) throw error;
+      
+      // Update local state
+      setPosts(prev => prev.filter(post => post.id !== postId));
+      
+      toast({
+        title: 'Success',
+        description: 'Post deleted successfully',
+      });
+      
+      setIsPostEditorOpen(false);
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete post: ' + error.message,
+        variant: 'destructive',
+      });
+    }
+  };
 
   const handleOpenApprovalDialog = (post) => {
     setSelectedPost(post)
@@ -620,6 +654,7 @@ export default function PostsDashboard() {
           isNew={isCreatingNewPost}
           onSave={handlePostSave}
           onClose={handleCloseEditor}
+          onDelete={handleDeletePost}
         />
       )}
       
