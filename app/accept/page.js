@@ -295,9 +295,24 @@ export default function AcceptInvitationPage() {
               <p className="text-gray-600 mb-2">
                 You are now connected with {ghostwriterData?.name || 'your inviter'}.
               </p>
-              <p className="text-gray-500 text-sm mb-6">
+              <p className="text-gray-500 text-sm mb-4">
                 You will be able to review and approve their content.
               </p>
+              
+              <div className="p-4 border rounded-lg bg-blue-50 mb-6 w-full max-w-md">
+                <h4 className="font-medium text-blue-700 mb-2">Set up your account</h4>
+                <p className="text-sm text-blue-600 mb-4">
+                  For added security, we recommend setting a password for your account.
+                </p>
+                <Button 
+                  onClick={() => router.push('/settings?tab=password')} 
+                  variant="outline" 
+                  className="w-full bg-white border-blue-300 hover:bg-blue-50 text-blue-700"
+                >
+                  Set Password
+                </Button>
+              </div>
+              
               <Button onClick={() => router.push('/settings?tab=ghostwriters')} className="bg-[#fb2e01] hover:bg-[#fb2e01]/90">
                 View Ghostwriters
               </Button>

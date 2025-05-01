@@ -132,7 +132,13 @@ export async function POST(request) {
             // Use a dedicated environment variable if available, fall back to constructed URL
             emailRedirectTo: process.env.APPROVER_CALLBACK_URL 
               ? `${process.env.APPROVER_CALLBACK_URL}?ghostwriter=${user.id}`
-              : `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?ghostwriter=${user.id}`
+              : `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?ghostwriter=${user.id}`,
+            // Add email subject
+            emailSubject: "Invitation to become an approver",
+            // Add a custom message to the email
+            data: {
+              invite_message: `You have been invited to become an approver. Click the link below to sign in securely without needing a password. After signing in, you will be prompted to accept the invitation and can then set up a password for your account for enhanced security.`
+            }
           }
         });
         

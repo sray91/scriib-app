@@ -46,30 +46,46 @@ export default function GhostwritersTab() {
           ghostwriter_id,
           active,
           created_at,
-          revoked_at,
-          ghostwriter:ghostwriter_id(
-            id,
-            email,
-            user_metadata
-          )
+          revoked_at
         `)
         .eq('approver_id', user.id)
         .order('created_at', { ascending: false })
 
       if (error) throw error
 
-      // Format the data
-      const formattedGhostwriters = data.map(link => ({
-        id: link.id,
-        ghostwriter_id: link.ghostwriter_id,
-        active: link.active,
-        created_at: link.created_at,
-        revoked_at: link.revoked_at,
-        email: link.ghostwriter.email,
-        full_name: link.ghostwriter.user_metadata?.full_name || link.ghostwriter.email.split('@')[0]
-      }))
-
-      setGhostwriters(formattedGhostwriters)
+      // Get the ghostwriters details from users_view
+      const ghostwriterIds = data.map(link => link.ghostwriter_id)
+      
+      if (ghostwriterIds.length > 0) {
+        const { data: ghostwriterDetails, error: ghostwriterError } = await supabase
+          .from('users_view')
+          .select('id, email, raw_user_meta_data')
+          .in('id', ghostwriterIds)
+        
+        if (ghostwriterError) {
+          console.error('Error fetching ghostwriter details:', ghostwriterError)
+        }
+        
+        // Format the data
+        const formattedGhostwriters = data.map(link => {
+          const ghostwriterInfo = ghostwriterDetails?.find(g => g.id === link.ghostwriter_id) || {}
+          const userMetadata = ghostwriterInfo.raw_user_meta_data || {}
+          
+          return {
+            id: link.id,
+            ghostwriter_id: link.ghostwriter_id,
+            active: link.active,
+            created_at: link.created_at,
+            revoked_at: link.revoked_at,
+            email: ghostwriterInfo.email || 'Unknown email',
+            full_name: userMetadata.full_name || userMetadata.name || (ghostwriterInfo.email ? ghostwriterInfo.email.split('@')[0] : 'Unknown user')
+          }
+        })
+        
+        setGhostwriters(formattedGhostwriters)
+      } else {
+        setGhostwriters([])
+      }
     } catch (error) {
       console.error('Error loading ghostwriters:', error)
       setError('Failed to load ghostwriters. Please try again.')

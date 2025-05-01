@@ -14,6 +14,7 @@ import PreferencesTab from "@/components/settings/PreferencesTab";
 import ProfileTab from "@/components/settings/ProfileTab"
 import ApproversTab from "@/components/settings/ApproversTab"
 import GhostwritersTab from "@/components/settings/GhostwritersTab"
+import PasswordTab from "@/components/settings/PasswordTab"
 import { useLinkedInAuthStatus } from '@/components/settings/SocialAccountsTab'
 import { useSearchParams } from 'next/navigation'
 
@@ -28,10 +29,10 @@ export default function SettingsPage() {
   const [users, setUsers] = useState([])
   const searchParams = useSearchParams()
 
-  // Set the active tab based on URL parameter if provided
   useEffect(() => {
+    // Set active tab based on URL parameter
     const tabParam = searchParams.get('tab')
-    if (tabParam) {
+    if (tabParam && ['social', 'profile', 'password', 'preferences', 'approvers', 'ghostwriters', 'shares', 'teams'].includes(tabParam)) {
       setActiveTab(tabParam)
     }
   }, [searchParams])
@@ -252,9 +253,10 @@ export default function SettingsPage() {
     <div className="container py-8 max-w-5xl">
       
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid grid-cols-7 w-full">
+        <TabsList className="grid grid-cols-8 w-full">
           <TabsTrigger value="social">Social Accounts</TabsTrigger>
           <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="password">Password</TabsTrigger>
           <TabsTrigger value="preferences">Preferences</TabsTrigger>
           <TabsTrigger value="approvers">Approvers</TabsTrigger>
           <TabsTrigger value="ghostwriters">Ghostwriters</TabsTrigger>
@@ -343,6 +345,9 @@ export default function SettingsPage() {
         </TabsContent>
         <TabsContent value="profile">
           <ProfileTab />
+        </TabsContent>
+        <TabsContent value="password">
+          <PasswordTab />
         </TabsContent>
         <TabsContent value="preferences">
           <PreferencesTab />

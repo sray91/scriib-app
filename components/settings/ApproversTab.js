@@ -57,32 +57,48 @@ export default function ApproversTab() {
           approver_id,
           active,
           created_at,
-          revoked_at,
-          approver:approver_id(
-            id,
-            email,
-            user_metadata
-          )
+          revoked_at
         `)
         .eq('ghostwriter_id', user.id)
         .order('created_at', { ascending: false })
 
       if (error) throw error
 
-      // Format the data
-      const formattedApprovers = data.map(link => ({
-        id: link.id,
-        approver_id: link.approver_id,
-        active: link.active,
-        created_at: link.created_at,
-        revoked_at: link.revoked_at,
-        email: link.approver.email,
-        full_name: link.approver.user_metadata?.full_name || link.approver.email.split('@')[0],
-        // If the approver exists but doesn't have a Supabase account yet
-        is_registered: !!link.approver.id
-      }))
-
-      setApprovers(formattedApprovers)
+      // Get the approvers details from users_view
+      const approverIds = data.map(link => link.approver_id)
+      
+      if (approverIds.length > 0) {
+        const { data: approverDetails, error: approverError } = await supabase
+          .from('users_view')
+          .select('id, email, raw_user_meta_data')
+          .in('id', approverIds)
+        
+        if (approverError) {
+          console.error('Error fetching approver details:', approverError)
+        }
+        
+        // Format the data
+        const formattedApprovers = data.map(link => {
+          const approverInfo = approverDetails?.find(a => a.id === link.approver_id) || {}
+          const userMetadata = approverInfo.raw_user_meta_data || {}
+          
+          return {
+            id: link.id,
+            approver_id: link.approver_id,
+            active: link.active,
+            created_at: link.created_at,
+            revoked_at: link.revoked_at,
+            email: approverInfo.email || 'Unknown email',
+            full_name: userMetadata.full_name || userMetadata.name || (approverInfo.email ? approverInfo.email.split('@')[0] : 'Unknown user'),
+            // If the approver exists in users_view, they're registered
+            is_registered: !!approverInfo.id
+          }
+        })
+        
+        setApprovers(formattedApprovers)
+      } else {
+        setApprovers([])
+      }
     } catch (error) {
       console.error('Error loading approvers:', error)
       setError('Failed to load approvers. Please try again.')
