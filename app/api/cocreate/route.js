@@ -5,7 +5,7 @@ import OpenAI from 'openai';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_POSTFORGE_API_KEY,
+  apiKey: process.env.OPENAI_COCREATE_API_KEY,
 });
 
 export async function POST(req) {
@@ -60,7 +60,7 @@ export async function POST(req) {
     
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Error in postforge API:', error);
+    console.error('Error in coCreate API:', error);
     return NextResponse.json(
       { message: "Internal server error", error: "server_error" }, 
       { status: 500 }
@@ -172,7 +172,7 @@ async function generatePostContent(userMessage, currentDraft, action, pastPosts,
   ).join('\n\n');
   
   // Create the system prompt
-  let systemPrompt = `You are PostForge, an expert LinkedIn post writer assistant. Your task is to ${action === 'refine' ? 'refine' : 'create'} a LinkedIn post that matches the user's personal style while incorporating elements from top-performing posts.
+  let systemPrompt = `You are CoCreate, an expert LinkedIn post writer assistant. Your task is to ${action === 'refine' ? 'refine' : 'create'} a LinkedIn post that matches the user's personal style while incorporating elements from top-performing posts.
 
 PAST POSTS BY THE USER (for style analysis):
 ${pastPostsText || "No past posts available."}
