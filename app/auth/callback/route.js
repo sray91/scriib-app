@@ -6,6 +6,10 @@ export async function GET(request) {
   try {
     const requestUrl = new URL(request.url)
     console.log("Callback URL:", requestUrl.toString())
+    console.log("Environment variables:", {
+      NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+      NODE_ENV: process.env.NODE_ENV,
+    })
     
     // Check if we have a duplicate path like /auth/callback/auth/callback
     if (requestUrl.pathname.includes('/auth/callback/auth/callback')) {
@@ -60,16 +64,20 @@ export async function GET(request) {
       // Determine where to redirect
       let redirectUrl
       
+      // Get the site URL from environment or the request
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || requestUrl.origin
+      console.log("Site URL for redirect:", siteUrl)
+      
       if (ghostwriter) {
         // If this is an approver invitation, redirect to the accept page
-        const acceptUrl = new URL(`/accept?ghostwriter=${ghostwriter}`, requestUrl.origin)
+        const acceptUrl = new URL(`/accept?ghostwriter=${ghostwriter}`, siteUrl)
         if (email) {
           acceptUrl.searchParams.set('email', email)
         }
         redirectUrl = acceptUrl
       } else if (next) {
         // If there's a next parameter, redirect there
-        redirectUrl = new URL(next.startsWith('/') ? next : `/${next}`, requestUrl.origin)
+        redirectUrl = new URL(next.startsWith('/') ? next : `/${next}`, siteUrl)
         
         // If the next URL is the accept page and we have an email, add it to the query params
         if ((next.includes('/accept') || redirectUrl.pathname.includes('/accept')) && email) {
@@ -77,7 +85,7 @@ export async function GET(request) {
         }
       } else {
         // Otherwise, redirect to the dashboard or home page
-        redirectUrl = new URL('/', requestUrl.origin)
+        redirectUrl = new URL('/', siteUrl)
       }
       
       console.log("Redirecting to:", redirectUrl.toString())

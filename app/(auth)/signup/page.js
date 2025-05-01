@@ -49,11 +49,14 @@ export default function SignUpPage() {
     }
 
     try {
+      // Use the environment variable for the site URL
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
+      
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextUrl)}`,
+          emailRedirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(nextUrl)}`,
         },
       })
       
