@@ -40,7 +40,7 @@ export default function PostForge() {
   useEffect(() => {
     fetchPostTemplates();
     fetchScheduledPosts();
-  }, [activeDay, view]);
+  }, [activeDay, view, isNextWeek]);
 
   async function fetchPostTemplates() {
     try {
@@ -76,51 +76,71 @@ export default function PostForge() {
 
   async function fetchScheduledPosts() {
     try {
-      // If in kanban view, fetch posts for all days in the current week or next week
-      if (view === 'kanban') {
-        // Get the date range for the current week
-        const today = new Date();
-        const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
-        
-        // Calculate the start of the week (Monday)
-        const startOfWeek = new Date(today);
-        const daysFromMonday = currentDay === 0 ? 6 : currentDay - 1; // Adjust for Sunday
-        startOfWeek.setDate(today.getDate() - daysFromMonday);
-        startOfWeek.setHours(0, 0, 0, 0);
-        
-        // If planning for next week, add 7 days
-        if (isNextWeek) {
-          startOfWeek.setDate(startOfWeek.getDate() + 7);
-        }
-        
-        // Calculate the end of the week (Sunday)
-        const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 6);
-        endOfWeek.setHours(23, 59, 59, 999);
-        
-        // Format as ISO strings
-        const startDate = startOfWeek.toISOString();
-        const endDate = endOfWeek.toISOString();
-        
-        const { data: posts, error } = await supabase
+      // Get the date range for the current week or next week
+      const today = new Date();
+      const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      
+      // Calculate the start of the week (Monday)
+      const startOfWeek = new Date(today);
+      const daysFromMonday = currentDay === 0 ? 6 : currentDay - 1; // Adjust for Sunday
+      startOfWeek.setDate(today.getDate() - daysFromMonday);
+      startOfWeek.setHours(0, 0, 0, 0);
+      
+      // If planning for next week, add 7 days
+      if (isNextWeek) {
+        startOfWeek.setDate(startOfWeek.getDate() + 7);
+      }
+      
+      // Calculate the end of the week (Sunday)
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+      endOfWeek.setHours(23, 59, 59, 999);
+
+      // Fetch posts for the selected week's date range
+      const { data: posts, error } = await supabase
+        .from('posts')
+        .select('*')
+        .gte('scheduled_time', startOfWeek.toISOString())
+        .lte('scheduled_time', endOfWeek.toISOString())
+        .order('scheduled_time');
+      
+      if (error) throw error;
+      
+      // If no posts are found for the week, try fetching posts with only day_of_week
+      if (!posts || posts.length === 0) {
+        const { data: dayPosts, error: dayError } = await supabase
           .from('posts')
           .select('*')
-          .gte('scheduled_time', startDate)
-          .lte('scheduled_time', endDate)
           .order('scheduled_time');
           
-        if (error) throw error;
-        setScheduledPosts(posts || []);
+        if (dayError) throw dayError;
+        
+        // Filter by view and date range
+        if (view === 'kanban') {
+          // For kanban view, filter posts to include only those from the current/next week
+          setScheduledPosts(dayPosts.filter(post => {
+            // Only include posts that have a day_of_week set
+            if (!post.day_of_week) return false;
+            
+            // Convert the post's scheduled_time to a date
+            const postDate = new Date(post.scheduled_time);
+            
+            // Check if this post is within the selected week
+            return postDate >= startOfWeek && postDate <= endOfWeek;
+          }) || []);
+        } else {
+          // For daily view, filter by the active day
+          setScheduledPosts(dayPosts.filter(post => post.day_of_week === activeDay) || []);
+        }
       } else {
-        // For daily view, simply filter by day_of_week
-        const { data: posts, error } = await supabase
-          .from('posts')
-          .select('*')
-          .eq('day_of_week', activeDay)
-          .order('scheduled_time');
-
-        if (error) throw error;
-        setScheduledPosts(posts || []);
+        // Filter posts in JavaScript based on the view type
+        if (view === 'kanban') {
+          // For kanban view, include all posts within the date range
+          setScheduledPosts(posts || []);
+        } else {
+          // For daily view, filter by the active day
+          setScheduledPosts(posts.filter(post => post.day_of_week === activeDay) || []);
+        }
       }
     } catch (error) {
       console.error('Error fetching scheduled posts:', error);
@@ -286,6 +306,11 @@ export default function PostForge() {
       const targetDate = new Date(today);
       const diff = dayIndex - today.getDay() + (dayIndex < today.getDay() ? 7 : 0);
       targetDate.setDate(today.getDate() + diff);
+      
+      // If planning for next week, add 7 days
+      if (isNextWeek) {
+        targetDate.setDate(targetDate.getDate() + 7);
+      }
       
       // Keep the same time, just change the date
       const currentTime = new Date(post.scheduled_time);
@@ -476,6 +501,7 @@ export default function PostForge() {
             )}
             <WeeklyKanbanView
               posts={scheduledPosts}
+              isNextWeek={isNextWeek}
               onCreatePost={(day) => {
                 setActiveDay(day);
                 handleCreatePost();
@@ -542,6 +568,10 @@ export default function PostForge() {
             setIsPostEditorOpen(false);
           }}
           onClose={() => setIsPostEditorOpen(false)}
+          onDelete={(postId) => {
+            handleDeletePost(postId);
+            setIsPostEditorOpen(false);
+          }}
         />
       </div>
     </>

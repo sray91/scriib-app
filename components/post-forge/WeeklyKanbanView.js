@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "S
 
 export default function WeeklyKanbanView({ 
   posts, 
+  isNextWeek = false,
   onCreatePost, 
   onEditPost,
   onMovePost,
@@ -19,7 +20,7 @@ export default function WeeklyKanbanView({
   const [isMobile, setIsMobile] = useState(false);
 
   // Check if we're on mobile
-  useState(() => {
+  useEffect(() => {
     const checkIfMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };

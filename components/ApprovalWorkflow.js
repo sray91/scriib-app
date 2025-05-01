@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, CheckCircle2, XCircle, Users } from 'lucide-react';
+import { AlertCircle, CheckCircle2, XCircle, Users, Edit, ExternalLink } from 'lucide-react';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 const ApprovalWorkflow = ({ 
   post,
@@ -15,6 +16,7 @@ const ApprovalWorkflow = ({
 }) => {
   const [approvalComment, setApprovalComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const supabase = createClientComponentClient();
 
   const handleAction = async (isApproved) => {
     try {
@@ -29,17 +31,60 @@ const ApprovalWorkflow = ({
     }
   };
 
+  const handleEditInstead = async () => {
+    try {
+      setIsSubmitting(true);
+      
+      // Update the post status to needs_edit and set it back to the ghostwriter
+      const { error } = await supabase
+        .from('posts')
+        .update({
+          status: 'needs_edit',
+          approval_comment: approvalComment,
+          edited_at: new Date().toISOString()
+        })
+        .eq('id', post.id);
+      
+      if (error) throw error;
+      
+      setApprovalComment('');
+      onClose();
+      
+      // Refresh the page to show the updated status
+      window.location.reload();
+    } catch (error) {
+      console.error('Error sending post back for edits:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const getStatusBadge = () => {
     const statusConfig = {
+      draft: {
+        label: 'Draft',
+        className: 'bg-gray-100 text-gray-800',
+        icon: Edit
+      },
       pending_approval: {
         label: 'Pending Review',
         className: 'bg-yellow-100 text-yellow-800',
         icon: AlertCircle
       },
-      scheduled: {
+      needs_edit: {
+        label: 'Needs Edit',
+        className: 'bg-blue-100 text-blue-800',
+        icon: Edit
+      },
+      approved: {
         label: 'Approved',
         className: 'bg-green-100 text-green-800',
         icon: CheckCircle2
+      },
+      scheduled: {
+        label: 'Scheduled',
+        className: 'bg-purple-100 text-purple-800',
+        icon: ExternalLink
       },
       rejected: {
         label: 'Rejected',
@@ -83,7 +128,7 @@ const ApprovalWorkflow = ({
               <div className="flex gap-2 mt-3">
                 {Object.entries(post.platforms).map(([platform, enabled]) => 
                   enabled && (
-                    <Badge key={platform} variant="secondary" className="text-xs">
+                    <Badge key={platform} variant="secondary" className="text-xs capitalize">
                       {platform}
                     </Badge>
                   )
@@ -91,10 +136,12 @@ const ApprovalWorkflow = ({
               </div>
             )}
 
-            <div className="flex items-center gap-2 mt-3 text-sm text-gray-500">
-              <Users className="w-4 h-4" />
-              <span>{post.teams?.name}</span>
-            </div>
+            {post.user_id && (
+              <div className="flex items-center gap-2 mt-3 text-sm text-gray-500">
+                <Users className="w-4 h-4" />
+                <span>Created by: {post.creator_name || 'Unknown'}</span>
+              </div>
+            )}
           </div>
 
           {/* Previous Approval Comments */}
@@ -127,12 +174,21 @@ const ApprovalWorkflow = ({
 
         <DialogFooter>
           {isApprover && post.status === 'pending_approval' ? (
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                onClick={handleEditInstead}
+                disabled={isSubmitting || !approvalComment.trim()}
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Send Back for Edits
+              </Button>
               <Button
                 variant="destructive"
                 onClick={() => handleAction(false)}
                 disabled={isSubmitting || !approvalComment.trim()}
               >
+                <XCircle className="mr-2 h-4 w-4" />
                 Reject Post
               </Button>
               <Button
@@ -140,6 +196,7 @@ const ApprovalWorkflow = ({
                 onClick={() => handleAction(true)}
                 disabled={isSubmitting || !approvalComment.trim()}
               >
+                <CheckCircle2 className="mr-2 h-4 w-4" />
                 Approve Post
               </Button>
             </div>

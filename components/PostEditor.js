@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FileIcon, Trash2 } from 'lucide-react';
+import { FileIcon, Trash2, AlertCircle } from 'lucide-react';
 import Image from 'next/image';
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert.js';
 
 const supabase = createClientComponentClient();
 
@@ -47,95 +49,151 @@ function MediaPreview({ file, index, onRemove }) {
         </button>
       </div>
     );
-  } else if (file.type?.startsWith('video/')) {
-    return (
-      <div className="relative">
-        <video
-          src={file.url}
-          className="rounded-lg w-full h-auto"
-          controls
-        />
-        <button
-          onClick={() => onRemove(index)}
-          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 z-10"
-          aria-label="Remove media"
-          type="button"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
-    );
-  } else {
-    return (
-      <div className="relative flex items-center justify-center bg-gray-100 rounded-lg p-4">
-        <FileIcon className="h-8 w-8 text-gray-500" />
-        <span className="ml-2 text-sm">{file.path?.split('/').pop() || 'File'}</span>
-        <button
-          onClick={() => onRemove(index)}
-          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 z-10"
-          aria-label="Remove media"
-          type="button"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
-    );
   }
+  
+  // Generic file preview
+  return (
+    <div className="relative p-4 border rounded-lg">
+      <div className="flex items-center gap-2">
+        <FileIcon className="h-6 w-6 text-blue-500" />
+        <span className="text-sm truncate">
+          {file.file?.name || file.path || 'File'}
+        </span>
+      </div>
+      <button
+        onClick={() => onRemove(index)}
+        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
+        aria-label="Remove media"
+        type="button"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </div>
+  );
 }
 
-export default function PostEditor({ post, isNew, onSave, onClose }) {
+export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
   const { toast } = useToast();
   const [postData, setPostData] = useState({
     content: '',
     scheduledTime: new Date().toISOString(),
     requiresApproval: false,
     approverId: '',
+    ghostwriterId: '',
+    needsEdit: false,
     mediaFiles: [],
     day_of_week: '',
     template_id: null,
+    platforms: {},
     ...post
   });
   const [approvers, setApprovers] = useState([]);
+  const [ghostwriters, setGhostwriters] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetchApprovers();
+    const fetchCurrentUser = async () => {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error) throw error;
+        setCurrentUser(user);
+      } catch (error) {
+        console.error('Error fetching current user:', error);
+        setError('Failed to authenticate user.');
+      }
+    };
+
+    fetchCurrentUser();
   }, []);
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchApprovers();
+      fetchGhostwriters();
+    }
+  }, [currentUser]);
 
   async function fetchApprovers() {
     try {
+      // Get all linked and active approvers for the current user
       const { data, error } = await supabase
-        .from('user_teams')
+        .from('ghostwriter_approver_link')
         .select(`
-          user_id,
-          role,
-          users:auth_user_list!user_id (
+          id,
+          approver_id,
+          approver:approver_id(
             id,
             email,
-            raw_user_meta_data
+            user_metadata
           )
         `)
-        .eq('role', 'approver');
+        .eq('ghostwriter_id', currentUser.id)
+        .eq('active', true);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching approvers:', error);
+        // Silently set empty approvers rather than showing an error
+        setApprovers([]);
+        return;
+      }
       
-      // Transform the data to match your component's needs
+      // Transform the data
       const formattedApprovers = data
-        .filter(item => item.users) // Ensure user exists
+        .filter(item => item.approver) // Ensure approver exists
         .map(item => ({
-          id: item.users.id,
-          email: item.users.email,
-          name: item.users.raw_user_meta_data?.full_name || item.users.email
+          id: item.approver.id,
+          email: item.approver.email,
+          name: item.approver.user_metadata?.full_name || item.approver.email.split('@')[0]
         }));
 
       setApprovers(formattedApprovers);
     } catch (error) {
       console.error('Error fetching approvers:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load approvers list",
-        variant: "destructive",
-      });
+      // Silently set empty approvers rather than showing an error
+      setApprovers([]);
+    }
+  }
+
+  async function fetchGhostwriters() {
+    try {
+      // Get all linked and active ghostwriters for the current user
+      const { data, error } = await supabase
+        .from('ghostwriter_approver_link')
+        .select(`
+          id,
+          ghostwriter_id,
+          ghostwriter:ghostwriter_id(
+            id,
+            email,
+            user_metadata
+          )
+        `)
+        .eq('approver_id', currentUser.id)
+        .eq('active', true);
+
+      if (error) {
+        console.error('Error fetching ghostwriters:', error);
+        // Silently set empty ghostwriters rather than showing an error
+        setGhostwriters([]);
+        return;
+      }
+      
+      // Transform the data
+      const formattedGhostwriters = data
+        .filter(item => item.ghostwriter) // Ensure ghostwriter exists
+        .map(item => ({
+          id: item.ghostwriter.id,
+          email: item.ghostwriter.email,
+          name: item.ghostwriter.user_metadata?.full_name || item.ghostwriter.email.split('@')[0]
+        }));
+
+      setGhostwriters(formattedGhostwriters);
+    } catch (error) {
+      console.error('Error fetching ghostwriters:', error);
+      // Silently set empty ghostwriters rather than showing an error
+      setGhostwriters([]);
     }
   }
 
@@ -200,21 +258,51 @@ export default function PostEditor({ post, isNew, onSave, onClose }) {
     });
   }
 
-  async function handleSavePost(e, isDraft = false) {
+  async function handleSavePost(e, actionType = 'draft') {
     e.preventDefault();
     
     try {
       setIsSaving(true);
       
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      if (!currentUser) {
+        console.error('User not authenticated');
+        setIsSaving(false);
+        return;
+      }
       
-      // Determine post status
-      const status = isDraft 
-        ? 'draft' 
-        : postData.requiresApproval 
-          ? 'pending_approval' 
-          : 'scheduled';
+      // Determine post status based on action type
+      let status, approver_id, ghostwriter_id;
+      
+      switch(actionType) {
+        case 'draft':
+          status = 'draft';
+          approver_id = null;
+          ghostwriter_id = null;
+          break;
+          
+        case 'send_for_approval':
+          status = 'pending_approval';
+          approver_id = postData.approverId;
+          ghostwriter_id = null;
+          break;
+          
+        case 'send_to_ghostwriter':
+          status = 'needs_edit';
+          approver_id = null;
+          ghostwriter_id = postData.ghostwriterId;
+          break;
+          
+        case 'schedule':
+          status = 'scheduled';
+          approver_id = null;
+          ghostwriter_id = null;
+          break;
+          
+        default:
+          status = 'draft';
+          approver_id = null;
+          ghostwriter_id = null;
+      }
       
       // Prepare post data
       const postPayload = {
@@ -224,8 +312,10 @@ export default function PostEditor({ post, isNew, onSave, onClose }) {
         platforms: postData.platforms || {},
         day_of_week: postData.day_of_week,
         template_id: postData.template_id,
-        approver_id: postData.requiresApproval ? postData.approverId : null,
-        requires_approval: postData.requiresApproval
+        approver_id: approver_id,
+        ghostwriter_id: ghostwriter_id,
+        scheduled: status === 'scheduled',
+        edited_at: new Date().toISOString()
       };
       
       let result;
@@ -234,11 +324,23 @@ export default function PostEditor({ post, isNew, onSave, onClose }) {
         // Create new post
         const { data, error } = await supabase
           .from('posts')
-          .insert(postPayload)
+          .insert({
+            ...postPayload,
+            user_id: currentUser.id
+          })
           .select()
           .single();
           
-        if (error) throw error;
+        if (error) {
+          console.error('Error creating post:', error);
+          toast({
+            title: "Error",
+            description: "Failed to create post",
+            variant: "destructive",
+          });
+          setIsSaving(false);
+          return;
+        }
         result = data;
       } else {
         // Update existing post
@@ -249,7 +351,16 @@ export default function PostEditor({ post, isNew, onSave, onClose }) {
           .select()
           .single();
           
-        if (error) throw error;
+        if (error) {
+          console.error('Error updating post:', error);
+          toast({
+            title: "Error",
+            description: "Failed to update post",
+            variant: "destructive",
+          });
+          setIsSaving(false);
+          return;
+        }
         result = data;
       }
       
@@ -262,13 +373,28 @@ export default function PostEditor({ post, isNew, onSave, onClose }) {
         console.log('Would save media files:', postData.mediaFiles);
       }
       
+      // Set appropriate success message
+      let successMessage;
+      switch(actionType) {
+        case 'draft':
+          successMessage = "Post saved as draft";
+          break;
+        case 'send_for_approval':
+          successMessage = "Post sent for approval";
+          break;
+        case 'send_to_ghostwriter':
+          successMessage = "Post sent to ghostwriter for editing";
+          break;
+        case 'schedule':
+          successMessage = "Post scheduled successfully";
+          break;
+        default:
+          successMessage = "Post saved successfully";
+      }
+      
       toast({
         title: "Success",
-        description: isDraft 
-          ? "Post saved as draft" 
-          : postData.requiresApproval 
-            ? "Post sent for approval" 
-            : "Post scheduled successfully",
+        description: successMessage,
       });
       
       // Call the onSave callback to update the parent component
@@ -279,14 +405,46 @@ export default function PostEditor({ post, isNew, onSave, onClose }) {
       
     } catch (error) {
       console.error('Error saving post:', error);
+      
+      // Show a user-friendly error message
       toast({
         title: "Error",
-        description: error.message || "Failed to save post",
+        description: "There was a problem saving your post. Please try again.",
         variant: "destructive",
       });
     } finally {
       setIsSaving(false);
     }
+  }
+
+  // Determine if the current user is primarily a ghostwriter or approver for this post
+  // by counting their relationships in each role
+  const hasApprovers = approvers.length > 0;
+  const hasGhostwriters = ghostwriters.length > 0;
+  const isGhostwriter = hasApprovers && !hasGhostwriters;
+  const isApprover = hasGhostwriters && !hasApprovers;
+  const isBoth = hasGhostwriters && hasApprovers;
+  const hasWorkflowOptions = hasApprovers || hasGhostwriters;
+
+  // Add a function to handle deletion
+  const handleDelete = (e) => {
+    e.preventDefault();
+    if (window.confirm("Are you sure you want to delete this post?")) {
+      if (onDelete && post?.id) {
+        onDelete(post.id);
+      }
+    }
+  };
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
+    );
   }
 
   return (
@@ -340,72 +498,282 @@ export default function PostEditor({ post, isNew, onSave, onClose }) {
           <p>Drag & drop or click to upload media</p>
         </div>
 
-        <div className="mt-6 p-4 border rounded-lg bg-gray-50">
-          <div className="flex items-center gap-2 mb-4">
-            <Checkbox
-              id="requiresApproval"
-              checked={postData.requiresApproval}
-              onCheckedChange={(checked) => setPostData(prev => ({
-                ...prev,
-                requiresApproval: checked,
-                approverId: checked ? prev.approverId : ''
-              }))}
-            />
-            <Label htmlFor="requiresApproval">
-              Requires Approval
-            </Label>
+        {/* Platforms section */}
+        <div className="mt-4">
+          <Label className="block mb-2">Select platforms</Label>
+          <div className="flex flex-wrap gap-3">
+            {['linkedin', 'twitter', 'facebook', 'instagram'].map(platform => (
+              <div key={platform} className="flex items-center gap-2">
+                <Checkbox
+                  id={`platform-${platform}`}
+                  checked={postData.platforms?.[platform] || false}
+                  onCheckedChange={(checked) => setPostData(prev => ({
+                    ...prev,
+                    platforms: {
+                      ...(prev.platforms || {}),
+                      [platform]: checked
+                    }
+                  }))}
+                />
+                <Label htmlFor={`platform-${platform}`} className="capitalize">
+                  {platform}
+                </Label>
+              </div>
+            ))}
           </div>
-
-          {postData.requiresApproval && (
-            <div className="mt-2">
-              <Label htmlFor="approver" className="block mb-1">
-                Select Approver
-              </Label>
-              <select
-                id="approver"
-                value={postData.approverId}
-                onChange={(e) => setPostData(prev => ({
-                  ...prev,
-                  approverId: e.target.value
-                }))}
-                className="w-full p-2 border rounded-lg"
-                required={postData.requiresApproval}
-              >
-                <option value="">Select an approver</option>
-                {approvers.map((approver) => (
-                  <option key={approver.id} value={approver.id}>
-                    {approver.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
 
-        <div className="flex justify-between mt-6">
-          <Button 
-            variant="outline" 
-            onClick={(e) => handleSavePost(e, true)}
-            disabled={isSaving}
-          >
-            Save as Draft
-          </Button>
-          <Button 
-            onClick={(e) => handleSavePost(e, false)}
-            disabled={isSaving || (postData.requiresApproval && !postData.approverId)}
-            className="bg-[#fb2e01] hover:bg-[#fb2e01]/90"
-          >
-            {postData.requiresApproval 
-              ? 'Send for Approval' 
-              : 'Schedule Post'}
-          </Button>
+        {/* Workflow Actions Section - Only show if there are workflow options */}
+        {hasWorkflowOptions && (
+          <div className="mt-6 p-4 border rounded-lg bg-gray-50">
+            <h3 className="font-medium mb-3">Post Workflow</h3>
+            
+            {/* Different actions based on user role and post status */}
+            {isGhostwriter && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="requiresApproval"
+                    checked={!!postData.approverId}
+                    onCheckedChange={(checked) => setPostData(prev => ({
+                      ...prev,
+                      approverId: checked ? (approvers[0]?.id || '') : ''
+                    }))}
+                  />
+                  <Label htmlFor="requiresApproval">
+                    Send for approval
+                  </Label>
+                </div>
+
+                {!!postData.approverId && (
+                  <div className="ml-6">
+                    <Label htmlFor="approver" className="block mb-1">
+                      Select Approver
+                    </Label>
+                    <select
+                      id="approver"
+                      value={postData.approverId}
+                      onChange={(e) => setPostData(prev => ({
+                        ...prev,
+                        approverId: e.target.value
+                      }))}
+                      className="w-full p-2 border rounded-lg"
+                    >
+                      <option value="">Select an approver</option>
+                      {approvers.map((approver) => (
+                        <option key={approver.id} value={approver.id}>
+                          {approver.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isApprover && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="needsEdit"
+                    checked={!!postData.ghostwriterId}
+                    onCheckedChange={(checked) => setPostData(prev => ({
+                      ...prev,
+                      ghostwriterId: checked ? (ghostwriters[0]?.id || '') : ''
+                    }))}
+                  />
+                  <Label htmlFor="needsEdit">
+                    Send to ghostwriter for edits
+                  </Label>
+                </div>
+
+                {!!postData.ghostwriterId && (
+                  <div className="ml-6">
+                    <Label htmlFor="ghostwriter" className="block mb-1">
+                      Select Ghostwriter
+                    </Label>
+                    <select
+                      id="ghostwriter"
+                      value={postData.ghostwriterId}
+                      onChange={(e) => setPostData(prev => ({
+                        ...prev,
+                        ghostwriterId: e.target.value
+                      }))}
+                      className="w-full p-2 border rounded-lg"
+                    >
+                      <option value="">Select a ghostwriter</option>
+                      {ghostwriters.map((ghostwriter) => (
+                        <option key={ghostwriter.id} value={ghostwriter.id}>
+                          {ghostwriter.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {isBoth && (
+              <Tabs defaultValue="as_ghostwriter" className="w-full">
+                <TabsList className="grid grid-cols-2 mb-2">
+                  <TabsTrigger value="as_ghostwriter">As Ghostwriter</TabsTrigger>
+                  <TabsTrigger value="as_approver">As Approver</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="as_ghostwriter" className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="requiresApproval"
+                      checked={!!postData.approverId}
+                      onCheckedChange={(checked) => setPostData(prev => ({
+                        ...prev,
+                        approverId: checked ? (approvers[0]?.id || '') : '',
+                        ghostwriterId: ''
+                      }))}
+                    />
+                    <Label htmlFor="requiresApproval">
+                      Send for approval
+                    </Label>
+                  </div>
+
+                  {!!postData.approverId && (
+                    <div className="ml-6">
+                      <Label htmlFor="approver" className="block mb-1">
+                        Select Approver
+                      </Label>
+                      <select
+                        id="approver"
+                        value={postData.approverId}
+                        onChange={(e) => setPostData(prev => ({
+                          ...prev,
+                          approverId: e.target.value
+                        }))}
+                        className="w-full p-2 border rounded-lg"
+                      >
+                        <option value="">Select an approver</option>
+                        {approvers.map((approver) => (
+                          <option key={approver.id} value={approver.id}>
+                            {approver.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </TabsContent>
+                
+                <TabsContent value="as_approver" className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="needsEdit"
+                      checked={!!postData.ghostwriterId}
+                      onCheckedChange={(checked) => setPostData(prev => ({
+                        ...prev,
+                        ghostwriterId: checked ? (ghostwriters[0]?.id || '') : '',
+                        approverId: ''
+                      }))}
+                    />
+                    <Label htmlFor="needsEdit">
+                      Send to ghostwriter for edits
+                    </Label>
+                  </div>
+
+                  {!!postData.ghostwriterId && (
+                    <div className="ml-6">
+                      <Label htmlFor="ghostwriter" className="block mb-1">
+                        Select Ghostwriter
+                      </Label>
+                      <select
+                        id="ghostwriter"
+                        value={postData.ghostwriterId}
+                        onChange={(e) => setPostData(prev => ({
+                          ...prev,
+                          ghostwriterId: e.target.value
+                        }))}
+                        className="w-full p-2 border rounded-lg"
+                      >
+                        <option value="">Select a ghostwriter</option>
+                        {ghostwriters.map((ghostwriter) => (
+                          <option key={ghostwriter.id} value={ghostwriter.id}>
+                            {ghostwriter.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            )}
+          </div>
+        )}
+
+        <div className="flex justify-between items-center mt-6">
+          <div className="flex gap-2">
+            {!isNew && onDelete && (
+              <Button 
+                variant="destructive" 
+                onClick={handleDelete}
+                disabled={isSaving}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                <Trash2 className="h-4 w-4 mr-2" /> Delete Post
+              </Button>
+            )}
+            <Button 
+              variant="outline" 
+              onClick={(e) => handleSavePost(e, 'draft')}
+              disabled={isSaving}
+            >
+              Save as Draft
+            </Button>
+          </div>
+          
+          <div>
+            {postData.approverId && hasApprovers ? (
+              <Button 
+                onClick={(e) => handleSavePost(e, 'send_for_approval')}
+                disabled={isSaving || !postData.approverId}
+                className="bg-[#fb2e01] hover:bg-[#fb2e01]/90"
+              >
+                Send for Approval
+              </Button>
+            ) : postData.ghostwriterId && hasGhostwriters ? (
+              <Button 
+                onClick={(e) => handleSavePost(e, 'send_to_ghostwriter')}
+                disabled={isSaving || !postData.ghostwriterId}
+                className="bg-[#fb2e01] hover:bg-[#fb2e01]/90"
+              >
+                Send for Editing
+              </Button>
+            ) : (
+              <Button 
+                onClick={(e) => handleSavePost(e, 'schedule')}
+                disabled={isSaving}
+                className="bg-[#fb2e01] hover:bg-[#fb2e01]/90"
+              >
+                Schedule Post
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="w-[400px] p-6 bg-gray-50">
         <h3 className="text-lg font-semibold mb-4">Preview</h3>
         <div className="bg-white rounded-lg p-4 shadow">
-          <p className="whitespace-pre-wrap">{postData.content}</p>
+          <p className="whitespace-pre-wrap">{postData.content || 'Your post will appear here...'}</p>
+          
+          {postData.platforms && Object.keys(postData.platforms).length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {Object.entries(postData.platforms).map(([platform, isSelected]) => 
+                isSelected && (
+                  <span key={platform} className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full capitalize">
+                    {platform}
+                  </span>
+                )
+              )}
+            </div>
+          )}
+          
           {postData.mediaFiles && postData.mediaFiles.length > 0 && (
             <div className="mt-4 grid grid-cols-2 gap-2">
               {postData.mediaFiles.map((file, index) => (
@@ -418,6 +786,17 @@ export default function PostEditor({ post, isNew, onSave, onClose }) {
               ))}
             </div>
           )}
+          
+          <div className="mt-4 text-sm text-gray-500">
+            {postData.scheduledTime && (
+              <div className="flex justify-between border-t pt-2 mt-2">
+                <span>Scheduled for:</span>
+                <span className="font-medium">
+                  {new Date(postData.scheduledTime).toLocaleString()}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

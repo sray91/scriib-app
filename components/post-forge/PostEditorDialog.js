@@ -7,7 +7,8 @@ export default function PostEditorDialog({
   post, 
   isNew, 
   onSave, 
-  onClose 
+  onClose,
+  onDelete
 }) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -23,6 +24,7 @@ export default function PostEditorDialog({
           isNew={isNew}
           onSave={onSave}
           onClose={onClose}
+          onDelete={onDelete}
         />
       </DialogContent>
     </Dialog>

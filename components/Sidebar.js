@@ -1,6 +1,6 @@
 'use client'
 
-import { GalleryVerticalEnd, LayoutList, Calendar, Users, Lightbulb, Search, Settings, LogOut, Menu, X, PenTool, Image as ImageIcon } from 'lucide-react'
+import { GalleryVerticalEnd, LayoutList, Calendar, Users, Lightbulb, Search, Settings, LogOut, Menu, X, PenTool, Image as ImageIcon, LayoutDashboard } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
@@ -24,6 +24,7 @@ const betaNavigation = [
 ]
 
 const navigation = [
+  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Swipe File', href: '/viral', icon: Search },
   { name: 'CoCreate', href: '/cocreate', icon: Lightbulb },
   { name: 'Post Forge', href: '/post-forge', icon: PenTool },
@@ -98,7 +99,7 @@ export default function SidebarComponent() {
           <SidebarMenu>
             {navigation.map((item) => {
               const Icon = item.icon
-              const isActive = pathname === item.href
+              const isActive = item.href === '/' ? (pathname === '/' || pathname === '') : pathname === item.href
               return (
                 <SidebarMenuItem key={item.name}>
                   <Link href={item.href} className="block">

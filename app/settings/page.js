@@ -12,6 +12,8 @@ import * as Switch from '@radix-ui/react-switch'
 import TeamsTab from "@/components/settings/TeamsTab";
 import PreferencesTab from "@/components/settings/PreferencesTab";
 import ProfileTab from "@/components/settings/ProfileTab"
+import ApproversTab from "@/components/settings/ApproversTab"
+import GhostwritersTab from "@/components/settings/GhostwritersTab"
 import { useLinkedInAuthStatus } from '@/components/settings/SocialAccountsTab'
 import { useSearchParams } from 'next/navigation'
 
@@ -25,6 +27,14 @@ export default function SettingsPage() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [users, setUsers] = useState([])
   const searchParams = useSearchParams()
+
+  // Set the active tab based on URL parameter if provided
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam) {
+      setActiveTab(tabParam)
+    }
+  }, [searchParams])
 
   useLinkedInAuthStatus();
 
@@ -81,35 +91,20 @@ export default function SettingsPage() {
     }
   }, [session, searchParams]);
 
-  // Handle social account connection
-  const handleConnect = async (platform) => {
-    // Check for existing accounts of this platform
-    const currentAccounts = socialAccounts.filter(account => account.platform === platform);
-    
-    if (currentAccounts.length > 0) {
+  // Handle social account connections
+  const handleConnect = (platform) => {
+    if (platform === 'twitter') {
+      // Your Twitter connection logic
       toast({
-        title: 'Account already connected',
-        description: `You already have a ${platform} account connected.`,
-        variant: 'destructive'
+        title: 'Not implemented',
+        description: 'Twitter connection is not implemented yet.',
       });
-      return;
-    }
-
-    // Store the current accounts in session storage before redirecting
-    sessionStorage.setItem('existingAccounts', JSON.stringify(currentAccounts));
-
-    // Add state parameter to track the auth flow
-    const state = Math.random().toString(36).substring(7);
-    sessionStorage.setItem('oauthState', state);
-
-    if (platform === 'linkedin') {
-      window.location.href = `/api/auth/linkedin?state=${state}`;
-    } else if (platform === 'twitter') {
-      window.location.href = `/api/auth/twitter?state=${state}`;
+    } else if (platform === 'linkedin') {
+      // Your LinkedIn connection logic
+      window.location.href = `/api/auth/linkedin`;
     }
   };
 
-  // Handle social account disconnection
   const handleDisconnect = async (accountId) => {
     try {
       const { error } = await supabase
@@ -119,40 +114,33 @@ export default function SettingsPage() {
 
       if (error) throw error;
 
-      setSocialAccounts(prev => prev.filter(account => account.id !== accountId));
+      // Update the UI
+      setSocialAccounts(prev => prev.filter(acc => acc.id !== accountId));
+
       toast({
-        title: 'Success',
-        description: 'Account disconnected successfully'
+        title: 'Account disconnected',
+        description: 'Social account has been disconnected successfully.'
       });
     } catch (error) {
       console.error('Error disconnecting account:', error);
       toast({
         title: 'Error',
-        description: 'Failed to disconnect account',
+        description: 'Failed to disconnect the account',
         variant: 'destructive'
       });
     }
   };
 
-  // Handle copy share URL
-  const handleCopyShareUrl = async (shareId) => {
-    const shareUrl = `${window.location.origin}/shared/${shareId}`;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      toast({
-        title: 'Success',
-        description: 'Share URL copied to clipboard!'
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to copy URL',
-        variant: 'destructive'
-      });
-    }
+  // Handle share operations
+  const handleCopyShareUrl = (shareId) => {
+    const url = `${window.location.origin}/shared/${shareId}`;
+    navigator.clipboard.writeText(url);
+    toast({
+      title: 'Copied!',
+      description: 'Share URL copied to clipboard'
+    });
   };
 
-  // Handle delete shared collection
   const handleDeleteShare = async (shareId) => {
     try {
       const { error } = await supabase
@@ -162,47 +150,18 @@ export default function SettingsPage() {
 
       if (error) throw error;
 
-      setSharedCollections(prev => 
-        prev.filter(collection => collection.share_id !== shareId)
-      );
+      // Update UI
+      setSharedCollections(prev => prev.filter(share => share.share_id !== shareId));
 
       toast({
-        title: 'Success',
-        description: 'Shared collection deleted successfully'
+        title: 'Deleted',
+        description: 'Shared collection has been deleted'
       });
     } catch (error) {
       console.error('Error deleting shared collection:', error);
       toast({
         title: 'Error',
         description: 'Failed to delete shared collection',
-        variant: 'destructive'
-      });
-    }
-  };
-
-  // Handle role change
-  const handleRoleChange = async (userId, isApprover) => {
-    try {
-      const { error } = await supabase
-        .from('users')
-        .update({ is_approver: isApprover })
-        .eq('id', userId);
-
-      if (error) throw error;
-
-      setUsers(prev => prev.map(user =>
-        user.user_id === userId ? { ...user, is_approver: isApprover } : user
-      ));
-
-      toast({
-        title: 'Success',
-        description: `Approver status updated successfully`
-      });
-    } catch (error) {
-      console.error('Error updating role:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update role',
         variant: 'destructive'
       });
     }
@@ -294,10 +253,12 @@ export default function SettingsPage() {
       <h1 className="text-3xl font-bold mb-8">Settings</h1>
       
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
+        <TabsList className="grid grid-cols-7 w-full">
           <TabsTrigger value="social">Social Accounts</TabsTrigger>
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="preferences">Preferences</TabsTrigger>
+          <TabsTrigger value="approvers">Approvers</TabsTrigger>
+          <TabsTrigger value="ghostwriters">Ghostwriters</TabsTrigger>
           <TabsTrigger value="shares">Shared Pages</TabsTrigger>
           <TabsTrigger value="teams">Teams</TabsTrigger>
         </TabsList>
@@ -324,9 +285,8 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               </div>
-
+              
               <div className="space-y-4">
-                {/* LinkedIn Accounts */}
                 {socialAccounts
                   .filter(account => account.platform === 'linkedin')
                   .map(account => (
@@ -350,7 +310,6 @@ export default function SettingsPage() {
                     </div>
                   ))}
 
-                {/* Twitter/X Accounts */}
                 {socialAccounts
                   .filter(account => account.platform === 'twitter')
                   .map(account => (
@@ -388,6 +347,12 @@ export default function SettingsPage() {
         </TabsContent>
         <TabsContent value="preferences">
           <PreferencesTab />
+        </TabsContent>
+        <TabsContent value="approvers">
+          <ApproversTab />
+        </TabsContent>
+        <TabsContent value="ghostwriters">
+          <GhostwritersTab />
         </TabsContent>
         <TabsContent value="shares">
           <Card>
@@ -464,27 +429,16 @@ export default function SettingsPage() {
                                 Joined: {new Date(user.user_created_at).toLocaleDateString()}
                               </p>
                             </div>
-                            <div className="flex items-center gap-4">
-                              <div className="flex items-center gap-2">
-                                <label className="text-sm">Approver:</label>
-                                <Switch.Root
-                                  checked={user.is_approver}
-                                  onCheckedChange={(checked) => handleRoleChange(user.user_id, checked)}
-                                  className="w-[42px] h-[25px] bg-gray-200 rounded-full relative data-[state=checked]:bg-green-600 outline-none cursor-pointer"
-                                >
-                                  <Switch.Thumb className="block w-[21px] h-[21px] bg-white rounded-full transition-transform duration-100 translate-x-0.5 will-change-transform data-[state=checked]:translate-x-[19px]" />
-                                </Switch.Root>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <label className="text-sm">Admin:</label>
-                                <Switch.Root
-                                  checked={user.is_admin}
-                                  onCheckedChange={(checked) => handleAdminChange(user.user_id, checked)}
-                                  className="w-[42px] h-[25px] bg-gray-200 rounded-full relative data-[state=checked]:bg-green-600 outline-none cursor-pointer"
-                                >
-                                  <Switch.Thumb className="block w-[21px] h-[21px] bg-white rounded-full transition-transform duration-100 translate-x-0.5 will-change-transform data-[state=checked]:translate-x-[19px]" />
-                                </Switch.Root>
-                              </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm mr-2">Admin</span>
+                              <Switch.Root
+                                className="w-[42px] h-[25px] bg-gray-200 rounded-full relative focus:outline-none focus:ring focus:ring-blue-200 data-[state=checked]:bg-blue-600"
+                                id={`admin-${user.user_id}`}
+                                checked={user.is_admin || false}
+                                onCheckedChange={(checked) => handleAdminChange(user.user_id, checked)}
+                              >
+                                <Switch.Thumb className="block w-[21px] h-[21px] bg-white rounded-full transition-transform duration-100 translate-x-0.5 will-change-transform data-[state=checked]:translate-x-[17px]" />
+                              </Switch.Root>
                             </div>
                           </div>
                         ))
