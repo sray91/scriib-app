@@ -56,29 +56,31 @@ export async function POST(request) {
       
       console.log("Users table exists:", usersTableExists);
       
-      // Try to find the user in auth.users first instead of profiles
+      // Try to find the user in the profiles table first
       let foundUser = false;
+      const { data: userProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email.toLowerCase())
+        .maybeSingle();
       
-      // First, check auth.users using the admin API
-      const { data: authUser, error: authUserError } = await supabase.auth.admin.getUserByEmail(email.toLowerCase());
-      
-      if (!authUserError && authUser?.user) {
-        approver_id = authUser.user.id;
+      // If we found a user profile
+      if (!profileError && userProfile) {
+        approver_id = userProfile.id;
         is_registered = true;
         foundUser = true;
       }
       
-      // If we didn't find a user in auth, check profiles as backup
+      // If we didn't find a user, check users_view
       if (!foundUser) {
-        const { data: userProfile, error: profileError } = await supabase
-          .from('profiles')
+        const { data: viewUser, error: viewUserError } = await supabase
+          .from('users_view')
           .select('id')
           .eq('email', email.toLowerCase())
           .maybeSingle();
-        
-        // If we found a user profile
-        if (!profileError && userProfile) {
-          approver_id = userProfile.id;
+          
+        if (!viewUserError && viewUser) {
+          approver_id = viewUser.id;
           is_registered = true;
           foundUser = true;
         }
@@ -260,6 +262,53 @@ export async function POST(request) {
       }
       
       // Now try to create the link
+      
+      // First ensure both users exist in profiles table to avoid foreign key constraints
+      try {
+        // Check if ghostwriter exists in profiles
+        const { data: ghostwriterProfile, error: gwProfileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', user.id)
+          .maybeSingle();
+          
+        // If not, create a profile entry for the ghostwriter
+        if (gwProfileError || !ghostwriterProfile) {
+          // Insert ghostwriter into profiles
+          await supabase
+            .from('profiles')
+            .insert({
+              id: user.id,
+              created_at: new Date().toISOString()
+            })
+            .onConflict('id')
+            .merge();
+        }
+        
+        // Check if approver exists in profiles
+        const { data: approverProfile, error: apProfileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', approver_id)
+          .maybeSingle();
+          
+        // If not found and we know email, create a profile for approver
+        if (apProfileError || !approverProfile) {
+          // Insert approver into profiles
+          await supabase
+            .from('profiles')
+            .insert({
+              id: approver_id,
+              created_at: new Date().toISOString()
+            })
+            .onConflict('id')
+            .merge();
+        }
+      } catch (profileSyncError) {
+        console.log('Error syncing profiles:', profileSyncError);
+        // Continue anyway - trigger should handle it if profiles table exists
+      }
+      
       const { data, error: insertError } = await supabase
         .from('ghostwriter_approver_link')
         .insert({
@@ -275,7 +324,7 @@ export async function POST(request) {
         
         // Special handling for foreign key violations
         if (insertError.code === '23503') {
-          // If this is a foreign key error, let's try to provide more detailed information
+          // If this is a foreign key error, let's provide more detailed information
           const errorDetails = insertError.details || '';
           
           if (errorDetails.includes('ghostwriter_id')) {

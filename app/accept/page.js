@@ -65,39 +65,15 @@ export default function AcceptInvitationPage() {
           return
         }
         
-        // Get ghostwriter data from auth.users via RPC
-        const { data: ghostwriterUserData, error: userError } = await supabase.rpc(
-          'get_user_details',
-          { user_id: ghostwriterId }
-        )
-          
-        if (userError || !ghostwriterUserData) {
-          // Fallback to checking profiles table
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('id, email, full_name')
-            .eq('id', ghostwriterId)
-            .single()
-            
-          if (profileError || !profileData) {
-            console.error('Error fetching ghostwriter data:', userError || profileError)
-            setError('Could not find the user who invited you.')
-            setIsProcessing(false)
-            return
-          }
-          
-          setGhostwriterData({
-            id: profileData.id,
-            email: profileData.email,
-            name: profileData.full_name || profileData.email.split('@')[0]
-          })
-        } else {
-          setGhostwriterData({
-            id: ghostwriterUserData.id,
-            email: ghostwriterUserData.email,
-            name: ghostwriterUserData.full_name || ghostwriterUserData.email.split('@')[0]
-          })
-        }
+        // Set default ghostwriter data
+        setGhostwriterData({
+          id: ghostwriterId,
+          email: 'Unknown',
+          name: 'your inviter'
+        })
+        
+        // Try to get ghostwriter details using various methods
+        await tryGetGhostwriterDetails(ghostwriterId)
         
         // Check if relationship already exists
         const { data: existingLink, error: linkError } = await supabase
@@ -164,6 +140,81 @@ export default function AcceptInvitationPage() {
         setError('An unexpected error occurred.')
       } finally {
         setIsProcessing(false)
+      }
+    }
+    
+    // Helper function to try multiple methods to get ghostwriter details
+    const tryGetGhostwriterDetails = async (id) => {
+      try {
+        // Method 1: Try RPC function
+        const { data: rpcData, error: rpcError } = await supabase.rpc(
+          'get_user_details',
+          { user_id: id }
+        )
+        
+        if (!rpcError && rpcData) {
+          setGhostwriterData({
+            id: rpcData.id,
+            email: rpcData.email,
+            name: rpcData.full_name || rpcData.email.split('@')[0]
+          })
+          return true
+        }
+        
+        // Method 2: Try API endpoint
+        try {
+          const response = await fetch(`/api/check-ghostwriter?id=${id}`)
+          if (response.ok) {
+            const data = await response.json()
+            setGhostwriterData({
+              id: data.id,
+              email: data.email,
+              name: data.name
+            })
+            return true
+          }
+        } catch (apiError) {
+          console.error('API error:', apiError)
+        }
+        
+        // Method 3: Check profiles table
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, email, full_name')
+          .eq('id', id)
+          .single()
+          
+        if (!profileError && profileData) {
+          setGhostwriterData({
+            id: profileData.id,
+            email: profileData.email,
+            name: profileData.full_name || profileData.email.split('@')[0]
+          })
+          return true
+        }
+        
+        // Method 4: Check users_view
+        const { data: viewUserData, error: viewUserError } = await supabase
+          .from('users_view')
+          .select('id, email, raw_user_meta_data')
+          .eq('id', id)
+          .single()
+          
+        if (!viewUserError && viewUserData) {
+          const userMetadata = viewUserData.raw_user_meta_data || {}
+          setGhostwriterData({
+            id: viewUserData.id,
+            email: viewUserData.email,
+            name: userMetadata.full_name || userMetadata.name || viewUserData.email.split('@')[0]
+          })
+          return true
+        }
+        
+        // If we get here, we couldn't find user details
+        return false
+      } catch (error) {
+        console.error('Error in tryGetGhostwriterDetails:', error)
+        return false
       }
     }
     
@@ -242,7 +293,7 @@ export default function AcceptInvitationPage() {
               <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
               <h3 className="text-lg font-semibold mb-2">Invitation Accepted</h3>
               <p className="text-gray-600 mb-2">
-                You are now connected with {ghostwriterData?.name}.
+                You are now connected with {ghostwriterData?.name || 'your inviter'}.
               </p>
               <p className="text-gray-500 text-sm mb-6">
                 You will be able to review and approve their content.

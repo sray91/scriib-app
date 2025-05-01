@@ -47,69 +47,119 @@ The `ghostwriter_approver_link` table has foreign key constraints to `auth.users
 1. **"Could not find the user who invited you"**:
    - Cause: The ghostwriter ID in the URL doesn't exist in the database
    - Solution: Verify the ghostwriter exists in `auth.users` and has a profile
+   - The system tries multiple fallback options to find a user:
+     1. RPC function if available (`get_user_details`)
+     2. Check-ghostwriter API endpoint
+     3. Direct profile table lookup
+     4. Users_view lookup (existing view of auth.users)
 
-2. **Foreign Key Constraint Errors**:
+2. **Error: "supabase.auth.admin.getUserByEmail is not a function"**:
+   - Cause: The admin API is not available in the client component
+   - Solution: Use the regular authentication methods and profiles table lookups
+   - We've removed this API call and use multiple fallback methods instead
+
+3. **Foreign Key Constraint Errors**:
    - Cause: Trying to create a link to a user that doesn't exist in `auth.users`
    - Solution: Ensure both users exist before creating the link
-
-3. **Redirect Issues**:
+   - Use the `sync_ghostwriter_approvers.sql` script to fix this issue:
+     - It adds a trigger to automatically ensure users exist in profiles
+     - It provides a one-time fix for existing data issues
+  
+4. **Redirect Issues**:
    - Cause: Incorrect environment variables (especially in production)
    - Solution: Check `NEXT_PUBLIC_SITE_URL` and `APPROVER_CALLBACK_URL` for trailing slashes and correct domains
 
-### Database Setup
+### Database Views and Tables
 
-Run the following SQL to ensure proper setup:
+The system uses these database objects:
+
+1. **`ghostwriter_approver_link`** - Links ghostwriters and approvers
+2. **`profiles`** - User profiles with metadata (id, full_name, username, etc. - no email field)
+3. **`users_view`** - View of `auth.users` for easy access (includes email)
+4. **`get_user_details`** - RPC function to get user info  
+
+The system does NOT create or use:
+- `public.users` table (don't confuse with `auth.users` or `users_view`)
+- `auth_public_users` view (we use the existing `users_view` instead)
+
+### Profiles Table Structure
+
+The actual profile table structure:
 
 ```sql
--- Ensure the ghostwriter_approver_link table exists
-CREATE TABLE IF NOT EXISTS public.ghostwriter_approver_link (
-  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
-  ghostwriter_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  approver_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
-  revoked_at TIMESTAMPTZ NULL,
-  CONSTRAINT ghostwriter_approver_link_unique UNIQUE (ghostwriter_id, approver_id)
-);
-
--- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS ghostwriter_approver_link_ghostwriter_idx 
-ON public.ghostwriter_approver_link(ghostwriter_id);
-
-CREATE INDEX IF NOT EXISTS ghostwriter_approver_link_approver_idx 
-ON public.ghostwriter_approver_link(approver_id);
-
--- Helper RPC function to get user details safely
-CREATE OR REPLACE FUNCTION public.get_user_details(user_id UUID)
-RETURNS TABLE (
-  id UUID,
-  email TEXT,
-  full_name TEXT
-) 
-SECURITY DEFINER
-SET search_path = public, auth
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  RETURN QUERY
-  SELECT 
-    u.id,
-    u.email,
-    COALESCE(
-      (u.raw_user_meta_data->>'full_name')::TEXT,
-      (u.raw_user_meta_data->>'name')::TEXT,
-      u.email
-    ) AS full_name
-  FROM
-    auth.users u
-  WHERE
-    u.id = user_id;
-END;
-$$;
-
--- Grant execution permissions
-GRANT EXECUTE ON FUNCTION public.get_user_details(UUID) TO authenticated;
+create table public.profiles (
+  id uuid not null,
+  full_name text null,
+  username text null,
+  bio text null,
+  website text null,
+  avatar_url text null,
+  created_at timestamp with time zone not null default timezone ('utc'::text, now()),
+  updated_at timestamp with time zone not null default timezone ('utc'::text, now()),
+  constraint profiles_pkey primary key (id),
+  constraint profiles_username_key unique (username),
+  constraint profiles_id_fkey foreign KEY (id) references auth.users (id) on delete CASCADE
+) TABLESPACE pg_default;
 ```
+
+Note that profiles does NOT have an email column - the email is stored in auth.users and can be accessed via users_view.
+
+### Adding a Database Trigger for Auto-Sync
+
+Running the following SQL will create a trigger that automatically ensures users exist in the profiles table before they're linked:
+
+```sql
+-- Create a function to sync users
+CREATE OR REPLACE FUNCTION public.sync_auth_users_for_ghostwriter_links()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Check if the ghostwriter exists in the users_view or auth.users
+  -- If not, find it in auth.users and ensure there's a corresponding profile
+  IF NOT EXISTS (
+    SELECT 1 FROM public.users_view WHERE id = NEW.ghostwriter_id
+  ) THEN
+    -- Insert might fail if the user doesn't exist in auth.users at all
+    -- But we try anyway
+    BEGIN
+      INSERT INTO public.profiles (id, created_at)
+      SELECT id, created_at
+      FROM auth.users
+      WHERE id = NEW.ghostwriter_id
+      ON CONFLICT (id) DO NOTHING;
+    EXCEPTION WHEN OTHERS THEN
+      -- Just log and continue - the trigger shouldn't prevent the INSERT/UPDATE
+      RAISE NOTICE 'Could not sync ghostwriter ID: %', NEW.ghostwriter_id;
+    END;
+  END IF;
+
+  -- Same for approver
+  IF NOT EXISTS (
+    SELECT 1 FROM public.users_view WHERE id = NEW.approver_id
+  ) THEN
+    BEGIN
+      INSERT INTO public.profiles (id, created_at)
+      SELECT id, created_at
+      FROM auth.users
+      WHERE id = NEW.approver_id
+      ON CONFLICT (id) DO NOTHING;
+    EXCEPTION WHEN OTHERS THEN
+      RAISE NOTICE 'Could not sync approver ID: %', NEW.approver_id;
+    END;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger
+DROP TRIGGER IF EXISTS sync_users_for_links ON public.ghostwriter_approver_link;
+CREATE TRIGGER sync_users_for_links
+BEFORE INSERT OR UPDATE ON public.ghostwriter_approver_link
+FOR EACH ROW
+EXECUTE FUNCTION public.sync_auth_users_for_ghostwriter_links();
+```
+
+This trigger will help prevent foreign key constraint errors by automatically ensuring that users referenced in the ghostwriter_approver_link table exist in the profiles table.
 
 ## Environment Variables
 

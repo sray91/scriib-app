@@ -19,6 +19,7 @@ export default function ProfileTab() {
     website: '',
     avatar_url: ''
   })
+  const [userEmail, setUserEmail] = useState('')
   
   const supabase = createClientComponentClient()
   const { toast } = useToast()
@@ -31,6 +32,9 @@ export default function ProfileTab() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+
+      // Save the email address from auth
+      setUserEmail(user.email || '')
 
       const { data, error } = await supabase
         .from('profiles')
@@ -98,6 +102,20 @@ export default function ProfileTab() {
     <Card>
       <CardContent className="p-6">
         <form onSubmit={updateProfile} className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email Address</Label>
+            <Input
+              id="email"
+              value={userEmail}
+              disabled
+              readOnly
+              className="bg-gray-50 text-gray-600"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Email address cannot be changed
+            </p>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="full_name">Full Name</Label>
             <Input
