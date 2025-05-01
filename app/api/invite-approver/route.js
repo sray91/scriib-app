@@ -1,6 +1,7 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import crypto from 'crypto';
 
 export async function POST(request) {
   const cookieStore = cookies();
@@ -34,45 +35,102 @@ export async function POST(request) {
       );
     }
 
-    // Check if the target user already exists
-    const { data: existingUsers, error: searchError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email.toLowerCase())
-      .maybeSingle();
-
-    if (searchError) {
-      console.error("Error searching for user:", searchError);
-      return NextResponse.json(
-        { error: "Error searching for user" },
-        { status: 500 }
-      );
-    }
-
     let approver_id;
     let is_registered = false;
 
-    if (existingUsers) {
-      // User exists
-      approver_id = existingUsers.id;
-      is_registered = true;
-    } else {
-      // Generate a temporary UUID for the future user
-      const { data: uuidData } = await supabase.rpc('generate_uuid');
-      approver_id = uuidData;
-
-      // Send invitation email with magic link
-      const { error: inviteError } = await supabase.auth.admin.inviteUserByEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/accept?ghostwriter=${user.id}`
-      });
-
-      if (inviteError) {
-        console.error("Error sending invitation:", inviteError);
-        return NextResponse.json(
-          { error: "Error sending invitation email" },
-          { status: 500 }
-        );
+    try {
+      // Check if the 'users' table exists by trying to query it
+      let usersTableExists = false;
+      try {
+        const { data: usersCheck, error: usersCheckError } = await supabase
+          .from('users')
+          .select('count(*)')
+          .limit(1);
+        
+        usersTableExists = !usersCheckError;
+      } catch (tableCheckError) {
+        console.log("Users table check error:", tableCheckError);
+        usersTableExists = false;
       }
+      
+      console.log("Users table exists:", usersTableExists);
+      
+      // Try to find the user in the profiles table first
+      let foundUser = false;
+      const { data: userProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email.toLowerCase())
+        .maybeSingle();
+      
+      // If we found a user profile
+      if (!profileError && userProfile) {
+        approver_id = userProfile.id;
+        is_registered = true;
+        foundUser = true;
+      }
+      
+      // If we didn't find a user but the users table exists, try there
+      if (!foundUser && usersTableExists) {
+        const { data: existingUser, error: userCheckError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', email.toLowerCase())
+          .maybeSingle();
+          
+        if (!userCheckError && existingUser) {
+          approver_id = existingUser.id;
+          is_registered = true;
+          foundUser = true;
+        }
+      }
+      
+      // If we still haven't found a user, create one
+      if (!foundUser) {
+        // Generate a new UUID
+        approver_id = crypto.randomUUID();
+        
+        // If users table exists, create a placeholder record for the foreign key constraint
+        if (usersTableExists) {
+          const { error: userInsertError } = await supabase
+            .from('users')
+            .insert({
+              id: approver_id,
+              email: email.toLowerCase(),
+              created_at: new Date().toISOString()
+            });
+          
+          if (userInsertError) {
+            console.error("Error creating user placeholder:", userInsertError);
+            return NextResponse.json(
+              { error: "Failed to create user record. Please make sure your database is properly set up." },
+              { status: 500 }
+            );
+          }
+        }
+        
+        // Send invitation email using standard auth
+        const { error: signupError } = await supabase.auth.signInWithOtp({
+          email: email,
+          options: {
+            emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/accept?ghostwriter=${user.id}`
+          }
+        });
+        
+        if (signupError) {
+          console.error("Error sending invitation OTP:", signupError);
+          return NextResponse.json(
+            { error: "Unable to send invitation email. Please check your Supabase configuration." },
+            { status: 500 }
+          );
+        }
+      }
+    } catch (authError) {
+      console.error("Error with auth operations:", authError);
+      return NextResponse.json(
+        { error: "There was a problem processing your request. Please try again." },
+        { status: 500 }
+      );
     }
 
     // Check if the relationship already exists
