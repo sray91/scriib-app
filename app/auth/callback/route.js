@@ -3,27 +3,94 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function GET(request) {
-  const requestUrl = new URL(request.url)
-  const code = requestUrl.searchParams.get('code')
-  const ghostwriter = requestUrl.searchParams.get('ghostwriter')
-  
-  if (code) {
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+  try {
+    const requestUrl = new URL(request.url)
+    console.log("Callback URL:", requestUrl.toString())
     
-    // Exchange the code for a session
-    await supabase.auth.exchangeCodeForSession(code)
-    
-    // Redirect to the appropriate page
-    if (ghostwriter) {
-      // If this is an approver invitation, redirect to the accept page
-      return NextResponse.redirect(new URL(`/accept?ghostwriter=${ghostwriter}`, requestUrl.origin))
-    } else {
-      // Otherwise, redirect to the dashboard or home page
-      return NextResponse.redirect(new URL('/', requestUrl.origin))
+    // Check if we have a duplicate path like /auth/callback/auth/callback
+    if (requestUrl.pathname.includes('/auth/callback/auth/callback')) {
+      // Fix the path by removing the duplicate
+      const fixedUrl = new URL(requestUrl)
+      fixedUrl.pathname = '/auth/callback'
+      return NextResponse.redirect(fixedUrl)
     }
+    
+    const code = requestUrl.searchParams.get('code')
+    const ghostwriter = requestUrl.searchParams.get('ghostwriter')
+    const next = requestUrl.searchParams.get('next')
+    const email = requestUrl.searchParams.get('email')
+    
+    if (code) {
+      const cookieStore = cookies()
+      const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+      
+      // Exchange the code for a session
+      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+      
+      if (exchangeError) {
+        console.error("Error exchanging code for session:", exchangeError)
+        return NextResponse.redirect(
+          new URL(`/?error=auth_error&message=${encodeURIComponent(exchangeError.message)}`, requestUrl.origin)
+        )
+      }
+      
+      // Verify we have a session now
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError || !session) {
+        console.error("Failed to get session after code exchange:", sessionError)
+        let redirectPath
+        
+        if (ghostwriter) {
+          redirectPath = `/login?error=no_session&next=${encodeURIComponent(`/accept?ghostwriter=${ghostwriter}`)}`
+        } else if (next) {
+          redirectPath = `/login?error=no_session&next=${encodeURIComponent(next)}`
+        } else {
+          redirectPath = '/login?error=no_session'
+        }
+        
+        // Add email parameter if available
+        if (email) {
+          redirectPath += `&email=${encodeURIComponent(email)}`
+        }
+        
+        return NextResponse.redirect(new URL(redirectPath, requestUrl.origin))
+      }
+      
+      // Determine where to redirect
+      let redirectUrl
+      
+      if (ghostwriter) {
+        // If this is an approver invitation, redirect to the accept page
+        const acceptUrl = new URL(`/accept?ghostwriter=${ghostwriter}`, requestUrl.origin)
+        if (email) {
+          acceptUrl.searchParams.set('email', email)
+        }
+        redirectUrl = acceptUrl
+      } else if (next) {
+        // If there's a next parameter, redirect there
+        redirectUrl = new URL(next.startsWith('/') ? next : `/${next}`, requestUrl.origin)
+        
+        // If the next URL is the accept page and we have an email, add it to the query params
+        if ((next.includes('/accept') || redirectUrl.pathname.includes('/accept')) && email) {
+          redirectUrl.searchParams.set('email', email)
+        }
+      } else {
+        // Otherwise, redirect to the dashboard or home page
+        redirectUrl = new URL('/', requestUrl.origin)
+      }
+      
+      console.log("Redirecting to:", redirectUrl.toString())
+      return NextResponse.redirect(redirectUrl)
+    }
+    
+    // Fallback to the home page if no code is present
+    return NextResponse.redirect(new URL('/?error=no_code', requestUrl.origin))
+  } catch (error) {
+    console.error("Error in auth callback:", error)
+    return NextResponse.redirect(
+      new URL(`/?error=auth_callback_error&message=${encodeURIComponent(error.message || 'Unknown error')}`, 
+      new URL(request.url).origin)
+    )
   }
-  
-  // Fallback to the home page if no code is present
-  return NextResponse.redirect(new URL('/', requestUrl.origin))
 } 

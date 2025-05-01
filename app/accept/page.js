@@ -5,7 +5,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2, CheckCircle, XCircle } from 'lucide-react'
+import { Loader2, CheckCircle, XCircle, LogIn } from 'lucide-react'
 
 export default function AcceptInvitationPage() {
   const searchParams = useSearchParams()
@@ -13,12 +13,42 @@ export default function AcceptInvitationPage() {
   const supabase = createClientComponentClient()
   
   const [isProcessing, setIsProcessing] = useState(true)
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
   const [ghostwriterData, setGhostwriterData] = useState(null)
+  const [authenticated, setAuthenticated] = useState(false)
   
+  // Get ghostwriter ID from URL
+  const ghostwriterId = searchParams.get('ghostwriter')
+  
+  // First check if user is authenticated
   useEffect(() => {
-    const ghostwriterId = searchParams.get('ghostwriter')
+    const checkAuth = async () => {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser()
+        
+        if (error || !user) {
+          setAuthenticated(false)
+        } else {
+          setAuthenticated(true)
+        }
+      } catch (error) {
+        console.error('Error checking authentication:', error)
+        setAuthenticated(false)
+      } finally {
+        setIsCheckingAuth(false)
+      }
+    }
+    
+    checkAuth()
+  }, [supabase.auth])
+  
+  // If authenticated and have ghostwriter ID, proceed with activation
+  useEffect(() => {
+    if (isCheckingAuth || !authenticated || !ghostwriterId) {
+      return
+    }
     
     // Verify the user is authenticated and activate the relationship
     const activateLink = async () => {
@@ -31,12 +61,6 @@ export default function AcceptInvitationPage() {
         
         if (authError || !user) {
           setError('You must be logged in to accept an invitation.')
-          setIsProcessing(false)
-          return
-        }
-        
-        if (!ghostwriterId) {
-          setError('Invalid invitation link. Missing ghostwriter ID.')
           setIsProcessing(false)
           return
         }
@@ -130,7 +154,48 @@ export default function AcceptInvitationPage() {
     }
     
     activateLink()
-  }, [searchParams, supabase])
+  }, [ghostwriterId, authenticated, isCheckingAuth, supabase])
+  
+  // Function to redirect to login
+  const goToLogin = () => {
+    router.push(`/login?next=${encodeURIComponent(`/accept?ghostwriter=${ghostwriterId}`)}&email=${encodeURIComponent(searchParams.get('email') || '')}`)
+  }
+  
+  // Function to redirect to signup
+  const goToSignup = () => {
+    router.push(`/signup?next=${encodeURIComponent(`/accept?ghostwriter=${ghostwriterId}`)}&email=${encodeURIComponent(searchParams.get('email') || '')}`)
+  }
+  
+  // Show authentication prompt if not logged in
+  if (!isCheckingAuth && !authenticated) {
+    return (
+      <div className="container flex items-center justify-center min-h-screen py-10">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-xl">Authentication Required</CardTitle>
+            <CardDescription>
+              You need to log in or create an account to accept this invitation
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center text-center">
+            <LogIn className="h-12 w-12 text-blue-500 mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Please Log In or Sign Up</h3>
+            <p className="text-gray-600 mb-6">
+              You must have an account to accept this invitation. Choose an option below.
+            </p>
+            <div className="flex flex-col w-full gap-4 sm:flex-row sm:gap-2">
+              <Button onClick={goToLogin} variant="outline" className="sm:flex-1">
+                I have an account
+              </Button>
+              <Button onClick={goToSignup} className="sm:flex-1 bg-[#fb2e01] hover:bg-[#fb2e01]/90">
+                Create an account
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
   
   return (
     <div className="container flex items-center justify-center min-h-screen py-10">
@@ -142,10 +207,12 @@ export default function AcceptInvitationPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isProcessing ? (
+          {isCheckingAuth || isProcessing ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <Loader2 className="h-8 w-8 animate-spin text-gray-400 mb-4" />
-              <p className="text-gray-600">Processing your invitation...</p>
+              <p className="text-gray-600">
+                {isCheckingAuth ? 'Checking authentication...' : 'Processing your invitation...'}
+              </p>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center text-center">

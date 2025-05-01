@@ -6,6 +6,8 @@ import crypto from 'crypto';
 export async function POST(request) {
   const cookieStore = cookies();
   const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+  // Declare usersTableExists at the function level so it's accessible throughout
+  let usersTableExists = false;
 
   try {
     // Verify current user
@@ -40,7 +42,6 @@ export async function POST(request) {
 
     try {
       // Check if the 'users' table exists by trying to query it
-      let usersTableExists = false;
       try {
         const { data: usersCheck, error: usersCheckError } = await supabase
           .from('users')
@@ -128,6 +129,7 @@ export async function POST(request) {
           );
         }
       }
+      
     } catch (authError) {
       console.error("Error with auth operations:", authError);
       return NextResponse.json(
@@ -200,7 +202,7 @@ export async function POST(request) {
         approver_id: approver_id
       });
       
-      // Check if the users exist in the database
+      // Check if the users exist in the database - use the variable from the higher scope
       if (usersTableExists) {
         const { data: gwCheck, error: gwError } = await supabase
           .from('users')
