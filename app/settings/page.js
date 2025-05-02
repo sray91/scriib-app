@@ -252,211 +252,260 @@ export default function SettingsPage() {
   return (
     <div className="container py-8 max-w-5xl">
       
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid grid-cols-8 w-full">
-          <TabsTrigger value="social">Social Accounts</TabsTrigger>
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="password">Password</TabsTrigger>
-          <TabsTrigger value="preferences">Preferences</TabsTrigger>
-          <TabsTrigger value="approvers">Approvers</TabsTrigger>
-          <TabsTrigger value="ghostwriters">Ghostwriters</TabsTrigger>
-          <TabsTrigger value="shares">Shared Pages</TabsTrigger>
-          <TabsTrigger value="teams">Teams</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="social">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold">Connected Social Accounts</h2>
-                <div className="space-x-2">
-                  <Button 
-                    variant="outline"
-                    onClick={() => handleConnect('linkedin')}
-                  >
-                    <Linkedin className="h-4 w-4 mr-2" />
-                    Add LinkedIn
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    onClick={() => handleConnect('twitter')}
-                  >
-                    <Twitter className="h-4 w-4 mr-2" />
-                    Add Twitter
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                {socialAccounts
-                  .filter(account => account.platform === 'linkedin')
-                  .map(account => (
-                    <div key={account.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <Linkedin className="h-5 w-5" />
-                        <div>
-                          <div className="font-medium">{account.screen_name || 'LinkedIn Account'}</div>
-                          <div className="text-sm text-muted-foreground">
-                            Last used: {account.last_used_at ? new Date(account.last_used_at).toLocaleDateString() : 'Never'}
-                          </div>
-                        </div>
-                      </div>
-                      <Button 
-                        variant="ghost" 
-                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                        onClick={() => handleDisconnect(account.id)}
-                      >
-                        Disconnect
-                      </Button>
-                    </div>
-                  ))}
+      <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="mb-4 overflow-x-auto pb-2">
+          <TabsList className="inline-flex w-full sm:w-auto min-w-max px-1 h-auto flex-wrap">
+            <TabsTrigger 
+              value="profile" 
+              className="text-sm px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              Profile
+            </TabsTrigger>
+            <TabsTrigger 
+              value="social" 
+              className="text-sm px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              Social Accounts
+            </TabsTrigger>
+            <TabsTrigger 
+              value="password" 
+              className="text-sm px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              Password
+            </TabsTrigger>
+            <TabsTrigger 
+              value="preferences" 
+              className="text-sm px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              Preferences
+            </TabsTrigger>
+            <TabsTrigger 
+              value="approvers" 
+              className="text-sm px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              Approvers
+            </TabsTrigger>
+            <TabsTrigger 
+              value="ghostwriters" 
+              className="text-sm px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              Ghostwriters
+            </TabsTrigger>
+            <TabsTrigger 
+              value="shares" 
+              className="text-sm px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              Shares
+            </TabsTrigger>
+            <TabsTrigger 
+              value="teams" 
+              className="text-sm px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              Teams
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-                {socialAccounts
-                  .filter(account => account.platform === 'twitter')
-                  .map(account => (
-                    <div key={account.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <Twitter className="h-5 w-5" />
-                        <div>
-                          <div className="font-medium">{account.screen_name || 'Twitter Account'}</div>
-                          <div className="text-sm text-muted-foreground">
-                            Last used: {account.last_used_at ? new Date(account.last_used_at).toLocaleDateString() : 'Never'}
-                          </div>
-                        </div>
-                      </div>
-                      <Button 
-                        variant="ghost" 
-                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                        onClick={() => handleDisconnect(account.id)}
-                      >
-                        Disconnect
-                      </Button>
-                    </div>
-                  ))}
-
-                {socialAccounts.length === 0 && (
-                  <p className="text-muted-foreground text-center py-4">
-                    No social accounts connected. Add your first account above.
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="profile">
-          <ProfileTab />
-        </TabsContent>
-        <TabsContent value="password">
-          <PasswordTab />
-        </TabsContent>
-        <TabsContent value="preferences">
-          <PreferencesTab />
-        </TabsContent>
-        <TabsContent value="approvers">
-          <ApproversTab />
-        </TabsContent>
-        <TabsContent value="ghostwriters">
-          <GhostwritersTab />
-        </TabsContent>
-        <TabsContent value="shares">
-          <Card>
-            <CardContent className="p-6">
-              <h2 className="text-lg font-semibold mb-4">Shared Collections</h2>
-              <div className="space-y-4">
-                {sharedCollections.length === 0 ? (
-                  <p className="text-muted-foreground">No shared collections yet.</p>
-                ) : (
-                  sharedCollections.map((collection) => (
-                    <div 
-                      key={collection.share_id} 
-                      className="flex items-center justify-between p-4 border rounded-lg"
+        {/* Tab content */}
+        <div className="mt-2">
+          <TabsContent value="profile" className="space-y-0 mt-0">
+            <ProfileTab />
+          </TabsContent>
+          <TabsContent value="social">
+            <Card className="border shadow-sm">
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+                  <h2 className="text-lg font-semibold">Connected Social Accounts</h2>
+                  <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                    <Button 
+                      variant="outline"
+                      onClick={() => handleConnect('linkedin')}
+                      className="text-sm h-9 flex-1 sm:flex-none"
                     >
-                      <div className="flex flex-col gap-1">
-                        <div className="font-medium">
-                          {collection.tag} Collection
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {new Date(collection.created_at).toLocaleDateString()}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleCopyShareUrl(collection.share_id)}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => window.open(`/shared/${collection.share_id}`, '_blank')}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                          onClick={() => handleDeleteShare(collection.share_id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {isAdmin && (
-          <TabsContent value="admin">
-            <Card>
-              <CardContent className="p-6">
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-lg font-semibold mb-4">User Management</h2>
-                    <div className="space-y-4">
-                      {users.length === 0 ? (
-                        <p className="text-muted-foreground">No users found or still loading...</p>
-                      ) : (
-                        users.map((user) => (
-                          <div 
-                            key={user.user_id} 
-                            className="flex items-center justify-between p-4 border rounded-lg"
-                          >
-                            <div>
-                              <p className="font-medium">{user.user_email}</p>
-                              <p className="text-sm text-muted-foreground">
-                                Joined: {new Date(user.user_created_at).toLocaleDateString()}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm mr-2">Admin</span>
-                              <Switch.Root
-                                className="w-[42px] h-[25px] bg-gray-200 rounded-full relative focus:outline-none focus:ring focus:ring-blue-200 data-[state=checked]:bg-blue-600"
-                                id={`admin-${user.user_id}`}
-                                checked={user.is_admin || false}
-                                onCheckedChange={(checked) => handleAdminChange(user.user_id, checked)}
-                              >
-                                <Switch.Thumb className="block w-[21px] h-[21px] bg-white rounded-full transition-transform duration-100 translate-x-0.5 will-change-transform data-[state=checked]:translate-x-[17px]" />
-                              </Switch.Root>
+                      <Linkedin className="h-4 w-4 mr-2" />
+                      Add LinkedIn
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      onClick={() => handleConnect('twitter')}
+                      className="text-sm h-9 flex-1 sm:flex-none"
+                    >
+                      <Twitter className="h-4 w-4 mr-2" />
+                      Add Twitter
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="space-y-3">
+                  {socialAccounts
+                    .filter(account => account.platform === 'linkedin')
+                    .map(account => (
+                      <div key={account.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-3 mb-2 sm:mb-0">
+                          <Linkedin className="h-5 w-5 shrink-0" />
+                          <div>
+                            <div className="font-medium text-sm">{account.screen_name || 'LinkedIn Account'}</div>
+                            <div className="text-xs text-muted-foreground">
+                              Last used: {account.last_used_at ? new Date(account.last_used_at).toLocaleDateString() : 'Never'}
                             </div>
                           </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-red-500 hover:text-red-600 hover:bg-red-50 text-xs h-8 self-end sm:self-auto"
+                          onClick={() => handleDisconnect(account.id)}
+                        >
+                          Disconnect
+                        </Button>
+                      </div>
+                    ))}
+
+                  {socialAccounts
+                    .filter(account => account.platform === 'twitter')
+                    .map(account => (
+                      <div key={account.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-3 mb-2 sm:mb-0">
+                          <Twitter className="h-5 w-5 shrink-0" />
+                          <div>
+                            <div className="font-medium text-sm">{account.screen_name || 'Twitter Account'}</div>
+                            <div className="text-xs text-muted-foreground">
+                              Last used: {account.last_used_at ? new Date(account.last_used_at).toLocaleDateString() : 'Never'}
+                            </div>
+                          </div>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-red-500 hover:text-red-600 hover:bg-red-50 text-xs h-8 self-end sm:self-auto"
+                          onClick={() => handleDisconnect(account.id)}
+                        >
+                          Disconnect
+                        </Button>
+                      </div>
+                    ))}
+
+                  {socialAccounts.length === 0 && (
+                    <p className="text-muted-foreground text-center py-4 text-sm">
+                      No social accounts connected. Add your first account above.
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
-        )}
-        <TabsContent value="teams">
-          <TeamsTab />
-        </TabsContent>
+          <TabsContent value="password">
+            <PasswordTab />
+          </TabsContent>
+          <TabsContent value="preferences">
+            <PreferencesTab />
+          </TabsContent>
+          <TabsContent value="approvers">
+            <ApproversTab />
+          </TabsContent>
+          <TabsContent value="ghostwriters">
+            <GhostwritersTab />
+          </TabsContent>
+          <TabsContent value="shares">
+            <Card>
+              <CardContent className="p-6">
+                <h2 className="text-lg font-semibold mb-4">Shared Collections</h2>
+                <div className="space-y-4">
+                  {sharedCollections.length === 0 ? (
+                    <p className="text-muted-foreground">No shared collections yet.</p>
+                  ) : (
+                    sharedCollections.map((collection) => (
+                      <div 
+                        key={collection.share_id} 
+                        className="flex items-center justify-between p-4 border rounded-lg"
+                      >
+                        <div className="flex flex-col gap-1">
+                          <div className="font-medium">
+                            {collection.tag} Collection
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {new Date(collection.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleCopyShareUrl(collection.share_id)}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => window.open(`/shared/${collection.share_id}`, '_blank')}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                            onClick={() => handleDeleteShare(collection.share_id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {isAdmin && (
+            <TabsContent value="admin">
+              <Card>
+                <CardContent className="p-6">
+                  <div className="space-y-6">
+                    <div>
+                      <h2 className="text-lg font-semibold mb-4">User Management</h2>
+                      <div className="space-y-4">
+                        {users.length === 0 ? (
+                          <p className="text-muted-foreground">No users found or still loading...</p>
+                        ) : (
+                          users.map((user) => (
+                            <div 
+                              key={user.user_id} 
+                              className="flex items-center justify-between p-4 border rounded-lg"
+                            >
+                              <div>
+                                <p className="font-medium">{user.user_email}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  Joined: {new Date(user.user_created_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm mr-2">Admin</span>
+                                <Switch.Root
+                                  className="w-[42px] h-[25px] bg-gray-200 rounded-full relative focus:outline-none focus:ring focus:ring-blue-200 data-[state=checked]:bg-blue-600"
+                                  id={`admin-${user.user_id}`}
+                                  checked={user.is_admin || false}
+                                  onCheckedChange={(checked) => handleAdminChange(user.user_id, checked)}
+                                >
+                                  <Switch.Thumb className="block w-[21px] h-[21px] bg-white rounded-full transition-transform duration-100 translate-x-0.5 will-change-transform data-[state=checked]:translate-x-[17px]" />
+                                </Switch.Root>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+          <TabsContent value="teams">
+            <TeamsTab />
+          </TabsContent>
+        </div>
       </Tabs>
     </div>
   )

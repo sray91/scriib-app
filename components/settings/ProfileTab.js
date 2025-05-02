@@ -158,66 +158,74 @@ export default function ProfileTab() {
   };
 
   return (
-    <Card>
-      <CardContent className="p-6">
-        <form onSubmit={updateProfile} className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email Address</Label>
+    <Card className="border shadow-sm">
+      <CardContent className="p-4 sm:p-6">
+        <form onSubmit={updateProfile} className="space-y-4 sm:space-y-6">
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label htmlFor="email" className="text-sm font-medium">Email Address</Label>
             <Input
               id="email"
               value={userEmail}
               disabled
               readOnly
-              className="bg-gray-50 text-gray-600"
+              className="bg-gray-50 text-gray-600 h-10 text-sm"
             />
             <p className="text-xs text-gray-500 mt-1">
               Email address cannot be changed
             </p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="full_name">Full Name</Label>
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label htmlFor="full_name" className="text-sm font-medium">Full Name</Label>
             <Input
               id="full_name"
               value={profile.full_name}
               onChange={(e) => setProfile({ ...profile, full_name: e.target.value })}
               placeholder="Enter your full name"
+              className="h-10 text-sm"
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label htmlFor="username" className="text-sm font-medium">Username</Label>
             <Input
               id="username"
               value={profile.username}
               onChange={(e) => setProfile({ ...profile, username: e.target.value })}
               placeholder="Enter your username"
+              className="h-10 text-sm"
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="bio">Bio</Label>
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label htmlFor="bio" className="text-sm font-medium">Bio</Label>
             <Textarea
               id="bio"
               value={profile.bio}
               onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
               placeholder="Tell us about yourself"
               rows={4}
+              className="min-h-[80px] text-sm resize-y"
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="website">Website</Label>
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label htmlFor="website" className="text-sm font-medium">Website</Label>
             <Input
               id="website"
               type="url"
               value={profile.website}
               onChange={(e) => setProfile({ ...profile, website: e.target.value })}
               placeholder="Enter your website URL"
+              className="h-10 text-sm"
             />
           </div>
 
-          <Button type="submit" disabled={loading}>
+          <Button 
+            type="submit" 
+            disabled={loading}
+            className="w-full sm:w-auto"
+          >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save Changes
           </Button>
