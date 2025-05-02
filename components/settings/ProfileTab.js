@@ -70,33 +70,92 @@ export default function ProfileTab() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('No user found')
 
+      // Get current profile to check unchanged fields
+      const { data: currentProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      
+      // Only update fields that have changed to avoid conflicts
       const updates = {
         id: user.id,
-        ...profile,
         updated_at: new Date().toISOString()
+      };
+      
+      // Only include fields that have changed or aren't null
+      if (profile.full_name !== undefined) updates.full_name = profile.full_name;
+      if (profile.bio !== undefined) updates.bio = profile.bio;
+      if (profile.website !== undefined) updates.website = profile.website;
+      if (profile.avatar_url !== undefined) updates.avatar_url = profile.avatar_url;
+      
+      // Handle username separately to check for uniqueness
+      if (profile.username !== currentProfile?.username) {
+        // Check if username exists (if a username is provided)
+        if (profile.username) {
+          const { data: existingUser, error: checkError } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('username', profile.username)
+            .neq('id', user.id) // Exclude the current user
+            .maybeSingle();
+  
+          if (existingUser) {
+            toast({
+              title: 'Error',
+              description: 'Username is already taken. Please choose another one.',
+              variant: 'destructive'
+            });
+            setLoading(false);
+            return;
+          }
+          
+          // Username is unique, include it in updates
+          updates.username = profile.username;
+        } else {
+          // Allow clearing username
+          updates.username = null;
+        }
       }
 
+      console.log('Updating profile with:', updates);
+      
       const { error } = await supabase
         .from('profiles')
-        .upsert(updates)
+        .update(updates) // Use update instead of upsert to avoid conflicts
+        .eq('id', user.id);
 
-      if (error) throw error
+      if (error) {
+        console.error('Detailed error:', error);
+        // Check specifically for uniqueness constraint errors
+        if (error.code === '23505') {
+          if (error.message.includes('profiles_username_key')) {
+            throw new Error('Username is already taken. Please choose another one.');
+          } else {
+            throw new Error('A conflict occurred. Please try again with different values.');
+          }
+        }
+        throw error;
+      }
 
       toast({
         title: 'Success',
         description: 'Profile updated successfully'
-      })
+      });
+      
+      // Reload the profile after successful update
+      loadProfile();
     } catch (error) {
-      console.error('Error updating profile:', error)
+      console.error('Error updating profile:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update profile',
+        description: error.message || 'Failed to update profile',
         variant: 'destructive'
-      })
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <Card>
