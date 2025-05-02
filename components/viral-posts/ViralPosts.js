@@ -392,13 +392,6 @@ export default function ViralPostSwipeFile() {
             onShareTag={handleShareTag}
           />
 
-          <button 
-            onClick={() => setIsDialogOpen(true)}
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium bg-[#FF4400] text-white shadow-sm hover:bg-[#FF4400]/90 h-10 px-4 py-2"
-          >
-            Add New X Post
-          </button>
-
           <AddPostDialog 
             isOpen={isDialogOpen}
             setIsOpen={setIsDialogOpen}
