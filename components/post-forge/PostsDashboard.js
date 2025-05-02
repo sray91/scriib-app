@@ -160,20 +160,20 @@ export default function PostsDashboard() {
       
       console.log('Fetching posts for user ID:', currentUser.id);
       
-      // Explicitly fetch only posts owned by this user
+      // Fetch posts related to the current user in any capacity (creator, approver, or ghostwriter)
       const { data, error } = await supabase
         .from('posts')
         .select('*')
-        .eq('user_id', currentUser.id)
+        .or(`user_id.eq.${currentUser.id},approver_id.eq.${currentUser.id},ghostwriter_id.eq.${currentUser.id}`)
         .order('created_at', { ascending: false })
-        .limit(50);
-
+        .limit(100);
+        
       if (error) {
         console.error('Supabase error when fetching posts:', error);
         throw error;
       }
 
-      console.log('Posts data retrieved:', data ? data.length : 0, 'posts found for user ID:', currentUser.id);
+      console.log('Posts data retrieved:', data ? data.length : 0, 'posts found related to user ID:', currentUser.id);
 
       // Manually fetch user data for each unique user ID in the posts
       const userIds = new Set();
@@ -187,8 +187,8 @@ export default function PostsDashboard() {
       let users = {};
       if (userIds.size > 0) {
         const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('id, email, user_metadata')
+          .from('users_view')
+          .select('id, email, raw_user_meta_data')
           .in('id', Array.from(userIds));
         
         if (userError) {
@@ -214,9 +214,9 @@ export default function PostsDashboard() {
         return {
           ...post,
           status,
-          creator_name: creator?.user_metadata?.full_name || creator?.email?.split('@')[0] || 'Unknown',
-          approver_name: approver?.user_metadata?.full_name || approver?.email?.split('@')[0] || null,
-          ghostwriter_name: ghostwriter?.user_metadata?.full_name || ghostwriter?.email?.split('@')[0] || null
+          creator_name: creator?.raw_user_meta_data?.full_name || creator?.raw_user_meta_data?.name || creator?.email?.split('@')[0] || 'Unknown',
+          approver_name: approver?.raw_user_meta_data?.full_name || approver?.raw_user_meta_data?.name || approver?.email?.split('@')[0] || null,
+          ghostwriter_name: ghostwriter?.raw_user_meta_data?.full_name || ghostwriter?.raw_user_meta_data?.name || ghostwriter?.email?.split('@')[0] || null
         };
       });
 
