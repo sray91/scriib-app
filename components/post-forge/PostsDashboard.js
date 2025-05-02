@@ -460,43 +460,72 @@ export default function PostsDashboard() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-4">
-          <TabsTrigger value="all">All Posts</TabsTrigger>
-          <TabsTrigger value="drafts" className="relative">
-            Drafts
-            {counts.drafts > 0 && (
-              <span className="absolute -top-1 -right-1 bg-gray-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {counts.drafts}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="pending" className="relative">
-            Needs Approval
-            {counts.pending > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {counts.pending}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="needs_edit" className="relative">
-            Needs Edit
-            {counts.needs_edit > 0 && (
-              <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {counts.needs_edit}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="approved">Approved</TabsTrigger>
-          <TabsTrigger value="scheduled" className="relative">
-            Scheduled
-            {counts.scheduled > 0 && (
-              <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {counts.scheduled}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="rejected">Rejected</TabsTrigger>
-        </TabsList>
+        <div className="mb-6">
+          <TabsList className="flex bg-gray-100 p-1 rounded-lg">
+            <TabsTrigger 
+              value="all" 
+              className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+            >
+              All Posts
+            </TabsTrigger>
+            <TabsTrigger 
+              value="drafts" 
+              className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm relative"
+            >
+              Drafts
+              {counts.drafts > 0 && (
+                <span className="absolute -top-1 -right-1 bg-gray-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {counts.drafts}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger 
+              value="pending" 
+              className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm relative"
+            >
+              Needs Approval
+              {counts.pending > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {counts.pending}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger 
+              value="needs_edit" 
+              className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm relative"
+            >
+              Needs Edit
+              {counts.needs_edit > 0 && (
+                <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {counts.needs_edit}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger 
+              value="approved" 
+              className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+            >
+              Approved
+            </TabsTrigger>
+            <TabsTrigger 
+              value="scheduled" 
+              className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm relative"
+            >
+              Scheduled
+              {counts.scheduled > 0 && (
+                <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {counts.scheduled}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger 
+              value="rejected" 
+              className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+            >
+              Rejected
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <div className="space-y-4">
           {isLoading ? (

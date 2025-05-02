@@ -18,7 +18,6 @@ export default function SettingsLayout({ children }) {
         </div>
       </div>
       <div className="container max-w-full px-4 sm:px-6 py-4 sm:py-6">
-        <h1 className="text-3xl font-bold tracking-tight mb-4 sm:mb-6">SETTINGS</h1>
         {children}
       </div>
     </div>

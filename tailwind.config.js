@@ -62,5 +62,8 @@ module.exports = {
       },
     },
   },
-  plugins: ["tailwindcss-animate"],
+  plugins: [
+    "tailwindcss-animate",
+    require('@tailwindcss/forms'),
+  ],
 }

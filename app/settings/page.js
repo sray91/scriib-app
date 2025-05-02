@@ -251,76 +251,163 @@ export default function SettingsPage() {
 
   return (
     <div className="container py-8 max-w-5xl">
+      <h2 className="text-2xl font-bold tracking-tight mb-8 text-center sm:text-left">Account Settings</h2>
       
       <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="mb-4 overflow-x-auto pb-2">
-          <TabsList className="inline-flex w-full sm:w-auto min-w-max px-1 h-auto flex-wrap">
-            <TabsTrigger 
-              value="profile" 
-              className="text-sm px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              Profile
-            </TabsTrigger>
-            <TabsTrigger 
-              value="social" 
-              className="text-sm px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              Social Accounts
-            </TabsTrigger>
-            <TabsTrigger 
-              value="password" 
-              className="text-sm px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              Password
-            </TabsTrigger>
-            <TabsTrigger 
-              value="preferences" 
-              className="text-sm px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              Preferences
-            </TabsTrigger>
-            <TabsTrigger 
-              value="approvers" 
-              className="text-sm px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              Approvers
-            </TabsTrigger>
-            <TabsTrigger 
-              value="ghostwriters" 
-              className="text-sm px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              Ghostwriters
-            </TabsTrigger>
-            <TabsTrigger 
-              value="shares" 
-              className="text-sm px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              Shares
-            </TabsTrigger>
-            <TabsTrigger 
-              value="teams" 
-              className="text-sm px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              Teams
-            </TabsTrigger>
-          </TabsList>
+        {/* Mobile tab navigation - visible only on small screens */}
+        <div className="relative mb-6 md:hidden">
+          <div className="bg-gray-100 rounded-lg p-1">
+            <TabsList className="grid grid-cols-4 gap-1">
+              <TabsTrigger 
+                value="profile" 
+                className="px-3 py-2 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              >
+                Profile
+              </TabsTrigger>
+              <TabsTrigger 
+                value="social" 
+                className="px-3 py-2 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              >
+                Social
+              </TabsTrigger>
+              <TabsTrigger 
+                value="password" 
+                className="px-3 py-2 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              >
+                Password
+              </TabsTrigger>
+              <TabsTrigger 
+                value="more" 
+                className="px-3 py-2 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+                onClick={() => {
+                  if (activeTab !== 'preferences' && 
+                      activeTab !== 'approvers' && 
+                      activeTab !== 'ghostwriters' && 
+                      activeTab !== 'shares' && 
+                      activeTab !== 'teams') {
+                    setActiveTab('preferences');
+                  }
+                }}
+              >
+                More
+              </TabsTrigger>
+            </TabsList>
+          </div>
+          
+          {/* Secondary tab row - only visible when "More" is selected */}
+          {(activeTab === 'preferences' || 
+            activeTab === 'approvers' || 
+            activeTab === 'ghostwriters' || 
+            activeTab === 'shares' || 
+            activeTab === 'teams') && (
+            <div className="mt-2 bg-gray-100 rounded-lg p-1">
+              <TabsList className="grid grid-cols-5 gap-1">
+                <TabsTrigger 
+                  value="preferences" 
+                  className="px-2 py-2 text-xs font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+                >
+                  Prefs
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="approvers" 
+                  className="px-2 py-2 text-xs font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+                >
+                  Approvers
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="ghostwriters" 
+                  className="px-2 py-2 text-xs font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm truncate"
+                >
+                  Ghosts
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="shares" 
+                  className="px-2 py-2 text-xs font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+                >
+                  Shares
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="teams" 
+                  className="px-2 py-2 text-xs font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+                >
+                  Teams
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          )}
+        </div>
+
+        {/* Desktop tab navigation - visible on medium screens and up */}
+        <div className="relative mb-8 hidden md:block">
+          <div className="overflow-x-auto pb-2">
+            <TabsList className="flex w-full bg-gray-100 p-1 rounded-lg">
+              <TabsTrigger 
+                value="profile" 
+                className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              >
+                Profile
+              </TabsTrigger>
+              <TabsTrigger 
+                value="social" 
+                className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              >
+                Social
+              </TabsTrigger>
+              <TabsTrigger 
+                value="password" 
+                className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              >
+                Password
+              </TabsTrigger>
+              <TabsTrigger 
+                value="preferences" 
+                className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              >
+                Preferences
+              </TabsTrigger>
+              <TabsTrigger 
+                value="approvers" 
+                className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              >
+                Approvers
+              </TabsTrigger>
+              <TabsTrigger 
+                value="ghostwriters" 
+                className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              >
+                Ghostwriters
+              </TabsTrigger>
+              <TabsTrigger 
+                value="shares" 
+                className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              >
+                Shares
+              </TabsTrigger>
+              <TabsTrigger 
+                value="teams" 
+                className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              >
+                Teams
+              </TabsTrigger>
+            </TabsList>
+          </div>
         </div>
 
         {/* Tab content */}
-        <div className="mt-2">
+        <div className="mt-0">
           <TabsContent value="profile" className="space-y-0 mt-0">
             <ProfileTab />
           </TabsContent>
           <TabsContent value="social">
-            <Card className="border shadow-sm">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-                  <h2 className="text-lg font-semibold">Connected Social Accounts</h2>
-                  <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            <Card className="border shadow-sm overflow-hidden">
+              <CardContent className="p-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                  <h2 className="text-xl font-bold tracking-tight">Connected Social Accounts</h2>
+                  <div className="flex flex-wrap gap-3 w-full sm:w-auto">
                     <Button 
                       variant="outline"
                       onClick={() => handleConnect('linkedin')}
-                      className="text-sm h-9 flex-1 sm:flex-none"
+                      className="h-10 px-4 flex-1 sm:flex-none"
                     >
                       <Linkedin className="h-4 w-4 mr-2" />
                       Add LinkedIn
@@ -328,7 +415,7 @@ export default function SettingsPage() {
                     <Button 
                       variant="outline"
                       onClick={() => handleConnect('twitter')}
-                      className="text-sm h-9 flex-1 sm:flex-none"
+                      className="h-10 px-4 flex-1 sm:flex-none"
                     >
                       <Twitter className="h-4 w-4 mr-2" />
                       Add Twitter
@@ -336,24 +423,26 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {socialAccounts
                     .filter(account => account.platform === 'linkedin')
                     .map(account => (
-                      <div key={account.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center gap-3 mb-2 sm:mb-0">
-                          <Linkedin className="h-5 w-5 shrink-0" />
+                      <div key={account.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center gap-3 mb-3 sm:mb-0">
+                          <div className="bg-blue-50 p-2 rounded-full">
+                            <Linkedin className="h-5 w-5 text-blue-600" />
+                          </div>
                           <div>
-                            <div className="font-medium text-sm">{account.screen_name || 'LinkedIn Account'}</div>
-                            <div className="text-xs text-muted-foreground">
+                            <div className="font-medium">{account.screen_name || 'LinkedIn Account'}</div>
+                            <div className="text-sm text-muted-foreground">
                               Last used: {account.last_used_at ? new Date(account.last_used_at).toLocaleDateString() : 'Never'}
                             </div>
                           </div>
                         </div>
                         <Button 
-                          variant="ghost" 
+                          variant="outline" 
                           size="sm"
-                          className="text-red-500 hover:text-red-600 hover:bg-red-50 text-xs h-8 self-end sm:self-auto"
+                          className="text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600 self-end sm:self-auto"
                           onClick={() => handleDisconnect(account.id)}
                         >
                           Disconnect
@@ -364,20 +453,22 @@ export default function SettingsPage() {
                   {socialAccounts
                     .filter(account => account.platform === 'twitter')
                     .map(account => (
-                      <div key={account.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center gap-3 mb-2 sm:mb-0">
-                          <Twitter className="h-5 w-5 shrink-0" />
+                      <div key={account.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center gap-3 mb-3 sm:mb-0">
+                          <div className="bg-blue-50 p-2 rounded-full">
+                            <Twitter className="h-5 w-5 text-blue-400" />
+                          </div>
                           <div>
-                            <div className="font-medium text-sm">{account.screen_name || 'Twitter Account'}</div>
-                            <div className="text-xs text-muted-foreground">
+                            <div className="font-medium">{account.screen_name || 'Twitter Account'}</div>
+                            <div className="text-sm text-muted-foreground">
                               Last used: {account.last_used_at ? new Date(account.last_used_at).toLocaleDateString() : 'Never'}
                             </div>
                           </div>
                         </div>
                         <Button 
-                          variant="ghost" 
+                          variant="outline" 
                           size="sm"
-                          className="text-red-500 hover:text-red-600 hover:bg-red-50 text-xs h-8 self-end sm:self-auto"
+                          className="text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600 self-end sm:self-auto"
                           onClick={() => handleDisconnect(account.id)}
                         >
                           Disconnect
@@ -386,9 +477,14 @@ export default function SettingsPage() {
                     ))}
 
                   {socialAccounts.length === 0 && (
-                    <p className="text-muted-foreground text-center py-4 text-sm">
-                      No social accounts connected. Add your first account above.
-                    </p>
+                    <div className="text-center py-8 px-4">
+                      <p className="text-muted-foreground text-lg mb-1">
+                        No social accounts connected
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Add your first account using the buttons above
+                      </p>
+                    </div>
                   )}
                 </div>
               </CardContent>
