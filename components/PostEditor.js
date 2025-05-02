@@ -84,7 +84,6 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
     mediaFiles: [],
     day_of_week: '',
     template_id: null,
-    platforms: {},
     ...post
   });
   const [approvers, setApprovers] = useState([]);
@@ -123,11 +122,7 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
         .select(`
           id,
           approver_id,
-          approver:approver_id(
-            id,
-            email,
-            user_metadata
-          )
+          active
         `)
         .eq('ghostwriter_id', currentUser.id)
         .eq('active', true);
@@ -139,16 +134,37 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
         return;
       }
       
-      // Transform the data
-      const formattedApprovers = data
-        .filter(item => item.approver) // Ensure approver exists
-        .map(item => ({
-          id: item.approver.id,
-          email: item.approver.email,
-          name: item.approver.user_metadata?.full_name || item.approver.email.split('@')[0]
-        }));
-
-      setApprovers(formattedApprovers);
+      // Get approver details in a separate query
+      if (data && data.length > 0) {
+        const approverIds = data.map(link => link.approver_id);
+        
+        const { data: approverDetails, error: approverError } = await supabase
+          .from('users_view')
+          .select('id, email, raw_user_meta_data')
+          .in('id', approverIds);
+        
+        if (approverError) {
+          console.error('Error fetching approver details:', approverError);
+          setApprovers([]);
+          return;
+        }
+        
+        // Transform the data
+        const formattedApprovers = data.map(link => {
+          const approverInfo = approverDetails?.find(a => a.id === link.approver_id) || {};
+          const userMetadata = approverInfo.raw_user_meta_data || {};
+          
+          return {
+            id: approverInfo.id || link.approver_id,
+            email: approverInfo.email || 'Unknown email',
+            name: userMetadata.full_name || userMetadata.name || (approverInfo.email ? approverInfo.email.split('@')[0] : 'Unknown user')
+          };
+        }).filter(item => item.id); // Ensure approver exists
+        
+        setApprovers(formattedApprovers);
+      } else {
+        setApprovers([]);
+      }
     } catch (error) {
       console.error('Error fetching approvers:', error);
       // Silently set empty approvers rather than showing an error
@@ -164,11 +180,7 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
         .select(`
           id,
           ghostwriter_id,
-          ghostwriter:ghostwriter_id(
-            id,
-            email,
-            user_metadata
-          )
+          active
         `)
         .eq('approver_id', currentUser.id)
         .eq('active', true);
@@ -180,16 +192,37 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
         return;
       }
       
-      // Transform the data
-      const formattedGhostwriters = data
-        .filter(item => item.ghostwriter) // Ensure ghostwriter exists
-        .map(item => ({
-          id: item.ghostwriter.id,
-          email: item.ghostwriter.email,
-          name: item.ghostwriter.user_metadata?.full_name || item.ghostwriter.email.split('@')[0]
-        }));
-
-      setGhostwriters(formattedGhostwriters);
+      // Get ghostwriter details in a separate query
+      if (data && data.length > 0) {
+        const ghostwriterIds = data.map(link => link.ghostwriter_id);
+        
+        const { data: ghostwriterDetails, error: ghostwriterError } = await supabase
+          .from('users_view')
+          .select('id, email, raw_user_meta_data')
+          .in('id', ghostwriterIds);
+        
+        if (ghostwriterError) {
+          console.error('Error fetching ghostwriter details:', ghostwriterError);
+          setGhostwriters([]);
+          return;
+        }
+        
+        // Transform the data
+        const formattedGhostwriters = data.map(link => {
+          const ghostwriterInfo = ghostwriterDetails?.find(g => g.id === link.ghostwriter_id) || {};
+          const userMetadata = ghostwriterInfo.raw_user_meta_data || {};
+          
+          return {
+            id: ghostwriterInfo.id || link.ghostwriter_id,
+            email: ghostwriterInfo.email || 'Unknown email',
+            name: userMetadata.full_name || userMetadata.name || (ghostwriterInfo.email ? ghostwriterInfo.email.split('@')[0] : 'Unknown user')
+          };
+        }).filter(item => item.id); // Ensure ghostwriter exists
+        
+        setGhostwriters(formattedGhostwriters);
+      } else {
+        setGhostwriters([]);
+      }
     } catch (error) {
       console.error('Error fetching ghostwriters:', error);
       // Silently set empty ghostwriters rather than showing an error
@@ -271,45 +304,42 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
       }
       
       // Determine post status based on action type
-      let status, approver_id, ghostwriter_id;
+      let status, ghostwriter_id;
       
       switch(actionType) {
         case 'draft':
           status = 'draft';
-          approver_id = null;
           ghostwriter_id = null;
           break;
           
         case 'send_for_approval':
           status = 'pending_approval';
-          approver_id = postData.approverId;
           ghostwriter_id = null;
           break;
           
         case 'send_to_ghostwriter':
           status = 'needs_edit';
-          approver_id = null;
           ghostwriter_id = postData.ghostwriterId;
           break;
           
         case 'schedule':
           status = 'scheduled';
-          approver_id = null;
           ghostwriter_id = null;
           break;
           
         default:
           status = 'draft';
-          approver_id = null;
           ghostwriter_id = null;
       }
+      
+      // Always use the selected approver regardless of the action type
+      const approver_id = postData.approverId || null;
       
       // Prepare post data
       const postPayload = {
         content: postData.content,
         scheduled_time: postData.scheduledTime,
         status: status,
-        platforms: postData.platforms || {},
         day_of_week: postData.day_of_week,
         template_id: postData.template_id,
         approver_id: approver_id,
@@ -510,29 +540,25 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
           <p>Drag & drop or click to upload media</p>
         </div>
 
-        {/* Platforms section */}
+        {/* Add approver selection here - always visible */}
         <div className="mt-4">
-          <Label className="block mb-2">Select platforms</Label>
-          <div className="flex flex-wrap gap-3">
-            {['linkedin', 'twitter', 'facebook', 'instagram'].map(platform => (
-              <div key={platform} className="flex items-center gap-2">
-                <Checkbox
-                  id={`platform-${platform}`}
-                  checked={postData.platforms?.[platform] || false}
-                  onCheckedChange={(checked) => setPostData(prev => ({
-                    ...prev,
-                    platforms: {
-                      ...(prev.platforms || {}),
-                      [platform]: checked
-                    }
-                  }))}
-                />
-                <Label htmlFor={`platform-${platform}`} className="capitalize">
-                  {platform}
-                </Label>
-              </div>
+          <Label htmlFor="post-approver" className="block mb-2">Assign Approver</Label>
+          <select
+            id="post-approver"
+            value={postData.approverId || ''}
+            onChange={(e) => setPostData(prev => ({
+              ...prev,
+              approverId: e.target.value
+            }))}
+            className="w-full p-2 border rounded-lg"
+          >
+            <option value="">Select an approver</option>
+            {approvers.map((approver) => (
+              <option key={approver.id} value={approver.id}>
+                {approver.name}
+              </option>
             ))}
-          </div>
+          </select>
         </div>
 
         {/* Workflow Actions Section - Only show if there are workflow options */}
@@ -740,7 +766,7 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
           </div>
           
           <div>
-            {postData.approverId && hasApprovers ? (
+            {postData.approverId ? (
               <Button 
                 onClick={(e) => handleSavePost(e, 'send_for_approval')}
                 disabled={isSaving || !postData.approverId}
@@ -773,18 +799,6 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
         <h3 className="text-lg font-semibold mb-4">Preview</h3>
         <div className="bg-white rounded-lg p-4 shadow">
           <p className="whitespace-pre-wrap">{postData.content || 'Your post will appear here...'}</p>
-          
-          {postData.platforms && Object.keys(postData.platforms).length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {Object.entries(postData.platforms).map(([platform, isSelected]) => 
-                isSelected && (
-                  <span key={platform} className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full capitalize">
-                    {platform}
-                  </span>
-                )
-              )}
-            </div>
-          )}
           
           {postData.mediaFiles && postData.mediaFiles.length > 0 && (
             <div className="mt-4 grid grid-cols-2 gap-2">
