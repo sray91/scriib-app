@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import PostEditor from '@/components/PostEditor';
 
 /**
@@ -17,11 +17,17 @@ export default function PostEditorDialog({
 }) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl h-[80vh] p-0 overflow-hidden">
+      <DialogContent 
+        className="max-w-6xl h-[80vh] p-0 overflow-hidden" 
+        aria-describedby="post-editor-description"
+      >
         <DialogHeader className="p-4 border-b bg-white sticky top-0 z-10">
           <DialogTitle className="text-xl font-semibold">
             {isNew ? "Create New Post" : "Edit Post"}
           </DialogTitle>
+          <DialogDescription id="post-editor-description" className="sr-only">
+            {isNew ? "Create a new post" : "Edit your existing post"}
+          </DialogDescription>
         </DialogHeader>
         
         <div className="overflow-y-auto">

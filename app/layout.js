@@ -30,6 +30,22 @@ export default async function RootLayout({ children }) {
 
   return (
     <html lang="en">
+      <head>
+        <link
+          rel="preload"
+          href={bebasNeue.url}
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href={lexendDeca.url}
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className={`${bebasNeue.variable} ${lexendDeca.variable} ${lexendDeca.className} overscroll-x-auto`}>
         <Providers>
           {session && !shouldExcludeMainLayout ? (

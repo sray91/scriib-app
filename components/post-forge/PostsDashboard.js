@@ -587,6 +587,16 @@ export default function PostsDashboard() {
                                   {new Date(post.scheduled_time).toLocaleString()}
                                 </div>
                               )}
+                              
+                              {/* Show approver name when assigned */}
+                              {post?.approver_id && post?.approver_name && (
+                                <div className="mt-1">
+                                  <Badge className="bg-blue-50 text-blue-800 hover:bg-blue-100 flex items-center gap-1">
+                                    <Users size={14} />
+                                    For {post.approver_name}
+                                  </Badge>
+                                </div>
+                              )}
                             </div>
                             
                             <div className="flex items-center gap-2">
