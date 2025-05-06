@@ -132,12 +132,12 @@ export async function POST(request) {
             // Use a dedicated environment variable if available, fallback to site URL
             emailRedirectTo: process.env.APPROVER_CALLBACK_URL 
               ? `${process.env.APPROVER_CALLBACK_URL.replace(/%$/, '')}?ghostwriter=${user.id}&setPassword=true`
-              : `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://app.creatortask.com/').replace(/\/$/, '')}/auth/callback?ghostwriter=${user.id}&setPassword=true`,
+              : `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://app.creatortask.com/').replace(/\/$/, '')}/auth/callback?ghostwriter=${user.id}&email=${encodeURIComponent(email)}&setPassword=true&directApproverInvite=true`,
             // Add email subject
             emailSubject: "Invitation to become an approver",
             // Add a custom message to the email
             data: {
-              invite_message: `You have been invited to become an approver. Click the link below to sign in securely without needing a password. After signing in, you will be prompted to accept the invitation and can then set up a password for your account for enhanced security.`
+              invite_message: `You have been invited to become an approver. Click the link below to sign in securely - no password needed. After signing in, you'll be able to set a password for future logins.`
             }
           }
         });

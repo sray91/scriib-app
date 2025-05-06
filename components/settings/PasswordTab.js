@@ -20,11 +20,29 @@ export default function PasswordTab() {
   const [needsPassword, setNeedsPassword] = useState(false)
   const [success, setSuccess] = useState(false)
   const [isNewUser, setIsNewUser] = useState(false)
+  const [showWelcomeMessage, setShowWelcomeMessage] = useState(false)
   
   const supabase = createClientComponentClient()
   const { toast } = useToast()
   const searchParams = useSearchParams()
   const fromInvite = searchParams.get('fromInvite') === 'true'
+  const successType = searchParams.get('success')
+  const ghostwriter = searchParams.get('ghostwriter')
+
+  // Show welcome message for direct invites
+  useEffect(() => {
+    if (successType === 'invite_accepted') {
+      setShowWelcomeMessage(true)
+      setIsNewUser(true)
+      setNeedsPassword(true)
+      
+      // Show toast notification
+      toast({
+        title: 'Success!',
+        description: 'You have been added as an approver. Please set a password for future logins.',
+      })
+    }
+  }, [successType, toast])
 
   // Check if user has a password
   useEffect(() => {
@@ -154,7 +172,17 @@ export default function PasswordTab() {
           </Alert>
         )}
 
-        {isNewUser && (
+        {showWelcomeMessage && (
+          <Alert className="mb-4 bg-green-50 border-green-200">
+            <Info className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-700">
+              <p className="font-bold mb-1">You have successfully been added as an approver!</p>
+              <p>Please set a password now to secure your account for future logins.</p>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {isNewUser && !showWelcomeMessage && (
           <Alert className="mb-4 bg-blue-50 border-blue-200">
             <Info className="h-4 w-4 text-blue-600" />
             <AlertDescription className="text-blue-700">

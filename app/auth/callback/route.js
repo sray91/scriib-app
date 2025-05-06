@@ -26,6 +26,14 @@ export async function GET(request) {
     const next = requestUrl.searchParams.get('next')
     const email = requestUrl.searchParams.get('email')
     const isApproverInvite = !!ghostwriter // If ghostwriter param exists, this is an approver invite
+    const directApproverInvite = requestUrl.searchParams.get('directApproverInvite') === 'true'
+    
+    // For direct approver invites, redirect to our simplified flow
+    if (isApproverInvite && directApproverInvite && email) {
+      console.log("Direct approver invite detected, redirecting to simplified flow")
+      const directUrl = new URL(`/api/direct-approve?ghostwriter=${ghostwriter}&email=${encodeURIComponent(email)}`, requestUrl.origin)
+      return NextResponse.redirect(directUrl)
+    }
     
     if (code) {
       const cookieStore = cookies()
