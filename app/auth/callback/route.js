@@ -23,6 +23,7 @@ export async function GET(request) {
     const ghostwriter = requestUrl.searchParams.get('ghostwriter')
     const next = requestUrl.searchParams.get('next')
     const email = requestUrl.searchParams.get('email')
+    const isApproverInvite = !!ghostwriter // If ghostwriter param exists, this is an approver invite
     
     if (code) {
       const cookieStore = cookies()
@@ -78,6 +79,8 @@ export async function GET(request) {
         if (email) {
           acceptUrl.searchParams.set('email', email)
         }
+        // Add a flag to indicate this is a new user via magic link who will need to set a password
+        acceptUrl.searchParams.set('setPassword', 'true')
         redirectUrl = acceptUrl
       } else if (next) {
         // If there's a next parameter, redirect there
@@ -86,6 +89,8 @@ export async function GET(request) {
         // If the next URL is the accept page and we have an email, add it to the query params
         if ((next.includes('/accept') || redirectUrl.pathname.includes('/accept')) && email) {
           redirectUrl.searchParams.set('email', email)
+          // Add a flag to indicate this is a new user via magic link who will need to set a password
+          redirectUrl.searchParams.set('setPassword', 'true')
         }
       } else {
         // Otherwise, redirect to the dashboard or home page

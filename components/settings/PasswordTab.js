@@ -7,8 +7,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { Loader2, AlertCircle, Info } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useSearchParams } from 'next/navigation'
 
 export default function PasswordTab() {
   const [currentPassword, setCurrentPassword] = useState('')
@@ -18,20 +19,39 @@ export default function PasswordTab() {
   const [error, setError] = useState(null)
   const [needsPassword, setNeedsPassword] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [isNewUser, setIsNewUser] = useState(false)
   
   const supabase = createClientComponentClient()
   const { toast } = useToast()
+  const searchParams = useSearchParams()
+  const fromInvite = searchParams.get('fromInvite') === 'true'
 
   // Check if user has a password
   useEffect(() => {
     const checkPasswordStatus = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser()
-        // Approximate check for users that were likely created with magic links
-        // This is based on the provider field in Supabase auth
+        if (!user) return
+        
+        // More accurate check for users that were created with magic links
         const { data, error } = await supabase.auth.getSession()
-        if (!error && data?.session?.user?.app_metadata?.provider === 'email') {
-          setNeedsPassword(true)
+        
+        if (!error && data?.session) {
+          // Check if this is a new user from a magic link/OTP
+          if (data.session.user?.app_metadata?.provider === 'email' || 
+              data.session.user?.identities?.some(i => i.provider === 'email' && !i.identity_data?.email_verified)) {
+            setNeedsPassword(true)
+            
+            // Check if the user is recently created (within the last hour)
+            const createdAt = new Date(user.created_at)
+            const now = new Date()
+            const userAgeMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60)
+            
+            // If user was created less than 60 minutes ago, treat as new user
+            if (userAgeMinutes < 60) {
+              setIsNewUser(true)
+            }
+          }
         }
       } catch (error) {
         console.error('Error checking user auth status:', error)
@@ -39,7 +59,7 @@ export default function PasswordTab() {
     }
     
     checkPasswordStatus()
-  }, [])
+  }, [supabase])
 
   const handleUpdatePassword = async (e) => {
     e.preventDefault()
@@ -91,14 +111,14 @@ export default function PasswordTab() {
       
       toast({
         title: 'Success',
-        description: 'Password updated successfully'
+        description: isNewUser ? 'Password set successfully' : 'Password updated successfully'
       })
     } catch (error) {
       console.error('Error updating password:', error)
       setError(error.message)
       toast({
         title: 'Error',
-        description: 'Failed to update password',
+        description: isNewUser ? 'Failed to set password' : 'Failed to update password',
         variant: 'destructive'
       })
     } finally {
@@ -109,11 +129,13 @@ export default function PasswordTab() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{needsPassword ? 'Set Password' : 'Update Password'}</CardTitle>
+        <CardTitle>{isNewUser ? 'Set Your Password' : (needsPassword ? 'Set Password' : 'Update Password')}</CardTitle>
         <CardDescription>
-          {needsPassword 
-            ? 'Create a password for your account for additional security' 
-            : 'Change your password to keep your account secure'}
+          {isNewUser 
+            ? 'Create a password to secure your account and enable future logins' 
+            : (needsPassword 
+                ? 'Create a password for your account for additional security' 
+                : 'Change your password to keep your account secure')}
         </CardDescription>
       </CardHeader>
       <CardContent className="p-6">
@@ -128,6 +150,15 @@ export default function PasswordTab() {
           <Alert className="mb-4">
             <AlertDescription className="text-green-600">
               Password successfully {needsPassword ? 'set' : 'updated'}!
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {isNewUser && (
+          <Alert className="mb-4 bg-blue-50 border-blue-200">
+            <Info className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-700">
+              You logged in with a magic link. Setting a password will allow you to use either method in the future.
             </AlertDescription>
           </Alert>
         )}
@@ -174,9 +205,9 @@ export default function PasswordTab() {
             />
           </div>
 
-          <Button type="submit" disabled={loading}>
+          <Button type="submit" disabled={loading} className={isNewUser ? "bg-blue-600 hover:bg-blue-700" : ""}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {needsPassword ? 'Set Password' : 'Update Password'}
+            {isNewUser ? 'Create Password' : (needsPassword ? 'Set Password' : 'Update Password')}
           </Button>
         </form>
       </CardContent>

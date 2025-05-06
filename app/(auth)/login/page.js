@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, Info } from 'lucide-react'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -19,17 +19,24 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [sendingMagicLink, setSendingMagicLink] = useState(false)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
+  const [isApproverInvite, setIsApproverInvite] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const nextUrl = searchParams.get('next') || '/'
   const errorMessage = searchParams.get('error')
   const message = searchParams.get('message')
   const inviteEmail = searchParams.get('email') || ''
+  const fromApproverInvite = nextUrl.includes('/accept') || searchParams.get('fromInvite') === 'true'
   
   useEffect(() => {
     // If there's an email from the invite, use it
     if (inviteEmail) {
       setEmail(inviteEmail)
+    }
+    
+    // Check if user is coming from an approver invite flow
+    if (fromApproverInvite) {
+      setIsApproverInvite(true)
     }
     
     // If there's an error message in the URL, display it
@@ -42,7 +49,7 @@ export default function LoginPage() {
     } else if (message) {
       setError(message)
     }
-  }, [errorMessage, message, inviteEmail])
+  }, [errorMessage, message, inviteEmail, fromApproverInvite])
 
   const supabase = createClientComponentClient()
 
@@ -83,10 +90,15 @@ export default function LoginPage() {
       // Get site URL from env or fallback to window location
       const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
       
+      // If this is an approver invite, add the fromInvite flag to help with passwordless flow
+      const redirectPath = nextUrl.includes('/accept') 
+        ? `${nextUrl}&setPassword=true` 
+        : `${encodeURIComponent(nextUrl)}`
+      
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(nextUrl)}`
+          emailRedirectTo: `${siteUrl}/auth/callback?next=${redirectPath}`
         }
       })
       
@@ -101,23 +113,34 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm">
+    <div className="container max-w-sm mx-auto py-8 px-4">
+      <Card>
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Login</CardTitle>
-          <CardDescription>Enter your email and password to login to your account</CardDescription>
+          <CardTitle className="text-center text-2xl">Sign in</CardTitle>
+          <CardDescription className="text-center">
+            Enter your email and password to sign in to your account
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {error && (
-            <Alert variant={message ? "default" : "destructive"} className="mb-4">
+            <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
           
+          {isApproverInvite && (
+            <Alert className="mb-4 bg-blue-50 border-blue-200">
+              <Info className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-700">
+                As an invited approver, you can use the Magic Link option below to sign in without a password.
+              </AlertDescription>
+            </Alert>
+          )}
+          
           {magicLinkSent ? (
-            <div className="text-center py-6 px-2">
-              <h3 className="text-lg font-medium mb-2">Check Your Email</h3>
+            <div className="text-center">
+              <h3 className="text-lg font-medium mb-2">Check your email</h3>
               <p className="text-gray-600 mb-4">
                 We&apos;ve sent a magic link to <strong>{email}</strong>
               </p>
@@ -129,15 +152,14 @@ export default function LoginPage() {
             <>
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">Email address</Label>
                   <Input
                     id="email"
                     type="email"
-                    placeholder="m@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@example.com"
                     required
-                    disabled={!!inviteEmail}
                   />
                 </div>
                 <div className="space-y-2">
@@ -147,21 +169,21 @@ export default function LoginPage() {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    placeholder="********"
                     required
                   />
                 </div>
-                
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? 'Logging in...' : 'Login with Password'}
+                  {loading ? 'Signing in...' : 'Sign in'}
                 </Button>
               </form>
               
-              <div className="mt-4 relative">
+              <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-gray-300" />
+                  <div className="w-full border-t border-gray-300"></div>
                 </div>
-                <div className="relative flex justify-center text-xs">
-                  <span className="bg-background px-2 text-gray-500">Or continue with</span>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-gray-500">or</span>
                 </div>
               </div>
               
@@ -169,13 +191,15 @@ export default function LoginPage() {
                 <Button 
                   type="submit" 
                   variant="outline" 
-                  className="w-full" 
+                  className={`w-full ${isApproverInvite ? 'border-blue-300 text-blue-700 hover:bg-blue-50' : ''}`}
                   disabled={sendingMagicLink || !email}
                 >
                   {sendingMagicLink ? 'Sending...' : 'Email Magic Link'}
                 </Button>
                 <p className="text-xs text-gray-500 mt-2 text-center">
-                  Don&apos;t have a password? We&apos;ll email you a secure login link.
+                  {isApproverInvite 
+                    ? "Recommended for approvers: We'll email you a secure login link"
+                    : "Don't have a password? We'll email you a secure login link."}
                 </p>
               </form>
             </>

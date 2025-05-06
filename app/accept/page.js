@@ -21,6 +21,7 @@ export default function AcceptInvitationPage() {
   
   // Get ghostwriter ID from URL
   const ghostwriterId = searchParams.get('ghostwriter')
+  const shouldSetPassword = searchParams.get('setPassword') === 'true'
   
   // First check if user is authenticated
   useEffect(() => {
@@ -134,6 +135,13 @@ export default function AcceptInvitationPage() {
           
           setSuccess(true)
         }
+
+        // If user came from a magic link and needs to set password, force redirect to password settings
+        if (shouldSetPassword && success) {
+          setTimeout(() => {
+            router.push('/settings?tab=password')
+          }, 1500) // Short delay to show the success message first
+        }
         
       } catch (error) {
         console.error('Error processing invitation:', error)
@@ -219,7 +227,7 @@ export default function AcceptInvitationPage() {
     }
     
     activateLink()
-  }, [ghostwriterId, authenticated, isCheckingAuth, supabase])
+  }, [ghostwriterId, authenticated, isCheckingAuth, supabase, shouldSetPassword, router])
   
   // Function to redirect to login
   const goToLogin = () => {
@@ -302,14 +310,18 @@ export default function AcceptInvitationPage() {
               <div className="p-4 border rounded-lg bg-blue-50 mb-6 w-full max-w-md">
                 <h4 className="font-medium text-blue-700 mb-2">Set up your account</h4>
                 <p className="text-sm text-blue-600 mb-4">
-                  For added security, we recommend setting a password for your account.
+                  {shouldSetPassword 
+                    ? "Your account needs a password. Please set one now for security and future logins." 
+                    : "For added security, we recommend setting a password for your account."}
                 </p>
                 <Button 
                   onClick={() => router.push('/settings?tab=password')} 
                   variant="outline" 
-                  className="w-full bg-white border-blue-300 hover:bg-blue-50 text-blue-700"
+                  className={`w-full ${shouldSetPassword 
+                    ? "bg-blue-600 border-blue-600 hover:bg-blue-700 text-white" 
+                    : "bg-white border-blue-300 hover:bg-blue-50 text-blue-700"}`}
                 >
-                  Set Password
+                  {shouldSetPassword ? "Set Password Now" : "Set Password"}
                 </Button>
               </div>
               
