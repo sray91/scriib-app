@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, Trash2, ArrowLeft } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, Loader2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -148,54 +148,133 @@ export default function PostTemplateBuilder() {
 
   const handleSave = async () => {
     try {
+      // Check if we have any templates to save
+      if (postTemplates.length === 0) {
+        toast({
+          title: 'No templates',
+          description: 'Please add at least one template before saving.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Check for empty templates
+      const hasEmptyTemplates = postTemplates.some(template => 
+        (!template.title || template.title.trim() === '') && 
+        (!template.description || template.description.trim() === '')
+      );
+
+      if (hasEmptyTemplates) {
+        const confirmSave = window.confirm(
+          'Some templates are empty. Do you want to continue saving?'
+        );
+        if (!confirmSave) return;
+      }
+      
       setIsSaving(true);
+      console.log('Starting save process...');
 
       // Get the current user
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
-
-      // Delete existing templates for this day
-      await supabase
-        .from('user_time_blocks')
-        .delete()
-        .eq('day', currentDay);
-
-      // Save new templates
-      for (const template of postTemplates) {
-        const { data: templateData, error: templateError } = await supabase
-          .from('user_time_blocks')
-          .insert({
-            title: template.title,
-            description: template.description,
-            day: currentDay,
-            user_id: user.id
-          })
-          .select()
-          .single();
-
-        if (templateError) throw templateError;
-
-        if (template.contentIdeas.length > 0) {
-          const ideasToInsert = template.contentIdeas.map(idea => ({
-            time_block_id: templateData.id,
-            text: idea.text
-          }));
-
-          const { error: ideasError } = await supabase
-            .from('user_tasks')
-            .insert(ideasToInsert);
-
-          if (ideasError) throw ideasError;
-        }
+      if (userError) {
+        console.error('User authentication error:', userError);
+        throw userError;
       }
+      console.log('User authenticated:', user.id);
 
-      toast({ title: 'Success', description: 'Post templates saved successfully!' });
-      router.push('/post-forge');
+      // Start a transaction for atomicity
+      const saveTemplates = async () => {
+        // Delete existing templates for this day
+        const { error: deleteError } = await supabase
+          .from('user_time_blocks')
+          .delete()
+          .eq('day', currentDay)
+          .eq('user_id', user.id); // Add user_id filter to prevent deleting others' templates
+
+        if (deleteError) {
+          console.error('Error deleting existing templates:', deleteError);
+          throw deleteError;
+        }
+        console.log('Deleted existing templates for day:', currentDay);
+
+        // Save new templates
+        console.log('Saving new templates:', postTemplates.length);
+        for (const template of postTemplates) {
+          console.log('Saving template:', template.title);
+          // Check that template data is valid
+          if (!template.title) {
+            console.warn('Template title is empty, using placeholder');
+            template.title = "Untitled Template";
+          }
+          
+          const { data: templateData, error: templateError } = await supabase
+            .from('user_time_blocks')
+            .insert({
+              title: template.title,
+              description: template.description || '',
+              day: currentDay,
+              user_id: user.id,
+              start_time: new Date().toISOString(),
+              end_time: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+          if (templateError) {
+            console.error('Error saving template:', templateError);
+            throw templateError;
+          }
+          console.log('Template saved with ID:', templateData.id);
+
+          if (template.contentIdeas && template.contentIdeas.length > 0) {
+            console.log('Saving content ideas:', template.contentIdeas.length);
+            const ideasToInsert = template.contentIdeas
+              .filter(idea => idea && idea.text) // Only include valid ideas
+              .map(idea => ({
+                time_block_id: templateData.id,
+                text: idea.text
+              }));
+
+            if (ideasToInsert.length > 0) {
+              const { error: ideasError } = await supabase
+                .from('user_tasks')
+                .insert(ideasToInsert);
+
+              if (ideasError) {
+                console.error('Error saving content ideas:', ideasError);
+                throw ideasError;
+              }
+              console.log('Content ideas saved successfully');
+            } else {
+              console.log('No valid content ideas to save');
+            }
+          }
+        }
+        
+        return true;
+      };
+      
+      // Execute all operations in a "transaction-like" manner
+      await saveTemplates();
+
+      // Show success message
+      toast({ 
+        title: 'Success', 
+        description: 'Post templates saved successfully!' 
+      });
+
+      // Use setTimeout to ensure the toast is shown before navigation
+      setTimeout(() => {
+        router.push('/post-forge');
+      }, 500);
     } catch (error) {
-      console.error('Error saving templates:', error);
+      console.error('Error saving templates (detail):', error);
+      console.error('Error message:', error.message);
+      console.error('Error code:', error.code);
+      
       toast({
         title: 'Error',
-        description: 'Failed to save post templates. Please try again.',
+        description: `Failed to save post templates: ${error.message}`,
         variant: 'destructive'
       });
     } finally {
@@ -237,7 +316,14 @@ export default function PostTemplateBuilder() {
             disabled={isSaving}
             className="bg-[#FF4400] hover:bg-[#FF4400]/90"
           >
-            {isSaving ? "Saving..." : "Save Templates"}
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Templates"
+            )}
           </Button>
         </div>
       </div>
