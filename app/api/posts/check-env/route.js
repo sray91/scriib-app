@@ -4,7 +4,7 @@ export async function GET() {
   try {
     const env = {
       hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-      hasServiceRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      hasServiceRoleKey: !!process.env.NEXT_SUPABASE_SERVICE_KEY,
       url: process.env.NEXT_PUBLIC_SUPABASE_URL ? 
            process.env.NEXT_PUBLIC_SUPABASE_URL.substring(0, 8) + '...' : 'not set'
     };

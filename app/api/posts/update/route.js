@@ -4,10 +4,17 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
 // Create a Supabase client with the service role key to bypass RLS
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Initialize lazily to avoid build-time errors
+const getSupabaseAdmin = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.NEXT_SUPABASE_SERVICE_KEY;
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Missing Supabase environment variables for admin client');
+  }
+  
+  return createClient(supabaseUrl, supabaseServiceKey);
+};
 
 export async function POST(request) {
   try {
@@ -32,6 +39,9 @@ export async function POST(request) {
         { status: 401 }
       );
     }
+    
+    // Initialize the admin client only when needed
+    const supabaseAdmin = getSupabaseAdmin();
     
     // Use admin client to get post (bypasses RLS)
     const { data: existingPost, error: getError } = await supabaseAdmin
