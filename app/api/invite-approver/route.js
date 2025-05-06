@@ -130,7 +130,7 @@ export async function POST(request) {
           email: email,
           options: {
             // Use a new direct approver-signup URL that will handle everything in one page
-            emailRedirectTo: `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://app.creatortask.com/').replace(/\/$/, '')}/auth/callback?ghostwriter=${user.id}&email=${encodeURIComponent(email)}&fromApproverSignup=true`,
+            emailRedirectTo: `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://app.creatortask.com/').replace(/\/$/, '')}/auth/callback?ghostwriter=${encodeURIComponent(user.id)}&email=${encodeURIComponent(email)}&fromApproverSignup=true`,
             // Add email subject
             emailSubject: "Invitation to become an approver",
             // Add a custom message to the email

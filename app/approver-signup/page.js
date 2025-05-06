@@ -228,6 +228,7 @@ export default function ApproverSignupPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 placeholder="Choose a secure password"
+                autoComplete="new-password"
               />
             </div>
             <div className="space-y-2">
@@ -239,6 +240,7 @@ export default function ApproverSignupPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 placeholder="Confirm your password"
+                autoComplete="new-password"
               />
             </div>
             

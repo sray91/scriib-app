@@ -25,7 +25,9 @@ export default async function RootLayout({ children }) {
   const pathname = headersList.get('x-invoke-path') || ''
 
   const isSharedRoute = pathname.startsWith('/shared/')
-  const excludeMainLayout = ['/login', '/signup', '/settings', '/approver-signup']
+  const authPaths = ['/login', '/signup', '/approver-signup', '/invite-complete']
+  const isAuthPath = authPaths.some(route => pathname.startsWith(route))
+  const excludeMainLayout = ['/settings']
   const shouldExcludeMainLayout = excludeMainLayout.some(route => pathname.startsWith(route)) || isSharedRoute
 
   return (
@@ -48,7 +50,9 @@ export default async function RootLayout({ children }) {
       </head>
       <body className={`${bebasNeue.variable} ${lexendDeca.variable} ${lexendDeca.className} overscroll-x-auto`}>
         <Providers>
-          {session && !shouldExcludeMainLayout ? (
+          {isAuthPath ? (
+            children
+          ) : session && !shouldExcludeMainLayout ? (
             <MainLayout>{children}</MainLayout>
           ) : (
             children
