@@ -90,15 +90,23 @@ export default function LoginPage() {
       // Get site URL from env or fallback to window location
       const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
       
-      // If this is an approver invite, add the fromInvite flag to help with passwordless flow
-      const redirectPath = nextUrl.includes('/accept') 
-        ? `${nextUrl}&setPassword=true` 
-        : `${encodeURIComponent(nextUrl)}`
+      // If this is an approver invite, add the setPassword flag to help with passwordless flow
+      let redirectTo
+      
+      if (nextUrl.includes('/accept')) {
+        // For accept URLs, we need to preserve the ghostwriter parameter and add setPassword
+        const acceptUrl = new URL(nextUrl, siteUrl)
+        acceptUrl.searchParams.set('setPassword', 'true')
+        redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent(acceptUrl.pathname + acceptUrl.search)}`
+      } else {
+        // For regular URLs, just encode the nextUrl
+        redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent(nextUrl)}`
+      }
       
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${siteUrl}/auth/callback?next=${redirectPath}`
+          emailRedirectTo: redirectTo
         }
       })
       

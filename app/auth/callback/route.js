@@ -79,8 +79,13 @@ export async function GET(request) {
         if (email) {
           acceptUrl.searchParams.set('email', email)
         }
-        // Add a flag to indicate this is a new user via magic link who will need to set a password
+        
+        // Always add setPassword=true for ghostwriter invites to ensure they set a password
         acceptUrl.searchParams.set('setPassword', 'true')
+        
+        // Log for debugging
+        console.log("Redirecting approver invite to:", acceptUrl.toString())
+        
         redirectUrl = acceptUrl
       } else if (next) {
         // If there's a next parameter, redirect there

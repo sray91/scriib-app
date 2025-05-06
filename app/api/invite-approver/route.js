@@ -132,7 +132,7 @@ export async function POST(request) {
             // Use a dedicated environment variable if available, fall back to constructed URL
             emailRedirectTo: process.env.APPROVER_CALLBACK_URL 
               ? `${process.env.APPROVER_CALLBACK_URL}?ghostwriter=${user.id}`
-              : `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?ghostwriter=${user.id}`,
+              : `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?ghostwriter=${user.id}&setPassword=true`,
             // Add email subject
             emailSubject: "Invitation to become an approver",
             // Add a custom message to the email
