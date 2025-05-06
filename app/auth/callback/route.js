@@ -27,12 +27,25 @@ export async function GET(request) {
     const email = requestUrl.searchParams.get('email')
     const isApproverInvite = !!ghostwriter // If ghostwriter param exists, this is an approver invite
     const directApproverInvite = requestUrl.searchParams.get('directApproverInvite') === 'true'
+    const comingFromApproverSignup = requestUrl.searchParams.get('fromApproverSignup') === 'true'
     
     // For direct approver invites, redirect to our simplified flow
     if (isApproverInvite && directApproverInvite && email) {
       console.log("Direct approver invite detected, redirecting to simplified flow")
       const directUrl = new URL(`/api/direct-approve?ghostwriter=${ghostwriter}&email=${encodeURIComponent(email)}`, requestUrl.origin)
       return NextResponse.redirect(directUrl)
+    }
+    
+    // For approver signup redirects, pass them directly to the approver-signup page with the code
+    if (comingFromApproverSignup && code) {
+      console.log("Approver signup redirect detected, redirecting to approver-signup with code")
+      const approverSignupUrl = new URL(`/approver-signup?code=${code}`, requestUrl.origin)
+      
+      // Forward any additional parameters that might be needed
+      if (ghostwriter) approverSignupUrl.searchParams.set('ghostwriter', ghostwriter)
+      if (email) approverSignupUrl.searchParams.set('email', email)
+      
+      return NextResponse.redirect(approverSignupUrl)
     }
     
     if (code) {

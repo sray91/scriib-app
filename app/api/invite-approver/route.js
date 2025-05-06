@@ -129,15 +129,13 @@ export async function POST(request) {
         const { error: signupError } = await supabase.auth.signInWithOtp({
           email: email,
           options: {
-            // Use a dedicated environment variable if available, fallback to site URL
-            emailRedirectTo: process.env.APPROVER_CALLBACK_URL 
-              ? `${process.env.APPROVER_CALLBACK_URL.replace(/%$/, '')}?ghostwriter=${user.id}&setPassword=true`
-              : `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://app.creatortask.com/').replace(/\/$/, '')}/auth/callback?ghostwriter=${user.id}&email=${encodeURIComponent(email)}&setPassword=true&directApproverInvite=true`,
+            // Use a new direct approver-signup URL that will handle everything in one page
+            emailRedirectTo: `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://app.creatortask.com/').replace(/\/$/, '')}/auth/callback?ghostwriter=${user.id}&email=${encodeURIComponent(email)}&fromApproverSignup=true`,
             // Add email subject
             emailSubject: "Invitation to become an approver",
             // Add a custom message to the email
             data: {
-              invite_message: `You have been invited to become an approver. Click the link below to sign in securely - no password needed. After signing in, you'll be able to set a password for future logins.`
+              invite_message: `You have been invited to become an approver. Click the link below to create your account - you will be able to set your password on the next page.`
             }
           }
         });
