@@ -5,11 +5,13 @@ import { NextResponse } from 'next/server'
 export async function GET(request) {
   try {
     const requestUrl = new URL(request.url)
+    console.log("=============== AUTH CALLBACK ===============")
     console.log("Callback URL:", requestUrl.toString())
     console.log("Environment variables:", {
       NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
       NODE_ENV: process.env.NODE_ENV,
     })
+    console.log("Search params:", Object.fromEntries(requestUrl.searchParams.entries()))
     
     // Check if we have a duplicate path like /auth/callback/auth/callback
     if (requestUrl.pathname.includes('/auth/callback/auth/callback')) {
@@ -47,7 +49,8 @@ export async function GET(request) {
         let redirectPath
         
         if (ghostwriter) {
-          redirectPath = `/login?error=no_session&next=${encodeURIComponent(`/accept?ghostwriter=${ghostwriter}`)}`
+          // For approver invites, direct them to login with better context
+          redirectPath = `/login?error=no_session&next=${encodeURIComponent(`/accept?ghostwriter=${ghostwriter}`)}&fromInvite=true`
         } else if (next) {
           redirectPath = `/login?error=no_session&next=${encodeURIComponent(next)}`
         } else {
@@ -89,7 +92,24 @@ export async function GET(request) {
         redirectUrl = acceptUrl
       } else if (next) {
         // If there's a next parameter, redirect there
-        redirectUrl = new URL(next.startsWith('/') ? next : `/${next}`, normalizedSiteUrl)
+        let nextUrlObj;
+        try {
+          // Check if next is a valid URL
+          new URL(next);
+          // If it is, it's an absolute URL - check if it's on our domain
+          const nextDomain = new URL(next).origin;
+          if (nextDomain === normalizedSiteUrl) {
+            // It's on our domain, use it as is
+            redirectUrl = new URL(next);
+          } else {
+            // It's an external URL, redirect to home for safety
+            console.warn("Attempted external redirect:", next);
+            redirectUrl = new URL('/', normalizedSiteUrl);
+          }
+        } catch (e) {
+          // It's not a valid URL, assume it's a path
+          redirectUrl = new URL(next.startsWith('/') ? next : `/${next}`, normalizedSiteUrl);
+        }
         
         // If the next URL is the accept page and we have an email, add it to the query params
         if ((next.includes('/accept') || redirectUrl.pathname.includes('/accept')) && email) {
@@ -103,6 +123,7 @@ export async function GET(request) {
       }
       
       console.log("Redirecting to:", redirectUrl.toString())
+      console.log("=============== END AUTH CALLBACK ===============")
       return NextResponse.redirect(redirectUrl)
     }
     

@@ -20,6 +20,7 @@ export default function LoginPage() {
   const [sendingMagicLink, setSendingMagicLink] = useState(false)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
   const [isApproverInvite, setIsApproverInvite] = useState(false)
+  const [showApproverHelp, setShowApproverHelp] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const nextUrl = searchParams.get('next') || '/'
@@ -37,6 +38,11 @@ export default function LoginPage() {
     // Check if user is coming from an approver invite flow
     if (fromApproverInvite) {
       setIsApproverInvite(true)
+      
+      // Show help message if they land on the login page from an approver invite
+      if (nextUrl.includes('/accept') && searchParams.get('ghostwriter')) {
+        setShowApproverHelp(true)
+      }
     }
     
     // If there's an error message in the URL, display it
@@ -49,7 +55,7 @@ export default function LoginPage() {
     } else if (message) {
       setError(message)
     }
-  }, [errorMessage, message, inviteEmail, fromApproverInvite])
+  }, [errorMessage, message, inviteEmail, fromApproverInvite, nextUrl, searchParams])
 
   const supabase = createClientComponentClient()
 
@@ -95,13 +101,26 @@ export default function LoginPage() {
       
       if (nextUrl.includes('/accept')) {
         // For accept URLs, we need to preserve the ghostwriter parameter and add setPassword
-        const acceptUrl = new URL(nextUrl, siteUrl)
-        acceptUrl.searchParams.set('setPassword', 'true')
-        redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent(acceptUrl.pathname + acceptUrl.search)}`
+        // Extract the ghostwriter ID if present
+        const ghostwriter = searchParams.get('ghostwriter') || 
+                          (nextUrl.includes('ghostwriter=') ? 
+                            new URLSearchParams(nextUrl.split('?')[1]).get('ghostwriter') : 
+                            null)
+        
+        if (ghostwriter) {
+          // Direct construction to avoid issues with URL parsing
+          redirectTo = `${siteUrl.replace(/\/+$/, '')}/auth/callback?ghostwriter=${ghostwriter}&setPassword=true`
+        } else {
+          const acceptUrl = new URL(nextUrl, siteUrl)
+          acceptUrl.searchParams.set('setPassword', 'true')
+          redirectTo = `${siteUrl.replace(/\/+$/, '')}/auth/callback?next=${encodeURIComponent(acceptUrl.pathname + acceptUrl.search)}`
+        }
       } else {
         // For regular URLs, just encode the nextUrl
-        redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent(nextUrl)}`
+        redirectTo = `${siteUrl.replace(/\/+$/, '')}/auth/callback?next=${encodeURIComponent(nextUrl)}`
       }
+      
+      console.log("Magic link redirect:", redirectTo)
       
       const { error } = await supabase.auth.signInWithOtp({
         email,
@@ -142,6 +161,15 @@ export default function LoginPage() {
               <Info className="h-4 w-4 text-blue-600" />
               <AlertDescription className="text-blue-700">
                 As an invited approver, you can use the Magic Link option below to sign in without a password.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {showApproverHelp && (
+            <Alert className="mb-4 bg-yellow-50 border-yellow-200">
+              <Info className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-yellow-700">
+                You&apos;ve clicked an approver invitation link. Choose &quot;Email Magic Link&quot; below to continue, or create a password account using the Sign Up link.
               </AlertDescription>
             </Alert>
           )}

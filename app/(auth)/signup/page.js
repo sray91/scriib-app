@@ -43,6 +43,7 @@ export default function SignUpPage() {
   const handleSignUp = async (e) => {
     e.preventDefault()
     setLoading(true)
+    setError(null)
     
     if (password !== confirmPassword) {
       setError('Passwords do not match')
@@ -54,19 +55,35 @@ export default function SignUpPage() {
       // Use the environment variable for the site URL
       const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
       
-      const { error } = await supabase.auth.signUp({
+      console.log("Signing up with email redirect:", `${siteUrl.replace(/\/+$/, '')}/auth/callback?next=${encodeURIComponent(nextUrl)}`)
+      
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(nextUrl)}`,
+          emailRedirectTo: `${siteUrl.replace(/\/+$/, '')}/auth/callback?next=${encodeURIComponent(nextUrl)}`,
+          data: {
+            // Add any additional user metadata here
+            sign_up_method: 'email_password'
+          }
         },
       })
       
       if (error) throw error
 
-      router.push(`/login?message=Check your email to confirm your account&next=${encodeURIComponent(nextUrl)}`)
+      // For approver invites, give special instructions
+      if (nextUrl.includes('/accept')) {
+        router.push(`/login?message=Check your email to confirm your account. After confirming, you'll be able to accept the approver invitation&next=${encodeURIComponent(nextUrl)}`)
+      } else {
+        router.push(`/login?message=Check your email to confirm your account&next=${encodeURIComponent(nextUrl)}`)
+      }
     } catch (error) {
-      setError(error.message)
+      // If the error is about an existing account, suggest using magic link
+      if (error.message?.includes('already registered')) {
+        setError(`This email is already registered. You can try logging in with a password or use the "Email Magic Link" option below.`)
+      } else {
+        setError(error.message)
+      }
     } finally {
       setLoading(false)
     }
@@ -87,10 +104,38 @@ export default function SignUpPage() {
       // Use the environment variable for the site URL
       const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
       
+      // For approver invites, construct URL more carefully
+      let redirectUrl
+      
+      if (nextUrl.includes('/accept')) {
+        // Extract the ghostwriter ID if present
+        const ghostwriter = searchParams.get('ghostwriter') || 
+                          (nextUrl.includes('ghostwriter=') ? 
+                            new URLSearchParams(nextUrl.split('?')[1]).get('ghostwriter') : 
+                            null)
+        
+        if (ghostwriter) {
+          // Direct construction to avoid issues with URL parsing
+          redirectUrl = `${siteUrl.replace(/\/+$/, '')}/auth/callback?ghostwriter=${ghostwriter}&setPassword=true`
+        } else {
+          const acceptUrl = new URL(nextUrl, siteUrl)
+          acceptUrl.searchParams.set('setPassword', 'true')
+          redirectUrl = `${siteUrl.replace(/\/+$/, '')}/auth/callback?next=${encodeURIComponent(acceptUrl.pathname + acceptUrl.search)}`
+        }
+      } else {
+        // For regular URLs, just encode the nextUrl
+        redirectUrl = `${siteUrl.replace(/\/+$/, '')}/auth/callback?next=${encodeURIComponent(nextUrl)}`
+      }
+      
+      console.log("Magic link redirect for signup:", redirectUrl)
+      
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(nextUrl)}`
+          emailRedirectTo: redirectUrl,
+          data: {
+            sign_up_method: 'magic_link'
+          }
         }
       })
       
