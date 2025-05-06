@@ -25,7 +25,7 @@ export default async function RootLayout({ children }) {
   const pathname = headersList.get('x-invoke-path') || ''
 
   const isSharedRoute = pathname.startsWith('/shared/')
-  const excludeMainLayout = ['/login', '/signup', '/settings']
+  const excludeMainLayout = ['/login', '/signup', '/settings', '/approver-signup']
   const shouldExcludeMainLayout = excludeMainLayout.some(route => pathname.startsWith(route)) || isSharedRoute
 
   return (
