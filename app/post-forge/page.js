@@ -28,6 +28,7 @@ export default function PostForge() {
   const [isPostEditorOpen, setIsPostEditorOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [isCreatingNewPost, setIsCreatingNewPost] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   // Get current day of the week
   function getCurrentDay() {
@@ -35,6 +36,15 @@ export default function PostForge() {
     const today = new Date();
     return days[today.getDay()];
   }
+
+  // Get current user
+  useEffect(() => {
+    async function getUser() {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUser(user);
+    }
+    getUser();
+  }, []);
 
   // Load post templates and scheduled posts
   useEffect(() => {
@@ -154,6 +164,16 @@ export default function PostForge() {
 
   async function generateWeeklyContent() {
     try {
+      // Check if user is authenticated
+      if (!currentUser?.id) {
+        toast({
+          title: "Error",
+          description: "You must be logged in to generate content",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setIsGeneratingContent(true);
       toast({
         title: "Generating Content",
@@ -196,6 +216,7 @@ export default function PostForge() {
           const { error: postError } = await supabase
             .from('posts')
             .insert({
+              user_id: currentUser.id,
               content: template.description || `${day} - ${template.title}`,
               status: 'draft',
               scheduled_time: currentDayDate.toISOString(),
@@ -204,7 +225,10 @@ export default function PostForge() {
               platforms: {}
             });
 
-          if (postError) throw postError;
+          if (postError) {
+            console.error('Error creating post:', postError);
+            throw postError;
+          }
         }
       }
 
