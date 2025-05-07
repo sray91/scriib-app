@@ -60,10 +60,37 @@ module.exports = {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      typography: {
+        DEFAULT: {
+          css: {
+            maxWidth: '100%',
+            code: {
+              color: 'var(--foreground)',
+              backgroundColor: 'hsl(var(--muted))',
+              borderRadius: '0.25rem',
+              padding: '0.2em 0.4em',
+            },
+            'code::before': {
+              content: '""',
+            },
+            'code::after': {
+              content: '""',
+            },
+            a: {
+              color: 'hsl(var(--primary))',
+              '&:hover': {
+                color: 'hsl(var(--primary))',
+                textDecoration: 'underline',
+              },
+            },
+          },
+        },
+      },
     },
   },
   plugins: [
     "tailwindcss-animate",
     require('@tailwindcss/forms'),
+    require('@tailwindcss/typography'),
   ],
 }
