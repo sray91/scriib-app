@@ -46,7 +46,7 @@ export default function HomePage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">Access guides and instructions for CreatorTask features</p>
+            <p className="text-sm text-muted-foreground mb-4">Access guides and instructions for CreatorTask</p>
             
             {isLoadingDocs ? (
               <div className="flex items-center justify-center py-4">
