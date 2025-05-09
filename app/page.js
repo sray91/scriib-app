@@ -33,7 +33,7 @@ export default function HomePage() {
     <div className="container max-w-6xl py-8">
       <h1 className="text-3xl font-bold mb-6">Welcome to CreatorTask</h1>
       <p className="text-muted-foreground mb-8">
-        Select a tool from the sidebar to get started with managing your content creation workflow.
+        Select a tool from the sidebar to get started!
       </p>
       
       {/* Original home page cards */}
