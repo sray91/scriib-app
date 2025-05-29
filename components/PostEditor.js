@@ -84,6 +84,7 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
     mediaFiles: [],
     day_of_week: '',
     template_id: null,
+    status: 'draft',
     ...post
   });
   const [approvers, setApprovers] = useState([]);
@@ -111,8 +112,13 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
     if (currentUser) {
       fetchApprovers();
       fetchGhostwriters();
+      
+      // If editing an existing post, fetch its media files
+      if (!isNew && post?.id) {
+        fetchPostMedia(post.id);
+      }
     }
-  }, [currentUser]);
+  }, [currentUser, isNew, post?.id]);
 
   async function fetchApprovers() {
     try {
@@ -230,6 +236,42 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
     }
   }
 
+  // Function to fetch media files associated with a post
+  async function fetchPostMedia(postId) {
+    try {
+      const { data, error } = await supabase
+        .from('post_media')
+        .select('media_urls')
+        .eq('post_id', postId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching post media:', error);
+        return;
+      }
+      
+      if (data && data.media_urls && data.media_urls.length > 0) {
+        // Convert URLs to mediaFiles format expected by the component
+        const mediaFiles = data.media_urls.map(url => ({
+          url,
+          type: url.toLowerCase().endsWith('.jpg') || url.toLowerCase().endsWith('.jpeg') ? 'image/jpeg' :
+                url.toLowerCase().endsWith('.png') ? 'image/png' :
+                url.toLowerCase().endsWith('.gif') ? 'image/gif' :
+                url.toLowerCase().endsWith('.webp') ? 'image/webp' :
+                'application/octet-stream',
+          path: url.split('/').pop()
+        }));
+        
+        setPostData(prev => ({
+          ...prev,
+          mediaFiles
+        }));
+      }
+    } catch (fetchError) {
+      console.error('Error in fetchPostMedia:', fetchError);
+    }
+  }
+
   async function handleMediaUpload(e) {
     e.preventDefault();
     
@@ -250,13 +292,37 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
         description: "Uploading your media files...",
       });
       
-      // Create mock URLs for the files (in a real app, you'd upload to storage)
-      const uploadedFiles = files.map(file => ({
-        path: `mock-${Math.random().toString(36).substring(2)}`,
-        type: file.type,
-        url: URL.createObjectURL(file),
-        file: file // Store the actual file for later use if needed
-      }));
+      const uploadedFiles = [];
+      
+      // Upload each file to Supabase storage
+      for (const file of files) {
+        const uniqueId = Math.random().toString(36).substring(2);
+        const fileName = `${uniqueId}-${file.name}`;
+        
+        // Create a FormData object to send the file
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // Upload the file to storage via API
+        const response = await fetch('/api/posts/upload-media', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to upload ${file.name}`);
+        }
+        
+        const data = await response.json();
+        
+        // Add the file to our local state with the storage URL
+        uploadedFiles.push({
+          path: data.fileName,
+          type: file.type,
+          url: data.filePath, // Use the returned URL from storage
+          file: file
+        });
+      }
       
       // Update state with new media files
       setPostData(prev => ({
@@ -267,7 +333,7 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
       // Success toast
       toast({
         title: "Success",
-        description: `${uploadedFiles.length} file(s) added successfully`,
+        description: `${uploadedFiles.length} file(s) uploaded successfully`,
       });
       
     } catch (error) {
@@ -306,6 +372,71 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
           variant: "destructive",
         });
         return;
+      }
+      
+      // Special handling for saving changes without changing status
+      if (actionType === 'save_changes' && !isNew) {
+        // Just update content and other fields without changing status
+        const postPayload = {
+          content: postData.content,
+          scheduled_time: postData.scheduledTime,
+          approver_id: postData.approverId || null,
+          ghostwriter_id: postData.ghostwriterId || null,
+          day_of_week: postData.day_of_week || null,
+          template_id: postData.template_id || null,
+          edited_at: new Date().toISOString(),
+          user_id: post?.user_id || currentUser.id
+        };
+        
+        try {
+          const { data, error } = await supabase
+            .from('posts')
+            .update(postPayload)
+            .eq('id', post.id)
+            .select()
+            .single();
+            
+          if (error) {
+            console.error('Error updating post:', error);
+            throw error;
+          }
+          
+          // Handle media files
+          if (postData.mediaFiles && postData.mediaFiles.length > 0) {
+            try {
+              const mediaUrls = postData.mediaFiles.map(file => file.url);
+              const { error: mediaError } = await supabase
+                .from('post_media')
+                .upsert({ 
+                  post_id: data.id, 
+                  media_urls: mediaUrls,
+                  updated_at: new Date().toISOString()
+                });
+              
+              if (mediaError) console.error('Error saving media:', mediaError);
+            } catch (mediaError) {
+              console.error('Error processing media:', mediaError);
+            }
+          }
+          
+          toast({
+            title: "Success",
+            description: "Changes saved successfully",
+          });
+          
+          if (onSave) onSave(data);
+          if (onClose) onClose();
+          return;
+        } catch (updateError) {
+          console.error('Error updating post:', updateError);
+          toast({
+            title: "Error",
+            description: `Failed to save changes: ${updateError.message}`,
+            variant: "destructive",
+          });
+          setIsSaving(false);
+          return;
+        }
       }
       
       // Special handling for scheduling posts
@@ -525,11 +656,25 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
       
       // Handle media files if any
       if (postData.mediaFiles && postData.mediaFiles.length > 0) {
-        // In a real app, you would upload the files to storage here
-        // and then save the references in the database
-        
-        // For now, we'll just log that we would save the media
-        console.log('Would save media files:', postData.mediaFiles);
+        try {
+          // Extract the URLs or paths from the media files
+          const mediaUrls = postData.mediaFiles.map(file => file.url);
+          
+          // Update the post with media URLs
+          const { error: mediaError } = await supabase
+            .from('post_media')
+            .upsert({ 
+              post_id: result.id, 
+              media_urls: mediaUrls,
+              updated_at: new Date().toISOString()
+            });
+          
+          if (mediaError) {
+            console.error('Error saving media references:', mediaError);
+          }
+        } catch (mediaError) {
+          console.error('Error processing media:', mediaError);
+        }
       }
       
       // Set appropriate success message
@@ -621,6 +766,40 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
   return (
     <div className="flex h-full">
       <div className="flex-1 p-6 border-r overflow-y-auto">
+        {/* Status indicator for existing posts */}
+        {!isNew && postData.status && (
+          <div className="mb-4 p-3 bg-gray-50 border rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Status:</span>
+                <span className={`px-2 py-1 rounded text-sm ${
+                  postData.status === 'draft' ? 'bg-gray-200' :
+                  postData.status === 'pending_approval' ? 'bg-yellow-200 text-yellow-800' :
+                  postData.status === 'approved' ? 'bg-green-200 text-green-800' :
+                  postData.status === 'scheduled' ? 'bg-blue-200 text-blue-800' :
+                  postData.status === 'rejected' ? 'bg-red-200 text-red-800' :
+                  postData.status === 'needs_edit' ? 'bg-indigo-200 text-indigo-800' :
+                  'bg-gray-200'
+                }`}>
+                  {postData.status === 'pending_approval' ? 'Pending Approval' : 
+                   postData.status === 'needs_edit' ? 'Needs Edit' : 
+                   postData.status.charAt(0).toUpperCase() + postData.status.slice(1)}
+                </span>
+              </div>
+              
+              {/* Show approver info if post is in approval process */}
+              {postData.approverId && (
+                <div className="text-sm text-gray-600">
+                  <span className="mr-1">Approver:</span>
+                  <span className="font-medium">
+                    {approvers.find(a => a.id === postData.approverId)?.name || 'Selected approver'}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <Textarea
           value={postData.content}
           onChange={(e) => setPostData(prev => ({ ...prev, content: e.target.value }))}
@@ -649,16 +828,6 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
             className="w-full p-2 border rounded-lg mt-1"
           />
         </div>
-
-        {/* Display approver name when selected */}
-        {postData.approverId && (
-          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-800 font-medium flex items-center">
-              <Users className="h-4 w-4 mr-2" />
-              Post for approval by: {approvers.find(a => a.id === postData.approverId)?.name || 'Selected approver'}
-            </p>
-          </div>
-        )}
 
         <div 
           className="mt-4 border-2 border-dashed rounded-lg p-4 text-center cursor-pointer"
@@ -690,6 +859,7 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
               approverId: e.target.value
             }))}
             className="w-full p-2 border rounded-lg"
+            disabled={postData.status === 'pending_approval'} // Disable selection if already pending approval
           >
             <option value="">Select an approver</option>
             {approvers.map((approver) => (
@@ -698,6 +868,11 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
               </option>
             ))}
           </select>
+          {postData.status === 'pending_approval' && (
+            <p className="text-sm text-yellow-600 mt-1">
+              This post is already in the approval process
+            </p>
+          )}
         </div>
 
         {/* Workflow Actions Section - Only show if there are workflow options */}
@@ -902,6 +1077,16 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
             >
               Save as Draft
             </Button>
+            {!isNew && (
+              <Button 
+                variant="outline" 
+                onClick={(e) => handleSavePost(e, 'save_changes')}
+                disabled={isSaving}
+                className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200"
+              >
+                Save Changes
+              </Button>
+            )}
           </div>
           
           <div>
