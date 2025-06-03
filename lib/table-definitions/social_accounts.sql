@@ -17,7 +17,7 @@ create table
     constraint social_accounts_user_id_fkey foreign key (user_id) references auth.users (id) on delete cascade,
     constraint social_accounts_platform_check check (
       (
-        platform = any (array['linkedin'::text, 'twitter'::text])
+        platform = any (array['linkedin'::text, 'linkedin_portability'::text, 'twitter'::text])
       )
     )
   ) tablespace pg_default;

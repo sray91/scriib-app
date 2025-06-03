@@ -13,9 +13,11 @@ Your Chrome extension integrates directly with your existing Next.js app using *
 ## 📋 What's Been Added
 
 ### **New API Endpoints:**
-- `GET /api/chrome-extension/config` - Serves public configuration
+- `GET /api/chrome-extension/config` - Serves public configuration (supports `?mode=standard` or `?mode=portability`)
 - `POST /api/chrome-extension/linkedin/token-exchange` - Exchanges OAuth code for token
 - `GET /api/chrome-extension/linkedin/profile` - Fetches LinkedIn profile
+- `GET /api/auth/linkedin` - LinkedIn OAuth initialization (web app)
+- `GET /api/auth/linkedin/callback` - LinkedIn OAuth callback (web app)
 
 ### **CORS Configuration:**
 - Added Chrome extension support in `next.config.js`
@@ -23,6 +25,30 @@ Your Chrome extension integrates directly with your existing Next.js app using *
 
 ### **Integration Code:**
 - Complete Chrome extension OAuth class with dynamic config in `chrome-extension-integration.js`
+
+## 🔧 LinkedIn Configuration
+
+### **Unified System**
+Your app now supports a unified LinkedIn configuration system:
+
+- **Standard Mode (Default)**: Uses OpenID Connect with your Creator Task app
+  - Scopes: `openid`, `profile`, `email`
+  - Best for: User authentication and basic profile access
+  
+- **Portability Mode (Optional)**: Uses Member Data Portability API  
+  - Scopes: `r_liteprofile`, `r_emailaddress`, `w_member_social`
+  - Best for: Advanced data access (requires special LinkedIn app approval)
+
+### **Chrome Extension Usage**
+By default, your Chrome extension will use **Standard Mode**. To use a different mode:
+
+```javascript
+// Use standard mode (default)
+const config = await fetch(`${API_BASE_URL}/api/chrome-extension/config`);
+
+// Or explicitly request portability mode
+const config = await fetch(`${API_BASE_URL}/api/chrome-extension/config?mode=portability`);
+```
 
 ## 🚀 Setup Steps
 
@@ -267,10 +293,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
    Should return:
    ```json
    {
-     "LINKEDIN_CLIENT_ID": "your_actual_client_id",
-     "REDIRECT_URI": "http://localhost:3000/auth/linkedin/callback",
-     "SCOPES": "r_liteprofile r_emailaddress w_member_social r_member_social",
-     "API_BASE_URL": "http://localhost:3000"
+     "LINKEDIN_CLIENT_ID": "78v2mm0scchvsc",
+     "REDIRECT_URI": "http://localhost:3000/api/auth/linkedin/callback",
+     "SCOPES": "openid profile email",
+     "API_BASE_URL": "http://localhost:3000",
+     "MODE": "standard",
+     "DESCRIPTION": "Standard authentication using OpenID Connect (Creator Task app)"
    }
    ```
 

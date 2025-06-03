@@ -95,13 +95,12 @@ export default function SettingsPage() {
   // Handle social account connections
   const handleConnect = (platform) => {
     if (platform === 'twitter') {
-      // Your Twitter connection logic
       toast({
         title: 'Not implemented',
         description: 'Twitter connection is not implemented yet.',
       });
     } else if (platform === 'linkedin') {
-      // Your LinkedIn connection logic
+      // Use the unified LinkedIn auth (defaults to standard mode)
       window.location.href = `/api/auth/linkedin`;
     }
   };
@@ -425,7 +424,7 @@ export default function SettingsPage() {
                 
                 <div className="space-y-4">
                   {socialAccounts
-                    .filter(account => account.platform === 'linkedin')
+                    .filter(account => account.platform === 'linkedin' || account.platform === 'linkedin_portability')
                     .map(account => (
                       <div key={account.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg">
                         <div className="flex items-center gap-3 mb-3 sm:mb-0">
@@ -433,9 +432,11 @@ export default function SettingsPage() {
                             <Linkedin className="h-5 w-5 text-blue-600" />
                           </div>
                           <div>
-                            <div className="font-medium">{account.screen_name || 'LinkedIn Account'}</div>
+                            <div className="font-medium">
+                              {account.screen_name || 'LinkedIn Account'}
+                            </div>
                             <div className="text-sm text-muted-foreground">
-                              Last used: {account.last_used_at ? new Date(account.last_used_at).toLocaleDateString() : 'Never'}
+                              Connected • Last used: {account.last_used_at ? new Date(account.last_used_at).toLocaleDateString() : 'Never'}
                             </div>
                           </div>
                         </div>

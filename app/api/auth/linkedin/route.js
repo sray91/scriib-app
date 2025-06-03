@@ -1,40 +1,31 @@
 import { NextResponse } from 'next/server';
+import { getLinkedInConfig, LINKEDIN_MODES } from '@/lib/linkedin-config';
 
 export async function GET(request) {
   try {
     const baseURL = new URL(request.url).origin;
     const { searchParams } = new URL(request.url);
-    const state = searchParams.get('state');
+    const mode = searchParams.get('mode') || LINKEDIN_MODES.STANDARD; // Default to standard auth
 
-    if (!process.env.LINKEDIN_CLIENT_ID || !process.env.LINKEDIN_REDIRECT_URI) {
-      console.error('LinkedIn credentials not configured');
-      return NextResponse.redirect(`${baseURL}/settings?error=linkedin_not_configured`);
-    }
+    console.log(`LinkedIn auth initialization with mode: ${mode}`);
 
-    console.log('LinkedIn auth initialization with state:', state);
-    console.log('Using redirect URI:', process.env.LINKEDIN_REDIRECT_URI);
+    // Get configuration for the specified mode
+    const config = getLinkedInConfig(mode);
+    console.log(`Using ${config.description}`);
+    console.log('Using redirect URI:', config.redirectUri);
 
-    // Update the scopes for Member Data Portability API
-    const scopes = [
-      'r_liteprofile',
-      'r_emailaddress',
-      'w_member_social',
-      'r_member_social',
-      'r_1st_connections_size',
-      'r_ads',
-      'r_ads_reporting',
-      'r_organization_social',
-      'rw_organization_admin',
-      'r_organization_admin'
-    ].join(' ');
-
+    const scopes = config.scopes.join(' ');
+    
+    // Encode mode in state parameter so it gets passed back
+    const stateData = JSON.stringify({ mode });
+    
     const authUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
       `response_type=code&` +
-      `client_id=${process.env.LINKEDIN_CLIENT_ID}&` +
-      `redirect_uri=${encodeURIComponent(process.env.LINKEDIN_REDIRECT_URI)}&` +
+      `client_id=${config.clientId}&` +
+      `redirect_uri=${encodeURIComponent(config.redirectUri)}&` +
       `scope=${encodeURIComponent(scopes)}&` +
       `prompt=select_account&` +
-      `state=${state}`;
+      `state=${encodeURIComponent(stateData)}`;
 
     console.log('Redirecting to LinkedIn auth URL');
     
@@ -43,6 +34,6 @@ export async function GET(request) {
   } catch (error) {
     console.error('LinkedIn auth initialization error:', error);
     const baseURL = new URL(request.url).origin;
-    return NextResponse.redirect(`${baseURL}/settings?error=auth_init_failed&details=${encodeURIComponent(error.message)}`);
+    return NextResponse.redirect(`${baseURL}/settings?error=linkedin_config_error&details=${encodeURIComponent(error.message)}`);
   }
 }
