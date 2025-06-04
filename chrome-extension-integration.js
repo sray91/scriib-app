@@ -14,9 +14,10 @@ class ConfigManager {
   }
 
   async getConfig() {
-    if (this.config) {
-      return this.config;
-    }
+    // Temporarily disable caching to force fresh config fetch
+    // if (this.config) {
+    //   return this.config;
+    // }
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/chrome-extension/config?mode=standard`);
