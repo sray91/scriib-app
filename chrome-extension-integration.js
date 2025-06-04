@@ -19,7 +19,7 @@ class ConfigManager {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/chrome-extension/config?mode=portability`);
+      const response = await fetch(`${API_BASE_URL}/api/chrome-extension/config?mode=standard`);
       if (!response.ok) {
         throw new Error('Failed to fetch configuration');
       }

@@ -36,7 +36,7 @@ Your app now supports a unified LinkedIn configuration system:
   - Best for: User authentication and basic profile access
   
 - **Portability Mode (Optional)**: Uses Member Data Portability API  
-  - Scopes: `r_liteprofile`, `r_emailaddress`, `w_member_social`
+  - Scopes: `openid`, `profile`, `email`, `w_member_social`
   - Best for: Advanced data access (requires special LinkedIn app approval)
 
 ### **Chrome Extension Usage**
@@ -47,7 +47,7 @@ By default, your Chrome extension will use **Standard Mode**. To use a different
 const config = await fetch(`${API_BASE_URL}/api/chrome-extension/config`);
 
 // Or explicitly request portability mode
-const config = await fetch(`${API_BASE_URL}/api/chrome-extension/config?mode=portability`);
+const config = await fetch(`${API_BASE_URL}/api/chrome-extension/config?mode=standard`);
 ```
 
 ## 🚀 Setup Steps
