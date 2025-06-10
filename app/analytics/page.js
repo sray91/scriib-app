@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { 
@@ -21,71 +21,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ChevronUp, ChevronDown, TrendingUp, Eye, Heart, MessageCircle, Repeat2, BarChart3 } from 'lucide-react'
-
-// Mock data for LinkedIn posts - replace with real data from your API
-const mockPostData = [
-  {
-    id: 1,
-    content: "Just launched our new AI-powered content creation tool! 🚀 Excited to see how it helps creators...",
-    author: "Your Profile",
-    date: "2024-01-15",
-    views: 15743,
-    impressions: 8234,
-    reactions: 234,
-    comments: 45,
-    reposts: 12,
-    engagement: 2.8
-  },
-  {
-    id: 2,
-    content: "5 tips for better LinkedIn engagement that actually work 💡",
-    author: "Your Profile", 
-    date: "2024-01-12",
-    views: 9876,
-    impressions: 12456,
-    reactions: 189,
-    comments: 32,
-    reposts: 8,
-    engagement: 1.9
-  },
-  {
-    id: 3,
-    content: "Behind the scenes of building a creator-focused startup 🎬",
-    author: "Your Profile",
-    date: "2024-01-10", 
-    views: 12334,
-    impressions: 15678,
-    reactions: 145,
-    comments: 28,
-    reposts: 5,
-    engagement: 1.4
-  },
-  {
-    id: 4,
-    content: "The future of content creation is collaborative 🤝",
-    author: "Your Profile",
-    date: "2024-01-08",
-    views: 7891,
-    impressions: 9823,
-    reactions: 156,
-    comments: 19,
-    reposts: 7,
-    engagement: 2.3
-  },
-  {
-    id: 5,
-    content: "Why authenticity beats perfection every time ✨",
-    author: "Your Profile",
-    date: "2024-01-05",
-    views: 18234,
-    impressions: 22156,
-    reactions: 312,
-    comments: 67,
-    reposts: 23,
-    engagement: 2.2
-  }
-]
+import { ChevronUp, ChevronDown, TrendingUp, Eye, Heart, MessageCircle, Repeat2, BarChart3, AlertCircle, RefreshCw, ExternalLink, Settings } from 'lucide-react'
 
 const MetricCard = ({ title, value, change, icon: Icon, trend = 'up' }) => (
   <Card className="p-6 bg-white border border-gray-200">
@@ -110,12 +46,46 @@ const MetricCard = ({ title, value, change, icon: Icon, trend = 'up' }) => (
 export default function AnalyticsPage() {
   const [sortBy, setSortBy] = useState('latest')
   const [sortOrder, setSortOrder] = useState('desc')
+  const [analyticsData, setAnalyticsData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [timeRange, setTimeRange] = useState('30')
 
-  // Calculate aggregate metrics
-  const totalViews = mockPostData.reduce((sum, post) => sum + post.views, 0)
-  const totalImpressions = mockPostData.reduce((sum, post) => sum + post.impressions, 0)
-  const avgEngagement = mockPostData.reduce((sum, post) => sum + post.engagement, 0) / mockPostData.length
-  const totalReactions = mockPostData.reduce((sum, post) => sum + post.reactions, 0)
+  // Fetch LinkedIn analytics data
+  useEffect(() => {
+    const fetchAnalyticsData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        const response = await fetch(`/api/linkedin/analytics?timeRange=${timeRange}`)
+        const data = await response.json()
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch analytics data')
+        }
+        
+        setAnalyticsData(data)
+      } catch (err) {
+        console.error('Analytics fetch error:', err)
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAnalyticsData()
+  }, [timeRange])
+
+  // Calculate aggregate metrics from API data
+  const metrics = analyticsData?.metrics || {
+    totalViews: 0,
+    totalImpressions: 0,
+    totalReactions: 0,
+    averageEngagement: 0
+  }
+  
+  const posts = analyticsData?.posts || []
 
   // Format numbers for display
   const formatNumber = (num) => {
@@ -126,37 +96,39 @@ export default function AnalyticsPage() {
 
   // Sort posts based on selected criteria
   const sortedPosts = useMemo(() => {
-    return [...mockPostData].sort((a, b) => {
+    if (!posts.length) return []
+    
+    return [...posts].sort((a, b) => {
       let aValue, bValue
       
       switch (sortBy) {
         case 'views':
-          aValue = a.views
-          bValue = b.views
+          aValue = a.metrics?.views || 0
+          bValue = b.metrics?.views || 0
           break
         case 'impressions':
-          aValue = a.impressions
-          bValue = b.impressions
+          aValue = a.metrics?.impressions || 0
+          bValue = b.metrics?.impressions || 0
           break
         case 'reactions':
-          aValue = a.reactions
-          bValue = b.reactions
+          aValue = a.metrics?.reactions || 0
+          bValue = b.metrics?.reactions || 0
           break
         case 'comments':
-          aValue = a.comments
-          bValue = b.comments
+          aValue = a.metrics?.comments || 0
+          bValue = b.metrics?.comments || 0
           break
         case 'reposts':
-          aValue = a.reposts
-          bValue = b.reposts
+          aValue = a.metrics?.shares || 0
+          bValue = b.metrics?.shares || 0
           break
         case 'engagement':
-          aValue = a.engagement
-          bValue = b.engagement
+          aValue = a.metrics?.engagement || 0
+          bValue = b.metrics?.engagement || 0
           break
         default: // latest
-          aValue = new Date(a.date)
-          bValue = new Date(b.date)
+          aValue = new Date(a.publishedAt)
+          bValue = new Date(b.publishedAt)
           break
       }
       
@@ -166,7 +138,7 @@ export default function AnalyticsPage() {
         return aValue > bValue ? 1 : -1
       }
     })
-  }, [sortBy, sortOrder])
+  }, [posts, sortBy, sortOrder])
 
   const handleSort = (field) => {
     if (sortBy === field) {
@@ -191,6 +163,51 @@ export default function AnalyticsPage() {
     </Button>
   )
 
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="flex items-center justify-center h-64">
+            <div className="flex items-center gap-3">
+              <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
+              <span className="text-lg text-gray-600">Loading LinkedIn analytics...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="flex items-center justify-center h-64">
+            <Card className="p-8 max-w-md text-center">
+              <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Connection Error</h3>
+              <p className="text-gray-600 mb-4">{error}</p>
+              {error.includes('not connected') && (
+                <Button onClick={() => window.location.href='/settings?tab=social'} className="gap-2">
+                  <Settings className="w-4 h-4" />
+                  Connect LinkedIn Account
+                </Button>
+              )}
+              {!error.includes('not connected') && (
+                <Button onClick={() => window.location.reload()} className="gap-2">
+                  <RefreshCw className="w-4 h-4" />
+                  Try Again
+                </Button>
+              )}
+            </Card>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -199,40 +216,73 @@ export default function AnalyticsPage() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">LinkedIn Analytics</h1>
             <p className="text-gray-600 mt-1">Track your post performance and engagement</p>
+            {analyticsData?.profile && (
+              <p className="text-sm text-gray-500 mt-1">Connected: {analyticsData.profile.name}</p>
+            )}
           </div>
           <div className="flex items-center gap-3">
-            <Badge variant="outline" className="text-sm">
-              Last 30 days
-            </Badge>
+            <Select value={timeRange} onValueChange={setTimeRange}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">Last 7 days</SelectItem>
+                <SelectItem value="30">Last 30 days</SelectItem>
+                <SelectItem value="90">Last 90 days</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.location.reload()}
+              className="gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </Button>
           </div>
         </div>
+
+        {/* API Limitation Notice */}
+        {analyticsData?.apiLimitation && (
+          <Card className="p-4 bg-blue-50 border-blue-200">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-blue-900">API Limitations</h4>
+                <p className="text-sm text-blue-700 mt-1">{analyticsData.apiLimitation.message}</p>
+                <p className="text-sm text-blue-600 mt-2">{analyticsData.apiLimitation.upgradeInfo}</p>
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* Metrics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <MetricCard
             title="Post Views"
-            value={formatNumber(totalViews)}
+            value={formatNumber(metrics.totalViews)}
             change="+12%"
             icon={Eye}
             trend="up"
           />
           <MetricCard
             title="Impressions"
-            value={formatNumber(totalImpressions)}
+            value={formatNumber(metrics.totalImpressions)}
             change="+8%"
             icon={TrendingUp}
             trend="up"
           />
           <MetricCard
             title="Avg Engagement"
-            value={`${avgEngagement.toFixed(1)}%`}
+            value={`${metrics.averageEngagement?.toFixed(1) || '0.0'}%`}
             change="+0.3%"
             icon={BarChart3}
             trend="up"
           />
           <MetricCard
             title="Total Reactions"
-            value={formatNumber(totalReactions)}
+            value={formatNumber(metrics.totalReactions)}
             change="+15%"
             icon={Heart}
             trend="up"
@@ -298,58 +348,66 @@ export default function AnalyticsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sortedPosts.map((post) => (
-                      <TableRow key={post.id} className="hover:bg-gray-50 border-gray-200">
-                        <TableCell>
-                          <div className="flex items-start gap-3">
-                            <Avatar className="w-10 h-10 flex-shrink-0">
-                              <AvatarImage src="/placeholder-avatar.jpg" />
-                              <AvatarFallback>YP</AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm text-gray-900 line-clamp-2">
-                                {post.content}
-                              </p>
-                              <p className="text-xs text-gray-500 mt-1">
-                                {new Date(post.date).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center font-medium">
-                          {formatNumber(post.views)}
-                        </TableCell>
-                        <TableCell className="text-center font-medium">
-                          {formatNumber(post.impressions)}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <Heart className="w-4 h-4 text-red-500" />
-                            {post.reactions}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <MessageCircle className="w-4 h-4 text-blue-500" />
-                            {post.comments}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <Repeat2 className="w-4 h-4 text-green-500" />
-                            {post.reposts}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge 
-                            variant={post.engagement >= 2.0 ? "default" : "secondary"}
-                            className={post.engagement >= 2.0 ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}
-                          >
-                            {post.engagement}%
-                          </Badge>
+                    {sortedPosts.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                          No posts data available
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      sortedPosts.map((post) => (
+                        <TableRow key={post.id} className="hover:bg-gray-50 border-gray-200">
+                          <TableCell>
+                            <div className="flex items-start gap-3">
+                              <Avatar className="w-10 h-10 flex-shrink-0">
+                                <AvatarImage src="/placeholder-avatar.jpg" />
+                                <AvatarFallback>YP</AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm text-gray-900 line-clamp-2">
+                                  {post.content}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {new Date(post.publishedAt).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center font-medium">
+                            {formatNumber(post.metrics?.views || 0)}
+                          </TableCell>
+                          <TableCell className="text-center font-medium">
+                            {formatNumber(post.metrics?.impressions || 0)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <Heart className="w-4 h-4 text-red-500" />
+                              {post.metrics?.reactions || 0}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <MessageCircle className="w-4 h-4 text-blue-500" />
+                              {post.metrics?.comments || 0}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <Repeat2 className="w-4 h-4 text-green-500" />
+                              {post.metrics?.shares || 0}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge 
+                              variant={(post.metrics?.engagement || 0) >= 2.0 ? "default" : "secondary"}
+                              className={(post.metrics?.engagement || 0) >= 2.0 ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}
+                            >
+                              {(post.metrics?.engagement || 0).toFixed(1)}%
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
