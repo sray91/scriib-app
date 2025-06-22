@@ -15,6 +15,7 @@ import ProfileTab from "@/components/settings/ProfileTab"
 import ApproversTab from "@/components/settings/ApproversTab"
 import GhostwritersTab from "@/components/settings/GhostwritersTab"
 import PasswordTab from "@/components/settings/PasswordTab"
+import ExtensionsTab from "@/components/settings/ExtensionsTab"
 import { useLinkedInAuthStatus } from '@/components/settings/SocialAccountsTab'
 import { useSearchParams } from 'next/navigation'
 
@@ -32,7 +33,7 @@ export default function SettingsPage() {
   useEffect(() => {
     // Set active tab based on URL parameter
     const tabParam = searchParams.get('tab')
-    if (tabParam && ['social', 'profile', 'password', 'preferences', 'approvers', 'ghostwriters', 'shares', 'teams'].includes(tabParam)) {
+    if (tabParam && ['social', 'profile', 'password', 'preferences', 'approvers', 'ghostwriters', 'shares', 'teams', 'extensions'].includes(tabParam)) {
       setActiveTab(tabParam)
     }
   }, [searchParams])
@@ -388,6 +389,12 @@ export default function SettingsPage() {
               >
                 Teams
               </TabsTrigger>
+              <TabsTrigger 
+                value="extensions" 
+                className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              >
+                Extensions
+              </TabsTrigger>
             </TabsList>
           </div>
         </div>
@@ -601,6 +608,9 @@ export default function SettingsPage() {
           )}
           <TabsContent value="teams">
             <TeamsTab />
+          </TabsContent>
+          <TabsContent value="extensions">
+            <ExtensionsTab />
           </TabsContent>
         </div>
       </Tabs>
