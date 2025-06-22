@@ -4,6 +4,20 @@ import { cookies } from 'next/headers';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 
+// Configure the API route to handle larger files
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Allow up to 60 seconds for processing
+
+// Route segment config for file upload
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb',
+    },
+  },
+}
+
 export async function POST(request) {
   try {
     const supabase = createRouteHandlerClient({ cookies });
@@ -18,7 +32,23 @@ export async function POST(request) {
       );
     }
 
-    const formData = await request.formData();
+    let formData;
+    try {
+      formData = await request.formData();
+    } catch (formDataError) {
+      console.error('FormData parsing error:', formDataError);
+      if (formDataError.message?.includes('413') || formDataError.message?.includes('too large')) {
+        return NextResponse.json(
+          { error: 'File too large. Please try a smaller file (max 50MB).' },
+          { status: 413 }
+        );
+      }
+      return NextResponse.json(
+        { error: 'Failed to process file upload. Please try again.' },
+        { status: 400 }
+      );
+    }
+    
     const file = formData.get('file');
     
     if (!file) {
@@ -39,11 +69,11 @@ export async function POST(request) {
       );
     }
 
-    // Validate file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    // Validate file size (max 50MB)
+    const maxSize = 50 * 1024 * 1024; // 50MB
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: 'File too large. Maximum size is 10MB.' },
+        { error: 'File too large. Maximum size is 50MB.' },
         { status: 400 }
       );
     }

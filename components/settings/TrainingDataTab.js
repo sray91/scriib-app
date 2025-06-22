@@ -280,7 +280,20 @@ const TrainingDataTab = () => {
         } catch (jsonError) {
           console.error('Failed to parse JSON response:', jsonError);
           console.error('Response status:', response.status);
-          console.error('Response text:', await response.clone().text());
+          
+          // Get response text without cloning (avoid "body already used" error)
+          let responseText = 'Unable to read response';
+          try {
+            const responseClone = response.clone();
+            responseText = await responseClone.text();
+          } catch (cloneError) {
+            console.error('Could not clone response:', cloneError);
+          }
+          console.error('Response text:', responseText);
+          
+          if (response.status === 413) {
+            throw new Error('File is too large. Please try a smaller file or contact support.');
+          }
           throw new Error('Server returned invalid response. Please try again.');
         }
 
