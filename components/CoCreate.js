@@ -229,7 +229,22 @@ const CoCreate = () => {
         }),
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('Failed to parse JSON response:', jsonError);
+        console.error('Response status:', response.status);
+        
+        // Try to get the response as text to see what was actually returned
+        const responseText = await response.text();
+        console.error('Response text:', responseText);
+        
+        // Clear the processing timer
+        clearInterval(processingTimerRef.current);
+        
+        throw new Error('Server returned invalid response. Please try again.');
+      }
       
       // Clear the processing timer
       clearInterval(processingTimerRef.current);

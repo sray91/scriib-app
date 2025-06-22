@@ -194,9 +194,9 @@ const DirectUpload = ({ onUploadComplete }) => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
           </svg>
         </div>
-        <h3 className="text-lg font-semibold mb-2">Direct Upload (Bypasses Server Limits)</h3>
+        <h3 className="text-lg font-semibold mb-2">Upload Files</h3>
         <p className="text-sm text-muted-foreground mb-4">
-          Upload large files directly to storage. Supports files up to 50MB.
+          Drag & drop or click to upload. Supports files up to 50MB.
         </p>
         
         <input
@@ -214,7 +214,7 @@ const DirectUpload = ({ onUploadComplete }) => {
           disabled={isUploading}
           className="mx-auto"
         >
-          {isUploading ? 'Uploading...' : 'Choose Files for Direct Upload'}
+          {isUploading ? 'Uploading...' : 'Choose Files'}
         </Button>
       </div>
 

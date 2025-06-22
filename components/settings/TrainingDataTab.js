@@ -25,8 +25,6 @@ const TrainingDataTab = () => {
   
   // Document upload states
   const [uploadedDocuments, setUploadedDocuments] = useState([]);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const [documentStatus, setDocumentStatus] = useState({});
   
   const { toast } = useToast();
@@ -235,101 +233,7 @@ const TrainingDataTab = () => {
     }
   };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  };
 
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    const files = e.dataTransfer.files;
-    handleFileSelect({ target: { files } });
-  };
-
-  const handleFileSelect = async (e) => {
-    const files = e.target.files;
-    if (files.length === 0) return;
-
-    setIsUploading(true);
-    setDocumentStatus({});
-
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        setDocumentStatus(prev => ({
-          ...prev,
-          [file.name]: { status: 'processing', message: 'Uploading...' }
-        }));
-
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const response = await fetch('/api/training-data/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        let result;
-        try {
-          result = await response.json();
-        } catch (jsonError) {
-          console.error('Failed to parse JSON response:', jsonError);
-          console.error('Response status:', response.status);
-          
-          // Get response text without cloning (avoid "body already used" error)
-          let responseText = 'Unable to read response';
-          try {
-            const responseClone = response.clone();
-            responseText = await responseClone.text();
-          } catch (cloneError) {
-            console.error('Could not clone response:', cloneError);
-          }
-          console.error('Response text:', responseText);
-          
-          if (response.status === 413) {
-            throw new Error('File is too large. Please try a smaller file or contact support.');
-          }
-          throw new Error('Server returned invalid response. Please try again.');
-        }
-
-        if (!response.ok) {
-          throw new Error(result.error || 'Failed to upload file');
-        }
-
-        setDocumentStatus(prev => ({
-          ...prev,
-          [file.name]: { 
-            status: 'success', 
-            message: 'File uploaded successfully',
-            data: result.data
-          }
-        }));
-      }
-
-      // Refresh uploaded documents after processing
-      await fetchUploadedDocuments();
-
-      toast({
-        title: 'Upload complete',
-        description: `Uploaded ${files.length} files. Check the results below.`,
-      });
-    } catch (error) {
-      console.error('Error in handleFileSelect:', error);
-      toast({
-        title: 'Error',
-        description: 'An error occurred while uploading files',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsUploading(false);
-    }
-  };
 
   const deleteDocument = async (docId) => {
     try {
@@ -637,77 +541,9 @@ const TrainingDataTab = () => {
                   Supported formats: PDF, DOC, DOCX, TXT, MD, CSV
                 </p>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Direct Upload Option (bypasses Next.js limits) */}
+              <CardContent>
+                {/* Direct Upload */}
                 <DirectUpload onUploadComplete={fetchUploadedDocuments} />
-                
-                {/* Divider */}
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">
-                      Or use traditional upload
-                    </span>
-                  </div>
-                </div>
-
-                {/* Traditional Upload (with server limits) */}
-                <div
-                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                    isDragOver 
-                      ? 'border-blue-400 bg-blue-50' 
-                      : 'border-gray-300 hover:border-gray-400'
-                  }`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                >
-                  <div className="space-y-4">
-                    <div className="flex justify-center">
-                      <Upload className="h-12 w-12 text-gray-400" />
-                    </div>
-                    <div>
-                      <p className="text-lg font-medium text-gray-900">
-                        Drag and drop files here
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        or click to browse and select files
-                      </p>
-                      <p className="text-xs text-yellow-600 mt-1">
-                        ⚠️ Traditional upload has smaller file size limits
-                      </p>
-                    </div>
-                    <div className="flex justify-center">
-                      <Button
-                        variant="outline"
-                        onClick={() => document.getElementById('file-upload').click()}
-                        disabled={isUploading}
-                      >
-                        {isUploading ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Uploading...
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="h-4 w-4 mr-2" />
-                            Choose Files
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                    <input
-                      id="file-upload"
-                      type="file"
-                      multiple
-                      accept=".pdf,.doc,.docx,.txt,.md,.csv"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                    />
-                  </div>
-                </div>
 
                 {/* Upload Status */}
                 {Object.keys(documentStatus).length > 0 && (

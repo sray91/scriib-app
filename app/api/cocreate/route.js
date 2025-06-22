@@ -270,16 +270,34 @@ async function generatePostContentWithGPT4o(userMessage, currentDraft, action, p
     // Build the user prompt based on action
     const userPrompt = buildUserPrompt(userMessage, currentDraft, action);
     
-    // Call GPT-4o
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o", // Using GPT-4o as requested
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ],
-      temperature: 0.7,
-      max_tokens: 1500,
-    });
+    // Call GPT-4o with better error handling
+    let completion;
+    try {
+      completion = await openai.chat.completions.create({
+        model: "gpt-4o", // Using GPT-4o as requested
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 1500,
+      });
+    } catch (openaiError) {
+      console.error('OpenAI API Error:', openaiError);
+      
+      // Handle specific OpenAI errors
+      if (openaiError.status === 401) {
+        throw new Error('OpenAI API key is invalid or missing. Please check your configuration.');
+      } else if (openaiError.status === 429) {
+        throw new Error('OpenAI API rate limit exceeded. Please try again in a moment.');
+      } else if (openaiError.status === 402) {
+        throw new Error('OpenAI API quota exceeded. Please check your billing.');
+      } else if (openaiError.code === 'insufficient_quota') {
+        throw new Error('OpenAI API quota exceeded. Please check your billing.');
+      } else {
+        throw new Error(`OpenAI API error: ${openaiError.message || 'Unknown error'}`);
+      }
+    }
     
     const assistantResponse = completion.choices[0].message.content;
     
