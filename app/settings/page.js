@@ -16,6 +16,7 @@ import ApproversTab from "@/components/settings/ApproversTab"
 import GhostwritersTab from "@/components/settings/GhostwritersTab"
 import PasswordTab from "@/components/settings/PasswordTab"
 import LinkedInTab from "@/components/settings/LinkedInTab"
+import TrainingDataTab from "@/components/settings/TrainingDataTab"
 import { useLinkedInAuthStatus } from '@/components/settings/SocialAccountsTab'
 import { useSearchParams } from 'next/navigation'
 
@@ -33,7 +34,7 @@ export default function SettingsPage() {
   useEffect(() => {
     // Set active tab based on URL parameter
     const tabParam = searchParams.get('tab')
-    if (tabParam && ['social', 'profile', 'password', 'preferences', 'approvers', 'ghostwriters', 'shares', 'teams', 'linkedin'].includes(tabParam)) {
+    if (tabParam && ['social', 'profile', 'password', 'preferences', 'approvers', 'ghostwriters', 'shares', 'teams', 'linkedin', 'training-data'].includes(tabParam)) {
       setActiveTab(tabParam)
     }
   }, [searchParams])
@@ -285,7 +286,8 @@ export default function SettingsPage() {
                       activeTab !== 'ghostwriters' && 
                       activeTab !== 'shares' && 
                       activeTab !== 'teams' &&
-                      activeTab !== 'linkedin') {
+                      activeTab !== 'linkedin' &&
+                      activeTab !== 'training-data') {
                     setActiveTab('preferences');
                   }
                 }}
@@ -301,9 +303,10 @@ export default function SettingsPage() {
             activeTab === 'ghostwriters' || 
             activeTab === 'shares' || 
             activeTab === 'teams' ||
-            activeTab === 'linkedin') && (
+            activeTab === 'linkedin' ||
+            activeTab === 'training-data') && (
             <div className="mt-2 bg-gray-100 rounded-lg p-1">
-              <TabsList className="grid grid-cols-6 gap-1">
+              <TabsList className="grid grid-cols-7 gap-1">
                 <TabsTrigger 
                   value="preferences" 
                   className="px-2 py-2 text-xs font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
@@ -339,6 +342,12 @@ export default function SettingsPage() {
                   className="px-2 py-2 text-xs font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
                 >
                   LinkedIn
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="training-data" 
+                  className="px-2 py-2 text-xs font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+                >
+                  Training
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -402,6 +411,12 @@ export default function SettingsPage() {
                 className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
               >
                 LinkedIn
+              </TabsTrigger>
+              <TabsTrigger 
+                value="training-data" 
+                className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+              >
+                Training Data
               </TabsTrigger>
             </TabsList>
           </div>
@@ -619,6 +634,9 @@ export default function SettingsPage() {
           </TabsContent>
           <TabsContent value="linkedin">
             <LinkedInTab />
+          </TabsContent>
+          <TabsContent value="training-data">
+            <TrainingDataTab />
           </TabsContent>
         </div>
       </Tabs>
