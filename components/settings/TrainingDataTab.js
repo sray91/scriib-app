@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, ExternalLink, Database, AlertCircle, CheckCircle, Loader2, Linkedin, Search, Upload, FileText, File } from 'lucide-react';
+import DirectUpload from './DirectUpload';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -636,8 +637,23 @@ const TrainingDataTab = () => {
                   Supported formats: PDF, DOC, DOCX, TXT, MD, CSV
                 </p>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Drag and Drop Upload Area */}
+              <CardContent className="space-y-6">
+                {/* Direct Upload Option (bypasses Next.js limits) */}
+                <DirectUpload onUploadComplete={fetchUploadedDocuments} />
+                
+                {/* Divider */}
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                      Or use traditional upload
+                    </span>
+                  </div>
+                </div>
+
+                {/* Traditional Upload (with server limits) */}
                 <div
                   className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
                     isDragOver 
@@ -658,6 +674,9 @@ const TrainingDataTab = () => {
                       </p>
                       <p className="text-sm text-gray-500">
                         or click to browse and select files
+                      </p>
+                      <p className="text-xs text-yellow-600 mt-1">
+                        ⚠️ Traditional upload has smaller file size limits
                       </p>
                     </div>
                     <div className="flex justify-center">
