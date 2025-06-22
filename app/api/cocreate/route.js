@@ -48,6 +48,16 @@ export async function POST(req) {
     const pastPosts = await fetchUserPastPosts(supabase, user.id);
     console.log(`📚 Found ${pastPosts.length} past posts for voice analysis`);
     
+    // Check if this is personal/emotional content
+    const personalKeywords = [
+      'dad', 'father', 'mom', 'mother', 'parent', 'family', 'died', 'death', 'dying', 'passed away', 'funeral', 
+      'grief', 'loss', 'mourning', 'cancer', 'illness', 'hospital', 'divorce', 'breakup', 'depression',
+      'anxiety', 'mental health', 'therapy', 'trauma', 'suicide', 'addiction', 'recovery', 'struggle',
+      'heartbreak', 'crying', 'tears', 'emotional', 'vulnerable', 'personal story', 'intimate'
+    ];
+    const isPersonalContent = personalKeywords.some(keyword => userMessage.toLowerCase().includes(keyword));
+    console.log(`🔍 Personal/emotional content detected: ${isPersonalContent}`);
+    
     // Fetch trending posts for inspiration
     const trendingPosts = await fetchTrendingPosts(supabase);
     console.log(`📈 Found ${trendingPosts.length} trending posts for inspiration`);
@@ -187,13 +197,13 @@ async function fetchTrendingPosts(supabase) {
 async function generatePostContentWithGPT4o(userMessage, currentDraft, action, pastPosts, trendingPosts) {
   try {
     // Analyze user's voice from past posts
-    const voiceAnalysis = await analyzeUserVoice(pastPosts);
+    const voiceAnalysis = await analyzeUserVoice(pastPosts, userMessage);
     
     // Analyze trending posts for patterns
     const trendingInsights = await analyzeTrendingPosts(trendingPosts);
     
     // Build the comprehensive system prompt
-    const systemPrompt = buildSystemPrompt(pastPosts, trendingPosts, voiceAnalysis, trendingInsights);
+    const systemPrompt = buildSystemPrompt(pastPosts, trendingPosts, voiceAnalysis, trendingInsights, userMessage);
     
     // Build the user prompt based on action
     const userPrompt = buildUserPrompt(userMessage, currentDraft, action);
@@ -240,8 +250,32 @@ async function generatePostContentWithGPT4o(userMessage, currentDraft, action, p
 }
 
 // Analyze user's writing voice from past posts
-async function analyzeUserVoice(pastPosts) {
+async function analyzeUserVoice(pastPosts, userMessage = '') {
   if (!pastPosts || pastPosts.length === 0) {
+    // For personal/emotional content, provide a more authentic fallback
+    const personalKeywords = [
+      'dad', 'father', 'mom', 'mother', 'parent', 'family', 'died', 'death', 'dying', 'passed away', 'funeral', 
+      'grief', 'loss', 'mourning', 'cancer', 'illness', 'hospital', 'divorce', 'breakup', 'depression',
+      'anxiety', 'mental health', 'therapy', 'trauma', 'suicide', 'addiction', 'recovery', 'struggle',
+      'heartbreak', 'crying', 'tears', 'emotional', 'vulnerable', 'personal story', 'intimate'
+    ];
+    
+    const isPersonalContent = personalKeywords.some(keyword => 
+      userMessage.toLowerCase().includes(keyword)
+    );
+
+    if (isPersonalContent) {
+      return {
+        style: 'Authentic and heartfelt',
+        tone: 'Genuine and vulnerable',
+        commonTopics: ['Personal experiences', 'Life lessons', 'Family'],
+        avgLength: 200,
+        usesEmojis: false,
+        usesHashtags: false,
+        preferredFormats: ['Personal narrative', 'Reflective story']
+      };
+    }
+    
     return {
       style: 'Professional and engaging',
       tone: 'Confident and approachable',
@@ -264,25 +298,25 @@ async function analyzeUserVoice(pastPosts) {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o", 
       messages: [
-                 {
-           role: "system",
-           content: "You are an expert at analyzing writing style and voice. Analyze the LinkedIn posts provided and identify key characteristics of the author's voice, tone, topics, and format preferences. Return ONLY a valid JSON object with no additional text or explanation."
-         },
+                         {
+          role: "system",
+          content: "You are an expert at analyzing authentic writing voice and style. Analyze the posts to capture the author's natural way of expressing themselves - their vocabulary choices, sentence patterns, emotional expression, and authentic personality. Focus on HOW they naturally write, not what they write about. Return ONLY a valid JSON object."
+        },
         {
           role: "user",
-          content: `Analyze these LinkedIn posts for voice characteristics:
+          content: `Analyze these posts to understand this person's authentic writing voice:
 
 ${postsForAnalysis.map((post, i) => `Post ${i + 1}: "${post.content}"`).join('\n\n')}
 
-Return analysis as JSON with these exact fields:
+Focus on their natural writing patterns, vocabulary, and authentic voice. Return analysis as JSON:
 {
-  "style": "overall writing style",
-  "tone": "emotional tone", 
+  "style": "their natural writing style (casual/formal, direct/flowing, conversational/structured, etc)",
+  "tone": "their authentic emotional tone and personality in writing", 
   "commonTopics": ["topic1", "topic2"],
-  "avgLength": 150,
-  "usesEmojis": false,
-  "usesHashtags": true,
-  "preferredFormats": ["format1", "format2"]
+  "avgLength": ${Math.round(postsForAnalysis.reduce((sum, post) => sum + post.content.length, 0) / postsForAnalysis.length)},
+  "usesEmojis": ${postsForAnalysis.some(post => /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/u.test(post.content))},
+  "usesHashtags": ${postsForAnalysis.some(post => post.content.includes('#'))},
+  "preferredFormats": ["their natural format preferences based on actual usage"]
 }`
         }
       ],
@@ -305,7 +339,9 @@ Return analysis as JSON with these exact fields:
         throw new Error('Empty or invalid response content from OpenAI');
       }
       
-      return JSON.parse(responseContent);
+      const voiceAnalysis = JSON.parse(responseContent);
+      console.log('🎯 Parsed voice analysis:', JSON.stringify(voiceAnalysis, null, 2));
+      return voiceAnalysis;
     } catch (parseError) {
       console.error('Error parsing voice analysis JSON:', parseError);
       console.log('Failed response content:', completion.choices[0]?.message?.content);
@@ -400,7 +436,87 @@ function extractTopicsFromTrendingPosts(posts) {
 }
 
 // Build comprehensive system prompt
-function buildSystemPrompt(pastPosts, trendingPosts, voiceAnalysis, trendingInsights) {
+function buildSystemPrompt(pastPosts, trendingPosts, voiceAnalysis, trendingInsights, userMessage = '') {
+  // If user has past posts, prioritize their authentic voice over everything else
+  if (pastPosts && pastPosts.length > 0) {
+    return `You are CoCreate, an AI writing assistant who helps users write in their authentic voice. You have analyzed ${pastPosts.length} of the user's past posts to understand their unique writing style.
+
+## USER'S AUTHENTIC VOICE (from ${pastPosts.length} past posts)
+- Writing Style: ${voiceAnalysis.style}
+- Tone: ${voiceAnalysis.tone}
+- Common Topics: ${voiceAnalysis.commonTopics.join(', ')}
+- Average Length: ${voiceAnalysis.avgLength} characters
+- Uses Emojis: ${voiceAnalysis.usesEmojis ? 'Yes' : 'No'}
+- Uses Hashtags: ${voiceAnalysis.usesHashtags ? 'Yes' : 'No'}
+- Preferred Formats: ${voiceAnalysis.preferredFormats.join(', ')}
+
+## CORE PRINCIPLES
+1. **AUTHENTICITY IS EVERYTHING**: Match the user's exact voice, tone, and style from their past posts
+2. **MIRROR THEIR PATTERNS**: Use the same sentence structure, vocabulary, and flow they naturally use
+3. **RESPECT THEIR TOPICS**: Write about the subject matter in the way they would naturally approach it
+4. **MATCH THEIR FORMALITY**: If they're casual, be casual. If they're formal, be formal.
+5. **FOLLOW THEIR EMOJI/HASHTAG PATTERNS**: Only use emojis/hashtags if they typically do
+6. **NATURAL ENDINGS**: End posts the way they naturally would - no forced calls to action
+
+## YOUR INSTRUCTIONS
+- Write exactly as this user would write, based on their past post patterns
+- Use their vocabulary, sentence length, and natural flow
+- Match their emotional expression style
+- If the topic is personal/emotional, reflect how they handle such topics
+- If the topic is professional, reflect their professional voice
+- Don't force engagement optimization - let their authentic voice shine through
+- End posts naturally in their style, not with forced CTAs unless that's their pattern
+
+Write the post as this specific user would write it, using their authentic voice and patterns.
+
+Format your response as:
+[POST CONTENT]
+
+---
+[BRIEF EXPLANATION OF YOUR APPROACH]`;
+  }
+
+  // Fallback for users without past posts - use keyword detection
+  const personalKeywords = [
+    'dad', 'father', 'mom', 'mother', 'parent', 'family', 'died', 'death', 'dying', 'passed away', 'funeral', 
+    'grief', 'loss', 'mourning', 'cancer', 'illness', 'hospital', 'divorce', 'breakup', 'depression',
+    'anxiety', 'mental health', 'therapy', 'trauma', 'suicide', 'addiction', 'recovery', 'struggle',
+    'heartbreak', 'crying', 'tears', 'emotional', 'vulnerable', 'personal story', 'intimate'
+  ];
+  
+  const isPersonalContent = personalKeywords.some(keyword => 
+    userMessage.toLowerCase().includes(keyword)
+  );
+
+  if (isPersonalContent) {
+    return `You are CoCreate, a compassionate AI writing assistant who helps people share authentic personal experiences.
+
+## PERSONAL CONTENT GUIDELINES
+This appears to be deeply personal or emotional content. Your priorities are:
+1. **AUTHENTICITY FIRST**: Write in a genuine, human way
+2. **RESPECT THE TOPIC**: Handle sensitive subjects with care and dignity
+3. **NO FORCED OPTIMIZATION**: Don't prioritize engagement over emotional truth
+4. **NATURAL FLOW**: Let the content breathe naturally without forced structures
+
+## YOUR INSTRUCTIONS FOR PERSONAL CONTENT
+1. Write in a genuine, heartfelt way that feels authentic
+2. Use simple, clear language that expresses genuine emotion
+3. **NO MANDATORY ENDINGS** - End naturally based on the emotional arc
+4. **NO FORCED LISTS** - Only use lists if they feel natural to the story
+5. **NEVER use emojis** in emotional content - let words carry the weight
+6. **NEVER use hashtags** - keep the focus on the story
+7. Respect the gravity of serious topics like loss, illness, or trauma
+
+Write the post authentically, as someone would genuinely share this experience.
+
+Format your response as:
+[POST CONTENT]
+
+---
+[BRIEF EXPLANATION OF YOUR APPROACH]`;
+  }
+
+  // Original system prompt for business/professional content (no past posts)
   return `You are CoCreate, an expert LinkedIn content strategist and AI writing assistant. Your mission is to help users create high-performing LinkedIn posts that maintain their authentic voice while incorporating proven engagement strategies.
 
 ## USER'S VOICE ANALYSIS
