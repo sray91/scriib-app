@@ -48,6 +48,16 @@ export async function POST(req) {
     const pastPosts = await fetchUserPastPosts(supabase, user.id);
     console.log(`📚 Found ${pastPosts.length} past posts for voice analysis`);
     
+    // Log the actual past posts content for debugging
+    if (pastPosts && pastPosts.length > 0) {
+      console.log('🔍 Sample past posts content:');
+      pastPosts.slice(0, 3).forEach((post, i) => {
+        console.log(`Post ${i + 1}: "${post.content.substring(0, 200)}${post.content.length > 200 ? '...' : ''}"`);
+      });
+    } else {
+      console.log('⚠️ No past posts found - will use fallback voice analysis');
+    }
+    
     // Check if this is personal/emotional content
     const personalKeywords = [
       'dad', 'father', 'mom', 'mother', 'parent', 'family', 'died', 'death', 'dying', 'passed away', 'funeral', 
@@ -205,6 +215,13 @@ async function generatePostContentWithGPT4o(userMessage, currentDraft, action, p
     // Build the comprehensive system prompt
     const systemPrompt = buildSystemPrompt(pastPosts, trendingPosts, voiceAnalysis, trendingInsights, userMessage);
     
+    // Debug: Log which system prompt path is being used
+    if (pastPosts && pastPosts.length > 0) {
+      console.log('✅ Using AUTHENTIC VOICE prompt with past posts data');
+    } else {
+      console.log('⚠️ Using FALLBACK prompt - no past posts available');
+    }
+    
     // Build the user prompt based on action
     const userPrompt = buildUserPrompt(userMessage, currentDraft, action);
     
@@ -240,7 +257,19 @@ async function generatePostContentWithGPT4o(userMessage, currentDraft, action, p
         action === 'refine' ? 'Refined your draft with insights' : 'Created new content optimized for engagement'
       ],
       voiceAnalysis,
-      trendingInsights
+      trendingInsights,
+      debugInfo: {
+        pastPostsCount: pastPosts.length,
+        pastPostsSample: pastPosts.slice(0, 3).map(post => ({
+          content: post.content,
+          length: post.content.length,
+          published_at: post.published_at,
+          post_type: post.post_type
+        })),
+        systemPromptMode: pastPosts.length > 0 ? 'AUTHENTIC_VOICE' : 'FALLBACK',
+        voiceAnalysisGenerated: voiceAnalysis,
+        userMessage: userMessage
+      }
     };
     
   } catch (error) {
@@ -439,6 +468,10 @@ function extractTopicsFromTrendingPosts(posts) {
 function buildSystemPrompt(pastPosts, trendingPosts, voiceAnalysis, trendingInsights, userMessage = '') {
   // If user has past posts, prioritize their authentic voice over everything else
   if (pastPosts && pastPosts.length > 0) {
+    const samplePosts = pastPosts.slice(0, 3).map((post, i) => 
+      `Example ${i + 1}: "${post.content.substring(0, 300)}${post.content.length > 300 ? '...' : ''}"`
+    ).join('\n\n');
+
     return `You are CoCreate, an AI writing assistant who helps users write in their authentic voice. You have analyzed ${pastPosts.length} of the user's past posts to understand their unique writing style.
 
 ## USER'S AUTHENTIC VOICE (from ${pastPosts.length} past posts)
@@ -449,6 +482,9 @@ function buildSystemPrompt(pastPosts, trendingPosts, voiceAnalysis, trendingInsi
 - Uses Emojis: ${voiceAnalysis.usesEmojis ? 'Yes' : 'No'}
 - Uses Hashtags: ${voiceAnalysis.usesHashtags ? 'Yes' : 'No'}
 - Preferred Formats: ${voiceAnalysis.preferredFormats.join(', ')}
+
+## EXAMPLES OF USER'S ACTUAL WRITING STYLE
+${samplePosts}
 
 ## CORE PRINCIPLES
 1. **AUTHENTICITY IS EVERYTHING**: Match the user's exact voice, tone, and style from their past posts

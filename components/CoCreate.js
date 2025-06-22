@@ -9,6 +9,87 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import PostEditorDialog from '@/components/post-forge/PostEditorDialog';
 
+// Debug Info Display Component
+const DebugInfoDisplay = ({ debugInfo }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div className="text-sm">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="font-semibold text-blue-900 flex items-center">
+          🔍 Voice Analysis Debug Info
+        </h4>
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="text-xs bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded text-blue-800"
+        >
+          {isExpanded ? 'Hide Details' : 'Show Details'}
+        </button>
+      </div>
+      
+      <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-4 text-xs">
+          <div>
+            <span className="font-medium">Past Posts Found:</span> {debugInfo.pastPostsCount}
+          </div>
+          <div>
+            <span className="font-medium">System Mode:</span> 
+            <span className={`ml-1 px-1 rounded ${
+              debugInfo.systemPromptMode === 'AUTHENTIC_VOICE' 
+                ? 'bg-green-100 text-green-800' 
+                : 'bg-yellow-100 text-yellow-800'
+            }`}>
+              {debugInfo.systemPromptMode}
+            </span>
+          </div>
+        </div>
+
+        {isExpanded && (
+          <div className="space-y-3 mt-3 pt-3 border-t border-blue-200">
+            {/* Voice Analysis */}
+            <div>
+              <h5 className="font-medium text-blue-900 mb-1">Voice Analysis Generated:</h5>
+              <div className="bg-white p-2 rounded text-xs space-y-1">
+                <div><span className="font-medium">Style:</span> {debugInfo.voiceAnalysisGenerated?.style}</div>
+                <div><span className="font-medium">Tone:</span> {debugInfo.voiceAnalysisGenerated?.tone}</div>
+                <div><span className="font-medium">Uses Emojis:</span> {debugInfo.voiceAnalysisGenerated?.usesEmojis ? 'Yes' : 'No'}</div>
+                <div><span className="font-medium">Uses Hashtags:</span> {debugInfo.voiceAnalysisGenerated?.usesHashtags ? 'Yes' : 'No'}</div>
+                <div><span className="font-medium">Avg Length:</span> {debugInfo.voiceAnalysisGenerated?.avgLength} chars</div>
+              </div>
+            </div>
+
+            {/* Sample Past Posts */}
+            {debugInfo.pastPostsSample && debugInfo.pastPostsSample.length > 0 && (
+              <div>
+                <h5 className="font-medium text-blue-900 mb-1">Sample Past Posts Analyzed:</h5>
+                <div className="space-y-2">
+                  {debugInfo.pastPostsSample.map((post, i) => (
+                    <div key={i} className="bg-white p-2 rounded text-xs">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="font-medium">Post {i + 1}:</span>
+                        <span className="text-gray-500">{post.length} chars</span>
+                      </div>
+                      <p className="text-gray-700 italic">&quot;{post.content.substring(0, 150)}...&quot;</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* User Message */}
+            <div>
+              <h5 className="font-medium text-blue-900 mb-1">Your Request:</h5>
+              <div className="bg-white p-2 rounded text-xs">
+                <p className="italic">&quot;{debugInfo.userMessage}&quot;</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const CoCreate = () => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
@@ -115,6 +196,17 @@ const CoCreate = () => {
       }
       if (data.trendingInsights) {
         setTrendingInsights(data.trendingInsights);
+      }
+      
+      // Add debug information to chat if available
+      if (data.debugInfo) {
+        const debugMessage = {
+          role: 'system',
+          content: 'Debug Information',
+          debugInfo: data.debugInfo,
+          isDebug: true
+        };
+        setMessages(prev => [...prev, debugMessage]);
       }
       
       toast({
@@ -340,6 +432,17 @@ const CoCreate = () => {
         setTrendingInsights(data.trendingInsights);
       }
       
+      // Add debug information to chat if available
+      if (data.debugInfo) {
+        const debugMessage = {
+          role: 'system',
+          content: 'Debug Information',
+          debugInfo: data.debugInfo,
+          isDebug: true
+        };
+        setMessages(prev => [...prev, debugMessage]);
+      }
+      
       toast({
         title: "New post generated",
         description: "Created based on your profile and current trends",
@@ -551,20 +654,28 @@ const CoCreate = () => {
                           ? 'ml-auto bg-[#fb2e01] text-white max-w-[80%]' 
                           : msg.isError
                             ? 'bg-red-50 text-red-700 border border-red-100 max-w-[80%]'
-                            : 'bg-gray-100 text-gray-800 max-w-[80%]'
+                            : msg.isDebug
+                              ? 'bg-blue-50 text-blue-800 border border-blue-200 max-w-[90%]'
+                              : 'bg-gray-100 text-gray-800 max-w-[80%]'
                       }`}
                     >
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                      {msg.insights && (voiceAnalysis || trendingInsights) && (
-                        <div className="mt-2 pt-2 border-t border-gray-200">
-                          <button
-                            onClick={() => setShowInsights(true)}
-                            className="text-xs text-blue-600 hover:text-blue-800 flex items-center"
-                          >
-                            <BarChart3 className="mr-1 h-3 w-3" />
-                            View analysis insights
-                          </button>
-                        </div>
+                      {msg.isDebug ? (
+                        <DebugInfoDisplay debugInfo={msg.debugInfo} />
+                      ) : (
+                        <>
+                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                          {msg.insights && (voiceAnalysis || trendingInsights) && (
+                            <div className="mt-2 pt-2 border-t border-gray-200">
+                              <button
+                                onClick={() => setShowInsights(true)}
+                                className="text-xs text-blue-600 hover:text-blue-800 flex items-center"
+                              >
+                                <BarChart3 className="mr-1 h-3 w-3" />
+                                View analysis insights
+                              </button>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   ))}
