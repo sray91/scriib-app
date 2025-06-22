@@ -16,7 +16,7 @@ export async function GET() {
       );
     }
     
-    // First, check if we have any imported posts from the Chrome extension
+    // First, check if we have any imported posts from Apify scraper
     const { data: importedPosts, error: importError } = await supabase
       .from('linkedin_posts')
       .select('*')
@@ -231,8 +231,7 @@ export async function GET() {
       
       return NextResponse.json({
         posts: [],
-        error: 'Failed to fetch LinkedIn data: ' + error.message,
-        extensionAvailable: true
+        error: 'Failed to fetch LinkedIn data: ' + error.message
       });
     }
     

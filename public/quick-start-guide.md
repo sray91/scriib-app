@@ -1,34 +1,47 @@
 # Quick Start Guide
 
 ## Step 1: Connect your LinkedIn account
-Loren epsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+Navigate to Settings → Social and connect your LinkedIn account for basic profile access and OAuth authentication.
 
 ## Step 2: Provide your professional background
-Loren epsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+Complete your profile information in Settings → Profile to help our AI understand your industry and expertise.
 
-## Step 3: Generate a new post
-Loren epsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+## Step 3: Scrape LinkedIn posts
+Use the LinkedIn scraper in Settings → LinkedIn to import posts from LinkedIn using professional scraping APIs.
 
-## Step 4: Review and publish  
-Loren epsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+## Step 4: Generate and publish posts
+Use CoCreate to generate new LinkedIn posts based on trending content and your professional background.
 
-## Using the LinkedIn Post Extractor Extension
+## Using the LinkedIn Post Scraper
 
-Due to LinkedIn API restrictions, we've created a Chrome extension to help you import your LinkedIn posts directly.
+We use Apify's professional LinkedIn scraping service to import posts efficiently and reliably.
 
-### Installation
+### Getting Started
 
-1. [Download the extension](https://chrome.google.com/webstore/detail/your-extension-id)
-2. Click "Add to Chrome" to install it
-3. Navigate to your LinkedIn profile
-4. Click on "Activity" to view your posts
-5. Click the extension icon in your browser toolbar
-6. Click "Extract Posts" to import your posts
-7. Enter your PostForge URL (e.g., https://your-app-url.com)
-8. Click "Send to PostForge" to import your posts
+1. Navigate to Settings → LinkedIn
+2. Click on the "Scrape Posts" tab
+3. Choose your scraping method:
+   - **Search by Keywords**: Enter topics like "AI", "startup", "marketing"
+   - **Specific URLs**: Paste LinkedIn post URLs, company pages, or profiles
+   - **Use Presets**: Select from pre-configured searches for trending topics
 
-### Troubleshooting
+### Search Options
 
-- Make sure you're on your LinkedIn activity page
-- If no posts appear, try scrolling down to load more posts
-- Ensure you've entered the correct PostForge URL
+- **Keywords**: Search for posts containing specific terms
+- **Date Filter**: Past 24 hours, week, or month
+- **Count**: Number of posts to scrape (up to 200)
+- **Proxy Location**: Choose proxy country for geo-specific results
+
+### Managing Your Data
+
+- View all scraped posts in the "My Posts" tab
+- Filter by engagement metrics, date, or content type
+- Export data for analysis or backup
+- Posts are automatically stored in your database
+
+### Benefits
+
+- **Professional Service**: Uses Apify's robust infrastructure
+- **No Browser Required**: Server-side scraping with proxy rotation
+- **Anti-blocking**: Advanced measures to prevent detection
+- **Global Access**: Works worldwide, not limited by geographic restrictions

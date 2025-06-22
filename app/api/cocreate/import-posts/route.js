@@ -40,7 +40,7 @@ export async function POST(req) {
           comments: post.engagement?.comments || 0,
           shares: post.engagement?.shares || 0,
           timestamp: post.timestamp || new Date().toISOString(),
-          source: source || 'chrome-extension'
+          source: source || 'apify-scraper'
         })),
         { onConflict: 'user_id, content' }
       );

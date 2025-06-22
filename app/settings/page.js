@@ -15,7 +15,7 @@ import ProfileTab from "@/components/settings/ProfileTab"
 import ApproversTab from "@/components/settings/ApproversTab"
 import GhostwritersTab from "@/components/settings/GhostwritersTab"
 import PasswordTab from "@/components/settings/PasswordTab"
-import ExtensionsTab from "@/components/settings/ExtensionsTab"
+import LinkedInTab from "@/components/settings/LinkedInTab"
 import { useLinkedInAuthStatus } from '@/components/settings/SocialAccountsTab'
 import { useSearchParams } from 'next/navigation'
 
@@ -33,7 +33,7 @@ export default function SettingsPage() {
   useEffect(() => {
     // Set active tab based on URL parameter
     const tabParam = searchParams.get('tab')
-    if (tabParam && ['social', 'profile', 'password', 'preferences', 'approvers', 'ghostwriters', 'shares', 'teams', 'extensions'].includes(tabParam)) {
+    if (tabParam && ['social', 'profile', 'password', 'preferences', 'approvers', 'ghostwriters', 'shares', 'teams', 'linkedin'].includes(tabParam)) {
       setActiveTab(tabParam)
     }
   }, [searchParams])
@@ -284,7 +284,8 @@ export default function SettingsPage() {
                       activeTab !== 'approvers' && 
                       activeTab !== 'ghostwriters' && 
                       activeTab !== 'shares' && 
-                      activeTab !== 'teams') {
+                      activeTab !== 'teams' &&
+                      activeTab !== 'linkedin') {
                     setActiveTab('preferences');
                   }
                 }}
@@ -299,9 +300,10 @@ export default function SettingsPage() {
             activeTab === 'approvers' || 
             activeTab === 'ghostwriters' || 
             activeTab === 'shares' || 
-            activeTab === 'teams') && (
+            activeTab === 'teams' ||
+            activeTab === 'linkedin') && (
             <div className="mt-2 bg-gray-100 rounded-lg p-1">
-              <TabsList className="grid grid-cols-5 gap-1">
+              <TabsList className="grid grid-cols-6 gap-1">
                 <TabsTrigger 
                   value="preferences" 
                   className="px-2 py-2 text-xs font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
@@ -331,6 +333,12 @@ export default function SettingsPage() {
                   className="px-2 py-2 text-xs font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
                 >
                   Teams
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="linkedin" 
+                  className="px-2 py-2 text-xs font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
+                >
+                  LinkedIn
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -390,10 +398,10 @@ export default function SettingsPage() {
                 Teams
               </TabsTrigger>
               <TabsTrigger 
-                value="extensions" 
+                value="linkedin" 
                 className="flex-1 px-4 py-2.5 text-sm font-medium rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm"
               >
-                Extensions
+                LinkedIn
               </TabsTrigger>
             </TabsList>
           </div>
@@ -609,8 +617,8 @@ export default function SettingsPage() {
           <TabsContent value="teams">
             <TeamsTab />
           </TabsContent>
-          <TabsContent value="extensions">
-            <ExtensionsTab />
+          <TabsContent value="linkedin">
+            <LinkedInTab />
           </TabsContent>
         </div>
       </Tabs>
