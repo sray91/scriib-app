@@ -9,15 +9,6 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Allow up to 60 seconds for processing
 
-// Route segment config for file upload
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '50mb',
-    },
-  },
-}
-
 export async function POST(request) {
   try {
     const supabase = createRouteHandlerClient({ cookies });
