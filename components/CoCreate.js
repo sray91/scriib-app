@@ -9,6 +9,38 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import PostEditorDialog from '@/components/post-forge/PostEditorDialog';
 
+// AI Thinking Process Display Component  
+const ThinkingDisplay = ({ processingSteps }) => {
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  return (
+    <div className="text-sm">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="font-semibold text-purple-900 flex items-center">
+          🧠 AI Thinking Process
+        </h4>
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="text-xs bg-purple-100 hover:bg-purple-200 px-2 py-1 rounded text-purple-800"
+        >
+          {isExpanded ? 'Hide' : 'Show'} Steps
+        </button>
+      </div>
+      
+      {isExpanded && (
+        <div className="space-y-2">
+          {processingSteps.map((step, i) => (
+            <div key={i} className="flex items-start gap-2 text-xs">
+              <span className="font-mono text-purple-600 min-w-[20px]">{i + 1}.</span>
+              <span className="text-purple-800">{step}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Debug Info Display Component
 const DebugInfoDisplay = ({ debugInfo }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -76,6 +108,18 @@ const DebugInfoDisplay = ({ debugInfo }) => {
               </div>
             )}
 
+            {/* Hook Type */}
+            {debugInfo.hookTypeChosen && (
+              <div>
+                <h5 className="font-medium text-blue-900 mb-1">Hook Type Chosen:</h5>
+                <div className="bg-white p-2 rounded text-xs">
+                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded font-medium">
+                    🎣 {debugInfo.hookTypeChosen}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* User Message */}
             <div>
               <h5 className="font-medium text-blue-900 mb-1">Your Request:</h5>
@@ -136,17 +180,17 @@ const CoCreate = () => {
     
     // Start showing processing steps
     setProcessingSteps([
-      "Analyzing your request...",
-      "Loading your past LinkedIn posts for voice analysis...",
-      "Studying top-performing trending posts...",
-      "Generating content optimized for your style and engagement..."
+      "🔍 Analyzing your request...",
+      "📚 Loading your past LinkedIn posts for voice analysis...",
+      "🧠 Running AI analysis on your writing patterns...",
+      "✍️ Generating content in your authentic voice..."
     ]);
     setCurrentStep(0);
     
     // Show processing steps one by one
     processingTimerRef.current = setInterval(() => {
       setCurrentStep(prev => prev < 3 ? prev + 1 : prev);
-    }, 1500);
+    }, 1200);
     
     try {
       // Call the real CoCreate API
@@ -176,6 +220,17 @@ const CoCreate = () => {
         ...prev, 
         { role: 'assistant', content: data.message, insights: true }
       ]);
+      
+      // Add the actual processing steps that happened
+      if (data.processingSteps && data.processingSteps.length > 0) {
+        const thinkingMessage = {
+          role: 'system',
+          content: 'AI Thinking Process',
+          processingSteps: data.processingSteps,
+          isThinking: true
+        };
+        setMessages(prev => [...prev, thinkingMessage]);
+      }
       
       // Update current post
       if (data.updatedPost) {
@@ -656,11 +711,15 @@ const CoCreate = () => {
                             ? 'bg-red-50 text-red-700 border border-red-100 max-w-[80%]'
                             : msg.isDebug
                               ? 'bg-blue-50 text-blue-800 border border-blue-200 max-w-[90%]'
-                              : 'bg-gray-100 text-gray-800 max-w-[80%]'
+                              : msg.isThinking
+                                ? 'bg-purple-50 text-purple-800 border border-purple-200 max-w-[90%]'
+                                : 'bg-gray-100 text-gray-800 max-w-[80%]'
                       }`}
                     >
                       {msg.isDebug ? (
                         <DebugInfoDisplay debugInfo={msg.debugInfo} />
+                      ) : msg.isThinking ? (
+                        <ThinkingDisplay processingSteps={msg.processingSteps} />
                       ) : (
                         <>
                           <p className="text-sm whitespace-pre-wrap">{msg.content}</p>

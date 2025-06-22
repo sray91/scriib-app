@@ -238,24 +238,70 @@ async function generatePostContentWithGPT4o(userMessage, currentDraft, action, p
     
     const assistantResponse = completion.choices[0].message.content;
     
-    // Parse the response to extract post content and explanation
-    const { postContent, explanation } = parseGPTResponse(assistantResponse);
+    // Parse the response to extract post content, hook type, and explanation
+    const { postContent, explanation, hookType } = parseGPTResponse(assistantResponse);
     
     // Determine if this is a significant update
     const isSignificantUpdate = action === 'create' || 
       (currentDraft && calculateTextSimilarity(currentDraft, postContent) < 0.8);
     
+    // Generate dynamic processing steps based on what actually happened
+    const dynamicSteps = [];
+    
+    // Step 1: Past posts analysis
+    if (pastPosts.length > 0) {
+      dynamicSteps.push(`✅ Found ${pastPosts.length} past posts in database`);
+      dynamicSteps.push(`🔍 Analyzed your writing: "${voiceAnalysis.style}" style, "${voiceAnalysis.tone}" tone`);
+      dynamicSteps.push(`📝 Detected patterns: ${voiceAnalysis.usesEmojis ? 'Uses emojis' : 'No emojis'}, ${voiceAnalysis.usesHashtags ? 'Uses hashtags' : 'No hashtags'}`);
+      if (voiceAnalysis.fallbackReason) {
+        dynamicSteps.push(`⚠️ Voice analysis fallback: ${voiceAnalysis.fallbackReason}`);
+      } else {
+        dynamicSteps.push(`🎯 OpenAI voice analysis successful`);
+      }
+    } else {
+      dynamicSteps.push(`⚠️ No past posts found - using generic voice profile`);
+    }
+    
+    // Step 2: Content mode detection
+    const personalKeywords = ['dad', 'father', 'mom', 'mother', 'parent', 'family', 'died', 'death', 'dying', 'passed away', 'funeral', 'grief', 'loss', 'mourning'];
+    const isPersonalContent = personalKeywords.some(keyword => userMessage.toLowerCase().includes(keyword));
+    
+    if (pastPosts.length > 0) {
+      dynamicSteps.push(`🎭 Mode: AUTHENTIC VOICE (using your real writing patterns)`);
+      if (isPersonalContent) {
+        dynamicSteps.push(`💙 Personal content detected - prioritizing authenticity over engagement`);
+      }
+    } else if (isPersonalContent) {
+      dynamicSteps.push(`💙 Mode: PERSONAL FALLBACK (no past posts, but detected emotional content)`);
+    } else {
+      dynamicSteps.push(`💼 Mode: BUSINESS OPTIMIZATION (no past posts, professional content)`);
+    }
+    
+    // Step 3: Trending analysis (only if using optimization mode)
+    if (pastPosts.length === 0 && !isPersonalContent) {
+      dynamicSteps.push(`📈 Analyzed ${trendingPosts.length} trending posts for engagement patterns`);
+      dynamicSteps.push(`🔥 Top formats: ${trendingInsights.topFormats.join(', ')}`);
+    } else {
+      dynamicSteps.push(`🚫 Skipping engagement optimization - prioritizing authentic voice`);
+    }
+    
+    // Step 4: Content generation approach
+    if (pastPosts.length > 0) {
+      dynamicSteps.push(`✍️ Writing in YOUR voice: ${voiceAnalysis.avgLength} avg chars, ${voiceAnalysis.preferredFormats.join(', ')} format`);
+    } else {
+      dynamicSteps.push(`✍️ Generating with ${isPersonalContent ? 'authentic personal' : 'professional'} approach`);
+    }
+    
+    // Step 5: Hook selection (added after generation)
+    if (hookType) {
+      dynamicSteps.push(`🎣 Hook chosen: "${hookType}" (from hooks guide)`);
+    }
+
     return {
       assistantMessage: explanation,
       postContent,
       isSignificantUpdate,
-      processingSteps: [
-        `Analyzed ${pastPosts.length} of your past posts to understand your voice`,
-        `Studied ${trendingPosts.length} top-performing posts for engagement patterns`,
-        `Identified your key writing style: ${voiceAnalysis.style}`,
-        `Applied trending formats: ${trendingInsights.topFormats.join(', ')}`,
-        action === 'refine' ? 'Refined your draft with insights' : 'Created new content optimized for engagement'
-      ],
+      processingSteps: dynamicSteps,
       voiceAnalysis,
       trendingInsights,
       debugInfo: {
@@ -268,7 +314,8 @@ async function generatePostContentWithGPT4o(userMessage, currentDraft, action, p
         })),
         systemPromptMode: pastPosts.length > 0 ? 'AUTHENTIC_VOICE' : 'FALLBACK',
         voiceAnalysisGenerated: voiceAnalysis,
-        userMessage: userMessage
+        userMessage: userMessage,
+        hookTypeChosen: hookType
       }
     };
     
@@ -323,6 +370,20 @@ async function analyzeUserVoice(pastPosts, userMessage = '') {
     type: post.post_type
   }));
 
+  // Debug emoji detection
+  const emojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/u;
+  const actualUsesEmojis = pastPosts.some(post => emojiRegex.test(post.content));
+  const actualUsesHashtags = pastPosts.some(post => post.content.includes('#'));
+  
+  console.log('🔍 Emoji detection debug:');
+  console.log(`- actualUsesEmojis: ${actualUsesEmojis}`);
+  console.log(`- actualUsesHashtags: ${actualUsesHashtags}`);
+  pastPosts.slice(0, 3).forEach((post, i) => {
+    const hasEmoji = emojiRegex.test(post.content);
+    const hasHashtag = post.content.includes('#');
+    console.log(`- Post ${i+1}: emoji=${hasEmoji}, hashtag=${hasHashtag}, content="${post.content.substring(0, 100)}..."`);
+  });
+
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o", 
@@ -343,8 +404,8 @@ Focus on their natural writing patterns, vocabulary, and authentic voice. Return
   "tone": "their authentic emotional tone and personality in writing", 
   "commonTopics": ["topic1", "topic2"],
   "avgLength": ${Math.round(postsForAnalysis.reduce((sum, post) => sum + post.content.length, 0) / postsForAnalysis.length)},
-  "usesEmojis": ${postsForAnalysis.some(post => /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/u.test(post.content))},
-  "usesHashtags": ${postsForAnalysis.some(post => post.content.includes('#'))},
+  "usesEmojis": ${actualUsesEmojis},
+  "usesHashtags": ${actualUsesHashtags},
   "preferredFormats": ["their natural format preferences based on actual usage"]
 }`
         }
@@ -368,33 +429,68 @@ Focus on their natural writing patterns, vocabulary, and authentic voice. Return
         throw new Error('Empty or invalid response content from OpenAI');
       }
       
-      const voiceAnalysis = JSON.parse(responseContent);
+      // Extract JSON from markdown code blocks if present
+      let cleanedContent = responseContent.trim();
+      
+      // Remove markdown code block wrapper if present
+      if (cleanedContent.startsWith('```json') && cleanedContent.endsWith('```')) {
+        cleanedContent = cleanedContent.slice(7, -3).trim();
+      } else if (cleanedContent.startsWith('```') && cleanedContent.endsWith('```')) {
+        cleanedContent = cleanedContent.slice(3, -3).trim();
+      }
+      
+      // Check if the response looks like an error message
+      if (responseContent.toLowerCase().includes('error') || responseContent.toLowerCase().includes('sorry')) {
+        console.error('OpenAI returned error message:', responseContent);
+        throw new Error('OpenAI returned error message');
+      }
+      
+      const voiceAnalysis = JSON.parse(cleanedContent);
       console.log('🎯 Parsed voice analysis:', JSON.stringify(voiceAnalysis, null, 2));
       return voiceAnalysis;
     } catch (parseError) {
       console.error('Error parsing voice analysis JSON:', parseError);
       console.log('Failed response content:', completion.choices[0]?.message?.content);
-      // Return fallback structure if JSON parsing fails
-      throw new Error('Failed to parse voice analysis response');
+      // Fall through to fallback analysis below rather than throwing
+      console.log('🔄 Falling back to simple analysis due to parsing error');
     }
   } catch (error) {
-    console.error('Error analyzing voice:', error);
-    
-    // Fallback to simple analysis
-    const avgLength = pastPosts.reduce((sum, post) => sum + post.content.length, 0) / pastPosts.length;
-    const usesEmojis = pastPosts.some(post => /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/u.test(post.content));
-    const usesHashtags = pastPosts.some(post => post.content.includes('#'));
-    
-    return {
-      style: avgLength > 300 ? 'Detailed and thorough' : 'Concise and direct',
-      tone: 'Professional',
-      commonTopics: extractTopicsFromPosts(pastPosts),
-      avgLength: Math.round(avgLength),
-      usesEmojis,
-      usesHashtags,
-      preferredFormats: ['Narrative']
-    };
+    console.error('Error analyzing voice with OpenAI:', error);
+    console.log('🔄 Using fallback analysis based on past posts patterns');
   }
+  
+  // Fallback to simple analysis (either from catch block or parsing failure)
+  const avgLength = pastPosts.reduce((sum, post) => sum + post.content.length, 0) / pastPosts.length;
+  const usesEmojis = pastPosts.some(post => /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/u.test(post.content));
+  const usesHashtags = pastPosts.some(post => post.content.includes('#'));
+  
+  // Try to detect writing style from actual content
+  const totalWords = pastPosts.reduce((sum, post) => sum + post.content.split(/\s+/).length, 0);
+  const avgWordsPerPost = totalWords / pastPosts.length;
+  const avgSentenceLength = avgLength / avgWordsPerPost * 20; // rough estimate
+  
+  // Detect casual vs formal style
+  const casualIndicators = pastPosts.reduce((count, post) => {
+    const content = post.content.toLowerCase();
+    if (content.includes("i'm") || content.includes("don't") || content.includes("can't")) count++;
+    if (content.includes("...") || content.includes("!")) count++;
+    return count;
+  }, 0);
+  
+  const formalStyle = casualIndicators < pastPosts.length * 0.3;
+  
+  return {
+    style: formalStyle 
+      ? (avgLength > 300 ? 'Formal and detailed' : 'Formal and concise')
+      : (avgLength > 300 ? 'Conversational and thorough' : 'Casual and direct'),
+    tone: formalStyle ? 'Professional and measured' : 'Conversational and authentic',
+    commonTopics: extractTopicsFromPosts(pastPosts),
+    avgLength: Math.round(avgLength),
+    usesEmojis,
+    usesHashtags,
+    preferredFormats: avgSentenceLength > 15 ? ['Detailed narrative'] : ['Concise narrative'],
+    fallbackReason: 'OpenAI voice analysis failed, using pattern analysis'
+  };
 }
 
 // Analyze trending posts for patterns
@@ -502,13 +598,18 @@ ${samplePosts}
 - If the topic is professional, reflect their professional voice
 - Don't force engagement optimization - let their authentic voice shine through
 - End posts naturally in their style, not with forced CTAs unless that's their pattern
+- **CRITICAL**: Only use emojis if they actually use them (usesEmojis: ${voiceAnalysis.usesEmojis}). If false, NEVER add emojis.
+- **CRITICAL**: Only use hashtags if they actually use them (usesHashtags: ${voiceAnalysis.usesHashtags}). If false, NEVER add hashtags.
 
 Write the post as this specific user would write it, using their authentic voice and patterns.
+
+CRITICAL: Choose the most appropriate hook type from the hooks guide based on the content and user request. Start your explanation by clearly stating: "HOOK_TYPE: [specific hook name from the guide]"
 
 Format your response as:
 [POST CONTENT]
 
 ---
+HOOK_TYPE: [chosen hook type from the hooks guide]
 [BRIEF EXPLANATION OF YOUR APPROACH]`;
   }
 
@@ -650,12 +751,13 @@ Improve the post while maintaining my voice and incorporating trending elements.
 Make it engaging, authentic to my voice, and optimized for high performance.`;
 }
 
-// Parse GPT response to extract post content and explanation
+// Parse GPT response to extract post content, hook type, and explanation
 function parseGPTResponse(response) {
   const parts = response.split('---');
   
   if (parts.length >= 2) {
     let postContent = parts[0].trim();
+    let explanationPart = parts[1].trim();
     
     // Remove [POST CONTENT] prefix if it exists
     postContent = postContent.replace(/^\[POST CONTENT\]\s*/, '');
@@ -663,9 +765,19 @@ function parseGPTResponse(response) {
     // Clean up asterisk formatting in lists (convert **text**: to text:)
     postContent = postContent.replace(/\*\*(.*?)\*\*:/g, '$1:');
     
+    // Extract hook type from explanation
+    let hookType = null;
+    const hookTypeMatch = explanationPart.match(/HOOK_TYPE:\s*([^\n]+)/i);
+    if (hookTypeMatch) {
+      hookType = hookTypeMatch[1].trim();
+      // Remove the HOOK_TYPE line from explanation
+      explanationPart = explanationPart.replace(/HOOK_TYPE:\s*[^\n]+\n?/i, '').trim();
+    }
+    
     return {
       postContent,
-      explanation: parts[1].trim()
+      explanation: explanationPart,
+      hookType
     };
   }
   
@@ -680,7 +792,8 @@ function parseGPTResponse(response) {
   
   return {
     postContent,
-    explanation: "I've created a post optimized for engagement based on your request and writing style."
+    explanation: "I've created a post optimized for engagement based on your request and writing style.",
+    hookType: null
   };
 }
 
