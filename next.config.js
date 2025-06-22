@@ -10,11 +10,7 @@ const nextConfig = {
     ],
     unoptimized: process.env.NODE_ENV === 'development',
   },
-  api: {
-    bodyParser: {
-      sizeLimit: '50mb',
-    },
-  },
+
   experimental: {
     // For app directory API routes
     serverComponentsExternalPackages: ['pdf-parse', 'mammoth'],

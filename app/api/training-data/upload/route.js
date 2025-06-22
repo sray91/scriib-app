@@ -133,6 +133,11 @@ export async function POST(request) {
       }
     };
 
+    console.log('Attempting to insert document data:', {
+      ...documentData,
+      extracted_text: `[${extractedText.length} characters]` // Don't log the full text
+    });
+
     const { data: documentRecord, error: dbError } = await supabase
       .from('training_documents')
       .insert(documentData)
@@ -141,6 +146,12 @@ export async function POST(request) {
 
     if (dbError) {
       console.error('Database error:', dbError);
+      console.error('Database error details:', JSON.stringify(dbError, null, 2));
+      console.error('Document data that failed:', {
+        ...documentData,
+        extracted_text: `[${extractedText.length} characters]` // Don't log the full text
+      });
+      
       // Try to clean up the uploaded file
       await supabase.storage
         .from('context-docs')
@@ -148,7 +159,8 @@ export async function POST(request) {
       
       return NextResponse.json({ 
         error: 'Failed to save document to database',
-        details: dbError.message 
+        details: dbError.message || 'Unknown database error',
+        hint: dbError.hint || 'Check if the file type is supported in the database schema'
       }, { status: 500 });
     }
 
