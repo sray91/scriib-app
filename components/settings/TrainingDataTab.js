@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, ExternalLink, Database, AlertCircle, CheckCircle, Loader2, Linkedin, Search } from 'lucide-react';
+import { Plus, Trash2, ExternalLink, Database, AlertCircle, CheckCircle, Loader2, Linkedin, Search, Upload, FileText, File } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,12 +21,20 @@ const TrainingDataTab = () => {
   const [processingStatus, setProcessingStatus] = useState({});
   const [trendingPosts, setTrendingPosts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Document upload states
+  const [uploadedDocuments, setUploadedDocuments] = useState([]);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [documentStatus, setDocumentStatus] = useState({});
+  
   const { toast } = useToast();
   const supabase = createClientComponentClient();
 
   // Fetch existing trending posts on component mount
   useEffect(() => {
     fetchTrendingPosts();
+    fetchUploadedDocuments();
   }, []);
 
   const fetchTrendingPosts = async () => {
@@ -48,6 +56,26 @@ const TrainingDataTab = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Fetch uploaded documents
+  const fetchUploadedDocuments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('training_documents')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setUploadedDocuments(data || []);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load training documents',
+        variant: 'destructive'
+      });
     }
   };
 
@@ -206,6 +234,137 @@ const TrainingDataTab = () => {
     }
   };
 
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const files = e.dataTransfer.files;
+    handleFileSelect({ target: { files } });
+  };
+
+  const handleFileSelect = async (e) => {
+    const files = e.target.files;
+    if (files.length === 0) return;
+
+    setIsUploading(true);
+    setDocumentStatus({});
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setDocumentStatus(prev => ({
+          ...prev,
+          [file.name]: { status: 'processing', message: 'Uploading...' }
+        }));
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/api/training-data/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to upload file');
+        }
+
+        setDocumentStatus(prev => ({
+          ...prev,
+          [file.name]: { 
+            status: 'success', 
+            message: 'File uploaded successfully',
+            data: result.data
+          }
+        }));
+      }
+
+      // Refresh uploaded documents after processing
+      await fetchUploadedDocuments();
+
+      toast({
+        title: 'Upload complete',
+        description: `Uploaded ${files.length} files. Check the results below.`,
+      });
+    } catch (error) {
+      console.error('Error in handleFileSelect:', error);
+      toast({
+        title: 'Error',
+        description: 'An error occurred while uploading files',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const deleteDocument = async (docId) => {
+    try {
+      const { error } = await supabase
+        .from('training_documents')
+        .delete()
+        .eq('id', docId);
+
+      if (error) throw error;
+
+      setUploadedDocuments(prev => prev.filter(doc => doc.id !== docId));
+      
+      toast({
+        title: 'Document deleted',
+        description: 'Training document has been removed',
+      });
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete document',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const toggleDocumentStatus = async (docId, currentStatus) => {
+    try {
+      const { error } = await supabase
+        .from('training_documents')
+        .update({ is_active: !currentStatus })
+        .eq('id', docId);
+
+      if (error) throw error;
+
+      setUploadedDocuments(prev => 
+        prev.map(doc => 
+          doc.id === docId 
+            ? { ...doc, is_active: !currentStatus }
+            : doc
+        )
+      );
+      
+      toast({
+        title: 'Document updated',
+        description: `Document ${!currentStatus ? 'activated' : 'deactivated'}`,
+      });
+    } catch (error) {
+      console.error('Error updating document status:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update document status',
+        variant: 'destructive'
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -225,10 +384,14 @@ const TrainingDataTab = () => {
 
       {/* Sub-tabs for different training data methods */}
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="trending-training" className="flex items-center gap-2">
             <Database className="w-4 h-4" />
             Trending Training Data
+          </TabsTrigger>
+          <TabsTrigger value="context-documents" className="flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Context Documents
           </TabsTrigger>
           <TabsTrigger value="my-posts" className="flex items-center gap-2">
             <Linkedin className="w-4 h-4" />
@@ -433,6 +596,235 @@ const TrainingDataTab = () => {
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="context-documents" className="mt-6">
+          <div className="space-y-6">
+            {/* Document Upload Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="h-5 w-5" />
+                  Upload Context Documents
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Upload emails, transcripts, writing samples, or other documents to enhance AI voice analysis. 
+                  Supported formats: PDF, DOC, DOCX, TXT, MD
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Drag and Drop Upload Area */}
+                <div
+                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                    isDragOver 
+                      ? 'border-blue-400 bg-blue-50' 
+                      : 'border-gray-300 hover:border-gray-400'
+                  }`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  <div className="space-y-4">
+                    <div className="flex justify-center">
+                      <Upload className="h-12 w-12 text-gray-400" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-medium text-gray-900">
+                        Drag and drop files here
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        or click to browse and select files
+                      </p>
+                    </div>
+                    <div className="flex justify-center">
+                      <Button
+                        variant="outline"
+                        onClick={() => document.getElementById('file-upload').click()}
+                        disabled={isUploading}
+                      >
+                        {isUploading ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Choose Files
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <input
+                      id="file-upload"
+                      type="file"
+                      multiple
+                      accept=".pdf,.doc,.docx,.txt,.md"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                  </div>
+                </div>
+
+                {/* Upload Status */}
+                {Object.keys(documentStatus).length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium">Upload Status:</h4>
+                    {Object.entries(documentStatus).map(([fileName, status]) => (
+                      <div key={fileName} className="flex items-start gap-2 p-3 bg-gray-50 rounded-lg">
+                        <div className="flex-1">
+                          <div className="text-sm font-medium truncate">{fileName}</div>
+                          <div className={`text-sm flex items-center gap-1 mt-1 ${
+                            status.status === 'success' ? 'text-green-600' :
+                            status.status === 'error' ? 'text-red-600' :
+                            'text-blue-600'
+                          }`}>
+                            {status.status === 'success' && <CheckCircle className="h-3 w-3" />}
+                            {status.status === 'error' && <AlertCircle className="h-3 w-3" />}
+                            {status.status === 'processing' && <Loader2 className="h-3 w-3 animate-spin" />}
+                            {status.message}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Uploaded Documents List */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Uploaded Documents ({uploadedDocuments.length})
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchUploadedDocuments}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {uploadedDocuments.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    No training documents uploaded yet. Upload some documents above to enhance voice analysis.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {uploadedDocuments.map((doc) => (
+                      <div key={doc.id} className="border rounded-lg p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <File className="h-4 w-4" />
+                              <span className="font-medium">{doc.file_name}</span>
+                              <Badge variant={doc.is_active ? "default" : "secondary"}>
+                                {doc.is_active ? 'Active' : 'Inactive'}
+                              </Badge>
+                              <span className="text-sm text-gray-500">
+                                {new Date(doc.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                            {doc.description && (
+                              <div className="text-sm text-gray-600 mb-2">
+                                {doc.description}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-4 text-sm text-gray-600">
+                              <span>📄 {doc.file_type.toUpperCase()}</span>
+                              <span>📊 {doc.word_count} words</span>
+                              {doc.processing_status === 'completed' && (
+                                <span className="text-green-600">✅ Processed</span>
+                              )}
+                              {doc.processing_status === 'failed' && (
+                                <span className="text-red-600">❌ Processing failed</span>
+                              )}
+                              {doc.processing_status === 'processing' && (
+                                <span className="text-blue-600">⏳ Processing...</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => toggleDocumentStatus(doc.id, doc.is_active)}
+                            >
+                              {doc.is_active ? 'Deactivate' : 'Activate'}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => deleteDocument(doc.id)}
+                              className="text-red-500 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Document Analysis Insights */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Voice Enhancement Benefits</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-purple-600" />
+                      Email Analysis
+                    </h4>
+                    <p className="text-sm text-muted-foreground">
+                      Upload past emails to understand your professional communication style and tone patterns.
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-blue-600" />
+                      Transcript Analysis
+                    </h4>
+                    <p className="text-sm text-muted-foreground">
+                      Process meeting transcripts or presentations to capture your speaking patterns and vocabulary.
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-green-600" />
+                      Writing Samples
+                    </h4>
+                    <p className="text-sm text-muted-foreground">
+                      Include articles, reports, or other writing samples to enhance voice authenticity.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <Database className="w-4 h-4 text-orange-600" />
+                      Enhanced AI Training
+                    </h4>
+                    <p className="text-sm text-muted-foreground">
+                      More context data leads to better voice analysis and more authentic post generation.
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>

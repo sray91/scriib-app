@@ -65,10 +65,15 @@ const DebugInfoDisplay = ({ debugInfo }) => {
             <span className="font-medium">Past Posts Found:</span> {debugInfo.pastPostsCount}
           </div>
           <div>
+            <span className="font-medium">Training Documents:</span> {debugInfo.trainingDocumentsCount || 0}
+          </div>
+          <div>
             <span className="font-medium">System Mode:</span> 
             <span className={`ml-1 px-1 rounded ${
-              debugInfo.systemPromptMode === 'AUTHENTIC_VOICE' 
+              debugInfo.systemPromptMode === 'ENHANCED_VOICE' 
                 ? 'bg-green-100 text-green-800' 
+                : debugInfo.systemPromptMode === 'AUTHENTIC_VOICE'
+                ? 'bg-blue-100 text-blue-800'
                 : 'bg-yellow-100 text-yellow-800'
             }`}>
               {debugInfo.systemPromptMode}
@@ -102,6 +107,24 @@ const DebugInfoDisplay = ({ debugInfo }) => {
                         <span className="text-gray-500">{post.length} chars</span>
                       </div>
                       <p className="text-gray-700 italic">&quot;{post.content.substring(0, 150)}...&quot;</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Sample Training Documents */}
+            {debugInfo.trainingDocumentsSample && debugInfo.trainingDocumentsSample.length > 0 && (
+              <div>
+                <h5 className="font-medium text-blue-900 mb-1">Sample Training Documents Analyzed:</h5>
+                <div className="space-y-2">
+                  {debugInfo.trainingDocumentsSample.map((doc, i) => (
+                    <div key={i} className="bg-white p-2 rounded text-xs">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="font-medium">{doc.filename} ({doc.file_type.toUpperCase()}):</span>
+                        <span className="text-gray-500">{doc.word_count} words</span>
+                      </div>
+                      <p className="text-gray-700 italic">&quot;{doc.content_preview}...&quot;</p>
                     </div>
                   ))}
                 </div>

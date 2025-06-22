@@ -48,6 +48,10 @@ export async function POST(req) {
     const pastPosts = await fetchUserPastPosts(supabase, user.id);
     console.log(`📚 Found ${pastPosts.length} past posts for voice analysis`);
     
+    // Fetch user's training documents for enhanced voice analysis
+    const trainingDocuments = await fetchUserTrainingDocuments(supabase, user.id);
+    console.log(`📄 Found ${trainingDocuments.length} training documents for enhanced voice analysis`);
+    
     // Log the actual past posts content for debugging
     if (pastPosts && pastPosts.length > 0) {
       console.log('🔍 Sample past posts content:');
@@ -78,7 +82,8 @@ export async function POST(req) {
       currentDraft, 
       action, 
       pastPosts, 
-      trendingPosts
+      trendingPosts,
+      trainingDocuments
     );
     
     return NextResponse.json({
@@ -168,6 +173,46 @@ async function fetchUserPastPosts(supabase, userId) {
   }
 }
 
+// Fetch user's training documents from the database
+async function fetchUserTrainingDocuments(supabase, userId) {
+  try {
+    const { data: documents, error } = await supabase
+      .from('training_documents')
+      .select(`
+        id,
+        file_name,
+        file_type,
+        extracted_text,
+        word_count,
+        processing_status,
+        created_at
+      `)
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .eq('processing_status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(10); // Analyze up to 10 most recent documents
+
+    if (error) {
+      console.error('Error fetching training documents:', error);
+      return [];
+    }
+
+    // Filter out documents without extracted text
+    const validDocuments = (documents || []).filter(doc => 
+      doc.extracted_text && 
+      doc.extracted_text.length > 50 && // Minimum 50 characters
+      !doc.extracted_text.includes('[PDF content - text extraction not available]') &&
+      !doc.extracted_text.includes('[Word document content - text extraction not available]')
+    );
+
+    return validDocuments;
+  } catch (error) {
+    console.error('Error in fetchUserTrainingDocuments:', error);
+    return [];
+  }
+}
+
 // Fetch trending posts for inspiration
 async function fetchTrendingPosts(supabase) {
   try {
@@ -204,16 +249,16 @@ async function fetchTrendingPosts(supabase) {
 }
 
 // Generate post content using GPT-4o with advanced analysis
-async function generatePostContentWithGPT4o(userMessage, currentDraft, action, pastPosts, trendingPosts) {
+async function generatePostContentWithGPT4o(userMessage, currentDraft, action, pastPosts, trendingPosts, trainingDocuments = []) {
   try {
-    // Analyze user's voice from past posts
-    const voiceAnalysis = await analyzeUserVoice(pastPosts, userMessage);
+    // Analyze user's voice from past posts and training documents
+    const voiceAnalysis = await analyzeUserVoice(pastPosts, userMessage, trainingDocuments);
     
     // Analyze trending posts for patterns
     const trendingInsights = await analyzeTrendingPosts(trendingPosts);
     
     // Build the comprehensive system prompt
-    const systemPrompt = buildSystemPrompt(pastPosts, trendingPosts, voiceAnalysis, trendingInsights, userMessage);
+    const systemPrompt = buildSystemPrompt(pastPosts, trendingPosts, voiceAnalysis, trendingInsights, userMessage, trainingDocuments);
     
     // Debug: Log which system prompt path is being used
     if (pastPosts && pastPosts.length > 0) {
@@ -248,18 +293,24 @@ async function generatePostContentWithGPT4o(userMessage, currentDraft, action, p
     // Generate dynamic processing steps based on what actually happened
     const dynamicSteps = [];
     
-    // Step 1: Past posts analysis
-    if (pastPosts.length > 0) {
-      dynamicSteps.push(`✅ Found ${pastPosts.length} past posts in database`);
+    // Step 1: Past posts and documents analysis
+    const totalContentSources = pastPosts.length + trainingDocuments.length;
+    if (totalContentSources > 0) {
+      if (pastPosts.length > 0) {
+        dynamicSteps.push(`✅ Found ${pastPosts.length} past posts in database`);
+      }
+      if (trainingDocuments.length > 0) {
+        dynamicSteps.push(`📄 Found ${trainingDocuments.length} training documents (${trainingDocuments.reduce((sum, doc) => sum + doc.word_count, 0)} total words)`);
+      }
       dynamicSteps.push(`🔍 Analyzed your writing: "${voiceAnalysis.style}" style, "${voiceAnalysis.tone}" tone`);
       dynamicSteps.push(`📝 Detected patterns: ${voiceAnalysis.usesEmojis ? 'Uses emojis' : 'No emojis'}, ${voiceAnalysis.usesHashtags ? 'Uses hashtags' : 'No hashtags'}`);
       if (voiceAnalysis.fallbackReason) {
         dynamicSteps.push(`⚠️ Voice analysis fallback: ${voiceAnalysis.fallbackReason}`);
       } else {
-        dynamicSteps.push(`🎯 OpenAI voice analysis successful`);
+        dynamicSteps.push(`🎯 Enhanced voice analysis with ${totalContentSources} content sources`);
       }
     } else {
-      dynamicSteps.push(`⚠️ No past posts found - using generic voice profile`);
+      dynamicSteps.push(`⚠️ No past posts or training documents found - using generic voice profile`);
     }
     
     // Step 2: Content mode detection
@@ -312,7 +363,14 @@ async function generatePostContentWithGPT4o(userMessage, currentDraft, action, p
           published_at: post.published_at,
           post_type: post.post_type
         })),
-        systemPromptMode: pastPosts.length > 0 ? 'AUTHENTIC_VOICE' : 'FALLBACK',
+        trainingDocumentsSample: trainingDocuments.slice(0, 3).map(doc => ({
+          filename: doc.file_name,
+          file_type: doc.file_type,
+          word_count: doc.word_count,
+          content_preview: doc.extracted_text.substring(0, 200)
+        })),
+        systemPromptMode: (pastPosts.length > 0 || trainingDocuments.length > 0) ? 'ENHANCED_VOICE' : 'FALLBACK',
+        trainingDocumentsCount: trainingDocuments.length,
         voiceAnalysisGenerated: voiceAnalysis,
         userMessage: userMessage,
         hookTypeChosen: hookType
@@ -325,9 +383,9 @@ async function generatePostContentWithGPT4o(userMessage, currentDraft, action, p
   }
 }
 
-// Analyze user's writing voice from past posts
-async function analyzeUserVoice(pastPosts, userMessage = '') {
-  if (!pastPosts || pastPosts.length === 0) {
+// Analyze user's writing voice from past posts and training documents
+async function analyzeUserVoice(pastPosts, userMessage = '', trainingDocuments = []) {
+  if ((!pastPosts || pastPosts.length === 0) && (!trainingDocuments || trainingDocuments.length === 0)) {
     // For personal/emotional content, provide a more authentic fallback
     const personalKeywords = [
       'dad', 'father', 'mom', 'mother', 'parent', 'family', 'died', 'death', 'dying', 'passed away', 'funeral', 
@@ -363,25 +421,37 @@ async function analyzeUserVoice(pastPosts, userMessage = '') {
     };
   }
 
-  // Analyze posts with GPT-4o for voice characteristics
-  const postsForAnalysis = pastPosts.slice(0, 10).map(post => ({
+  // Analyze posts and documents with GPT-4o for voice characteristics
+  const postsForAnalysis = (pastPosts || []).slice(0, 10).map(post => ({
     content: post.content,
     engagement: post.metrics,
-    type: post.post_type
+    type: post.post_type,
+    source: 'linkedin_post'
   }));
-
-  // Debug emoji detection
-  const emojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/u;
-  const actualUsesEmojis = pastPosts.some(post => emojiRegex.test(post.content));
-  const actualUsesHashtags = pastPosts.some(post => post.content.includes('#'));
   
-  console.log('🔍 Emoji detection debug:');
+  // Add training documents to analysis
+  const documentsForAnalysis = (trainingDocuments || []).slice(0, 5).map(doc => ({
+    content: doc.extracted_text,
+    type: doc.file_type,
+    source: 'training_document',
+    filename: doc.file_name
+  }));
+  
+  const allContentForAnalysis = [...postsForAnalysis, ...documentsForAnalysis];
+
+  // Debug emoji detection across all content
+  const emojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/u;
+  const actualUsesEmojis = allContentForAnalysis.some(item => emojiRegex.test(item.content));
+  const actualUsesHashtags = allContentForAnalysis.some(item => item.content.includes('#'));
+  
+  console.log('🔍 Content analysis debug:');
+  console.log(`- Total content pieces: ${allContentForAnalysis.length} (${postsForAnalysis.length} posts + ${documentsForAnalysis.length} documents)`);
   console.log(`- actualUsesEmojis: ${actualUsesEmojis}`);
   console.log(`- actualUsesHashtags: ${actualUsesHashtags}`);
-  pastPosts.slice(0, 3).forEach((post, i) => {
-    const hasEmoji = emojiRegex.test(post.content);
-    const hasHashtag = post.content.includes('#');
-    console.log(`- Post ${i+1}: emoji=${hasEmoji}, hashtag=${hasHashtag}, content="${post.content.substring(0, 100)}..."`);
+  allContentForAnalysis.slice(0, 3).forEach((item, i) => {
+    const hasEmoji = emojiRegex.test(item.content);
+    const hasHashtag = item.content.includes('#');
+    console.log(`- ${item.source} ${i+1}: emoji=${hasEmoji}, hashtag=${hasHashtag}, content="${item.content.substring(0, 100)}..."`);
   });
 
   try {
@@ -394,19 +464,24 @@ async function analyzeUserVoice(pastPosts, userMessage = '') {
         },
         {
           role: "user",
-          content: `Analyze these posts to understand this person's authentic writing voice:
+          content: `Analyze this person's authentic writing voice from their posts and documents:
 
-${postsForAnalysis.map((post, i) => `Post ${i + 1}: "${post.content}"`).join('\n\n')}
+${allContentForAnalysis.map((item, i) => {
+  const sourceLabel = item.source === 'linkedin_post' ? 'LinkedIn Post' : 
+                     item.source === 'training_document' ? `Document (${item.filename})` : 'Content';
+  return `${sourceLabel} ${i + 1}: "${item.content}"`;
+}).join('\n\n')}
 
-Focus on their natural writing patterns, vocabulary, and authentic voice. Return analysis as JSON:
+Focus on their natural writing patterns, vocabulary, and authentic voice across all content types. Return analysis as JSON:
 {
   "style": "their natural writing style (casual/formal, direct/flowing, conversational/structured, etc)",
   "tone": "their authentic emotional tone and personality in writing", 
   "commonTopics": ["topic1", "topic2"],
-  "avgLength": ${Math.round(postsForAnalysis.reduce((sum, post) => sum + post.content.length, 0) / postsForAnalysis.length)},
+  "avgLength": ${Math.round(allContentForAnalysis.reduce((sum, item) => sum + item.content.length, 0) / allContentForAnalysis.length)},
   "usesEmojis": ${actualUsesEmojis},
   "usesHashtags": ${actualUsesHashtags},
-  "preferredFormats": ["their natural format preferences based on actual usage"]
+  "preferredFormats": ["their natural format preferences based on actual usage"],
+  "documentInsights": "how training documents enhance voice understanding (if any documents provided)"
 }`
         }
       ],
@@ -561,16 +636,26 @@ function extractTopicsFromTrendingPosts(posts) {
 }
 
 // Build comprehensive system prompt
-function buildSystemPrompt(pastPosts, trendingPosts, voiceAnalysis, trendingInsights, userMessage = '') {
-  // If user has past posts, prioritize their authentic voice over everything else
-  if (pastPosts && pastPosts.length > 0) {
-    const samplePosts = pastPosts.slice(0, 3).map((post, i) => 
-      `Example ${i + 1}: "${post.content.substring(0, 300)}${post.content.length > 300 ? '...' : ''}"`
+function buildSystemPrompt(pastPosts, trendingPosts, voiceAnalysis, trendingInsights, userMessage = '', trainingDocuments = []) {
+  // If user has past posts or training documents, prioritize their authentic voice over everything else
+  if ((pastPosts && pastPosts.length > 0) || (trainingDocuments && trainingDocuments.length > 0)) {
+    const samplePosts = (pastPosts || []).slice(0, 3).map((post, i) => 
+      `LinkedIn Post ${i + 1}: "${post.content.substring(0, 300)}${post.content.length > 300 ? '...' : ''}"`
     ).join('\n\n');
 
-    return `You are CoCreate, an AI writing assistant who helps users write in their authentic voice. You have analyzed ${pastPosts.length} of the user's past posts to understand their unique writing style.
+    const sampleDocuments = (trainingDocuments || []).slice(0, 2).map((doc, i) => 
+      `Training Document ${i + 1} (${doc.file_name}): "${doc.extracted_text.substring(0, 300)}${doc.extracted_text.length > 300 ? '...' : ''}"`
+    ).join('\n\n');
 
-## USER'S AUTHENTIC VOICE (from ${pastPosts.length} past posts)
+    const totalSources = (pastPosts || []).length + (trainingDocuments || []).length;
+    const sourceDescription = [
+      pastPosts && pastPosts.length > 0 ? `${pastPosts.length} LinkedIn posts` : null,
+      trainingDocuments && trainingDocuments.length > 0 ? `${trainingDocuments.length} training documents` : null
+    ].filter(Boolean).join(' and ');
+
+    return `You are CoCreate, an AI writing assistant who helps users write in their authentic voice. You have analyzed ${sourceDescription} to understand their unique writing style and voice patterns.
+
+## USER'S AUTHENTIC VOICE (from ${sourceDescription})
 - Writing Style: ${voiceAnalysis.style}
 - Tone: ${voiceAnalysis.tone}
 - Common Topics: ${voiceAnalysis.commonTopics.join(', ')}
@@ -578,9 +663,10 @@ function buildSystemPrompt(pastPosts, trendingPosts, voiceAnalysis, trendingInsi
 - Uses Emojis: ${voiceAnalysis.usesEmojis ? 'Yes' : 'No'}
 - Uses Hashtags: ${voiceAnalysis.usesHashtags ? 'Yes' : 'No'}
 - Preferred Formats: ${voiceAnalysis.preferredFormats.join(', ')}
+${voiceAnalysis.documentInsights ? `- Document Insights: ${voiceAnalysis.documentInsights}` : ''}
 
 ## EXAMPLES OF USER'S ACTUAL WRITING STYLE
-${samplePosts}
+${samplePosts}${sampleDocuments ? '\n\n' + sampleDocuments : ''}
 
 ## CORE PRINCIPLES
 1. **AUTHENTICITY IS EVERYTHING**: Match the user's exact voice, tone, and style from their past posts
