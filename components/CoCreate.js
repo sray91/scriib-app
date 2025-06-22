@@ -14,6 +14,7 @@ const CoCreate = () => {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
   const [currentPost, setCurrentPost] = useState('');
   const [postHistory, setPostHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -34,6 +35,7 @@ const CoCreate = () => {
   const audioChunksRef = useRef(null);
   const messagesEndRef = useRef(null);
   const processingTimerRef = useRef(null);
+  const recordingTimerRef = useRef(null);
 
   // Scroll to bottom of messages
   useEffect(() => {
@@ -151,7 +153,9 @@ const CoCreate = () => {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
+      mediaRecorderRef.current = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus' // Optimized for web
+      });
       audioChunksRef.current = [];
       
       mediaRecorderRef.current.ondataavailable = (event) => {
@@ -159,18 +163,42 @@ const CoCreate = () => {
       };
       
       mediaRecorderRef.current.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        
-        // Here you would send the audio to your speech-to-text service
-        // For now, we'll simulate it
-        setIsLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setInput('This is simulated speech-to-text conversion of audio input.');
-        setIsLoading(false);
+        try {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          
+          // Convert audio to text using OpenAI Whisper
+          setIsLoading(true);
+          const transcribedText = await transcribeAudio(audioBlob);
+          
+          if (transcribedText) {
+            setInput(transcribedText);
+            toast({
+              title: "Speech transcribed successfully",
+              description: "Your audio has been converted to text",
+            });
+          } else {
+            throw new Error('Transcription failed');
+          }
+        } catch (error) {
+          console.error('Error processing audio:', error);
+          toast({
+            title: "Transcription Error",
+            description: "Failed to convert speech to text. Please try again.",
+            variant: "destructive",
+          });
+        } finally {
+          setIsLoading(false);
+        }
       };
       
       mediaRecorderRef.current.start();
       setIsRecording(true);
+      setRecordingTime(0);
+      
+      // Start recording timer
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
       
       toast({
         title: "Recording started",
@@ -186,10 +214,39 @@ const CoCreate = () => {
     }
   };
 
+  // Function to transcribe audio using OpenAI Whisper API
+  const transcribeAudio = async (audioBlob) => {
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.webm');
+      
+      const response = await fetch('/api/transcribe', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error('Transcription API error');
+      }
+      
+      const data = await response.json();
+      return data.text;
+    } catch (error) {
+      console.error('Error transcribing audio:', error);
+      return null;
+    }
+  };
+
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+      setRecordingTime(0);
+      
+      // Clear recording timer
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
       
       // Stop all audio tracks
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
@@ -199,6 +256,13 @@ const CoCreate = () => {
         description: "Processing your audio...",
       });
     }
+  };
+
+  // Format recording time
+  const formatRecordingTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const handleKeyPress = (e) => {
@@ -423,6 +487,9 @@ const CoCreate = () => {
       if (processingTimerRef.current) {
         clearInterval(processingTimerRef.current);
       }
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
     };
   }, []);
 
@@ -532,9 +599,15 @@ const CoCreate = () => {
                       onClick={isRecording ? stopRecording : startRecording}
                       disabled={isLoading}
                       title={isRecording ? "Stop recording" : "Start recording"}
+                      className={isRecording ? "animate-pulse" : ""}
                     >
                       {isRecording ? <StopCircle className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                     </Button>
+                    {isRecording && (
+                      <div className="text-xs text-center text-red-600 font-mono">
+                        {formatRecordingTime(recordingTime)}
+                      </div>
+                    )}
                     <Button 
                       variant="default"
                       size="icon"
