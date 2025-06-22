@@ -51,6 +51,9 @@ export async function POST(request) {
     console.log(`📋 Scraping ${input.urls.length} URL(s) with max ${input.maxPosts} posts`);
 
     // Run the Actor and wait for it to finish
+    // Alternative free LinkedIn scrapers you can try:
+    // "apify/linkedin-posts-scraper" (if available)
+    // "pocesar/linkedin-posts-scraper" (if available)
     const run = await apifyClient.actor("curious_coder/linkedin-post-search-scraper").call(input);
 
     // Fetch results from the run's dataset
@@ -70,12 +73,65 @@ export async function POST(request) {
     }
 
     console.log(`📊 Received ${scrapedPosts.length} posts from Apify`);
+    
+    // Debug: Log the structure of the first post to understand the data format
+    if (scrapedPosts.length > 0) {
+      console.log('🔍 Sample post structure:', JSON.stringify(scrapedPosts[0], null, 2));
+      console.log('🔑 Available keys:', Object.keys(scrapedPosts[0]));
+    }
+
+    // Filter out comments and non-original posts BEFORE processing
+    const originalPostsOnly = scrapedPosts.filter(post => {
+      // Skip if this looks like a comment
+      if (post.type === 'comment' || post.postType === 'comment') {
+        return false;
+      }
+      
+      // Skip if it has a parent post (indicating it's a comment/reply)
+      if (post.parentPost || post.parentPostId || post.isComment) {
+        return false;
+      }
+      
+      // Skip if the URL contains comment indicators
+      if (post.url && (post.url.includes('comment-') || post.url.includes('/comments/'))) {
+        return false;
+      }
+      
+      // Skip very short content (likely comments)
+      const content = post.text || post.content || post.commentary || '';
+      if (content && content.length < 50) {
+        return false;
+      }
+      
+      return true;
+    });
+
+    console.log(`🔍 Filtered to ${originalPostsOnly.length} original posts (removed ${scrapedPosts.length - originalPostsOnly.length} comments/replies)`);
+
+    // Limit to the requested count
+    const limitedPosts = originalPostsOnly.slice(0, count);
+    console.log(`📏 Limited to ${limitedPosts.length} posts as requested (count: ${count})`);
+
+    if (limitedPosts.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: 'No original posts found after filtering out comments',
+        data: {
+          synced_count: 0,
+          total_fetched: scrapedPosts.length,
+          total_filtered: originalPostsOnly.length,
+          total_limited: limitedPosts.length,
+          errors_count: 0,
+          posts: []
+        }
+      });
+    }
 
     // Transform and validate posts for our database
     const transformedPosts = [];
     const errors = [];
 
-    for (const post of scrapedPosts) {
+    for (const post of limitedPosts) {
       try {
         const transformedPost = transformApifyPost(post);
         if (transformedPost) {
@@ -83,7 +139,8 @@ export async function POST(request) {
         }
       } catch (error) {
         console.error('Error transforming post:', error);
-        errors.push({ post_id: post.id || 'unknown', error: error.message });
+        console.error('Post data:', JSON.stringify(post, null, 2));
+        errors.push({ post_id: post.id || post.postId || post.activityId || 'unknown', error: error.message });
       }
     }
 
@@ -138,10 +195,19 @@ export async function POST(request) {
       data: {
         synced_count: storedPosts.length,
         total_fetched: scrapedPosts.length,
+        total_filtered: originalPostsOnly.length,
+        total_limited: limitedPosts.length,
         total_transformed: transformedPosts.length,
         errors_count: errors.length + dbErrors.length,
         apify_run_id: run.id,
         dataset_url: `https://console.apify.com/storage/datasets/${run.defaultDatasetId}`,
+        filtering_stats: {
+          original_from_apify: scrapedPosts.length,
+          after_filtering_comments: originalPostsOnly.length,
+          after_count_limit: limitedPosts.length,
+          successfully_transformed: transformedPosts.length,
+          successfully_stored: storedPosts.length
+        },
         posts: storedPosts.map(p => ({
           id: p.id,
           platform_post_id: p.platform_post_id,
@@ -157,11 +223,39 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('Apify LinkedIn scraper error:', error);
+    
+    // Handle specific Apify errors
+    if (error.type === 'actor-is-not-rented') {
+      return NextResponse.json(
+        { 
+          error: 'LinkedIn Scraper Access Required', 
+          details: 'You need to rent the LinkedIn scraper actor on Apify. Visit https://apify.com/curious_coder/linkedin-post-search-scraper to get access.',
+          apify_error: error.type,
+          statusCode: error.statusCode,
+          solution: 'Go to Apify console, find this actor, and click "Try for free" or purchase it.'
+        },
+        { status: 403 }
+      );
+    }
+    
+    if (error.statusCode === 401) {
+      return NextResponse.json(
+        { 
+          error: 'Invalid Apify API Token', 
+          details: 'Your APIFY_API_TOKEN is invalid or expired. Please check your environment variables.',
+          apify_error: error.type,
+          solution: 'Get a new API token from https://console.apify.com/account#/integrations'
+        },
+        { status: 401 }
+      );
+    }
+    
     return NextResponse.json(
       { 
         error: 'Failed to scrape LinkedIn posts', 
         details: error.message,
-        apify_error: error.type || 'unknown'
+        apify_error: error.type || 'unknown',
+        statusCode: error.statusCode
       },
       { status: 500 }
     );
@@ -172,14 +266,34 @@ export async function POST(request) {
  * Transform Apify scraper result to our database format
  */
 function transformApifyPost(apifyPost) {
-  if (!apifyPost || !apifyPost.postId) {
+  if (!apifyPost) {
     throw new Error('Invalid post data from Apify');
   }
 
-  // Extract content
-  let content = apifyPost.text || apifyPost.content || '';
+  // Additional check to skip comments that might have slipped through
+  if (apifyPost.type === 'comment' || apifyPost.postType === 'comment' || apifyPost.isComment) {
+    throw new Error('Skipping comment post');
+  }
+
+  // Extract post ID with multiple possible field names
+  const postId = apifyPost.postId || apifyPost.id || apifyPost.activityId || apifyPost.urn;
+  if (!postId) {
+    throw new Error('No post ID found in Apify data');
+  }
+
+  // Extract content with multiple possible field names
+  let content = apifyPost.text || apifyPost.content || apifyPost.commentary || apifyPost.description || '';
   if (!content || content.trim().length < 10) {
     throw new Error('Post content too short or missing');
+  }
+
+  // Additional check for comment-like content patterns
+  const lowerContent = content.toLowerCase().trim();
+  if (lowerContent.startsWith('great post!') || 
+      lowerContent.startsWith('thanks for sharing') || 
+      lowerContent.startsWith('interesting point') ||
+      lowerContent.length < 50) {
+    throw new Error('Content appears to be a comment rather than original post');
   }
 
   // Clean up content
@@ -188,13 +302,12 @@ function transformApifyPost(apifyPost) {
     content = content.substring(0, 10000) + '...';
   }
 
-  // Extract published date
+  // Extract published date with multiple possible field names
   let publishedAt;
   try {
-    if (apifyPost.publishedAt) {
-      publishedAt = new Date(apifyPost.publishedAt).toISOString();
-    } else if (apifyPost.date) {
-      publishedAt = new Date(apifyPost.date).toISOString();
+    const dateField = apifyPost.publishedAt || apifyPost.date || apifyPost.createdAt || apifyPost.timestamp || apifyPost.publishedDate;
+    if (dateField) {
+      publishedAt = new Date(dateField).toISOString();
     } else {
       publishedAt = new Date().toISOString(); // Fallback to now
     }
@@ -202,12 +315,12 @@ function transformApifyPost(apifyPost) {
     publishedAt = new Date().toISOString();
   }
 
-  // Extract metrics
+  // Extract metrics with multiple possible field names
   const metrics = {
-    likes: parseInt(apifyPost.likes) || 0,
-    comments: parseInt(apifyPost.comments) || 0,
-    shares: parseInt(apifyPost.shares) || parseInt(apifyPost.reposts) || 0,
-    views: parseInt(apifyPost.views) || 0
+    likes: parseInt(apifyPost.likes || apifyPost.likesCount || apifyPost.numLikes) || 0,
+    comments: parseInt(apifyPost.comments || apifyPost.commentsCount || apifyPost.numComments) || 0,
+    shares: parseInt(apifyPost.shares || apifyPost.sharesCount || apifyPost.reposts || apifyPost.numShares) || 0,
+    views: parseInt(apifyPost.views || apifyPost.viewsCount || apifyPost.numViews) || 0
   };
 
   // Extract media URLs
@@ -231,13 +344,13 @@ function transformApifyPost(apifyPost) {
   }
 
   // Build post URL
-  let postUrl = apifyPost.url || apifyPost.postUrl;
-  if (!postUrl && apifyPost.postId) {
-    postUrl = `https://www.linkedin.com/posts/activity-${apifyPost.postId}`;
+  let postUrl = apifyPost.url || apifyPost.postUrl || apifyPost.link;
+  if (!postUrl && postId) {
+    postUrl = `https://www.linkedin.com/posts/activity-${postId}`;
   }
 
   return {
-    platform_post_id: apifyPost.postId,
+    platform_post_id: postId,
     content: content,
     published_at: publishedAt,
     post_url: postUrl,
@@ -249,8 +362,8 @@ function transformApifyPost(apifyPost) {
       ...apifyPost,
       scraped_at: new Date().toISOString(),
       author: {
-        name: apifyPost.authorName || apifyPost.author?.name || 'Unknown',
-        profile_url: apifyPost.authorUrl || apifyPost.author?.url,
+        name: apifyPost.authorName || apifyPost.author?.name || apifyPost.authorFullName || 'Unknown',
+        profile_url: apifyPost.authorUrl || apifyPost.author?.url || apifyPost.authorProfileUrl,
         company: apifyPost.authorCompany || apifyPost.author?.company
       }
     }

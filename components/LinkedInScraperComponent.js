@@ -18,6 +18,7 @@ const LinkedInScraperComponent = () => {
   const [selectedPreset, setSelectedPreset] = useState('');
   const [customUrls, setCustomUrls] = useState('');
   const [scrapingMode, setScrapingMode] = useState('search'); // 'search', 'urls', 'preset'
+  const [postCount, setPostCount] = useState(20); // New state for post count
 
   useEffect(() => {
     loadStats();
@@ -47,7 +48,7 @@ const LinkedInScraperComponent = () => {
           }
           result = await scrapeLinkedInSearch(searchQuery, {
             datePosted: 'past-week',
-            count: 50
+            count: postCount
           });
           break;
 
@@ -56,14 +57,14 @@ const LinkedInScraperComponent = () => {
             throw new Error('Please enter LinkedIn URLs');
           }
           const urls = customUrls.split('\n').map(url => url.trim()).filter(Boolean);
-          result = await scrapeLinkedInPosts({ urls, count: 100 });
+          result = await scrapeLinkedInPosts({ urls, count: postCount });
           break;
 
         case 'preset':
           if (!selectedPreset) {
             throw new Error('Please select a preset');
           }
-          result = await scrapeWithPreset(selectedPreset);
+          result = await scrapeWithPreset(selectedPreset, { count: postCount });
           break;
 
         default:
@@ -220,6 +221,22 @@ https://www.linkedin.com/in/username/recent-activity/posts/"
       {/* Scraping Form */}
       {renderScrapingForm()}
 
+      {/* Post Count Input */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-2">Number of Posts to Scrape</label>
+        <input
+          type="number"
+          value={postCount}
+          onChange={(e) => setPostCount(Math.min(Math.max(1, parseInt(e.target.value) || 1), 50))}
+          min="1"
+          max="50"
+          className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+        <p className="text-sm text-gray-600 mt-1">
+          Maximum 50 posts per scraping session (default: 20)
+        </p>
+      </div>
+
       {/* Scrape Button */}
       <button
         onClick={handleScrape}
@@ -290,6 +307,19 @@ https://www.linkedin.com/in/username/recent-activity/posts/"
               <div className="text-gray-600">Displayed</div>
             </div>
           </div>
+
+          {/* Filtering Statistics */}
+          {results.data.filtering_stats && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+              <h4 className="font-medium text-blue-800 mb-2">📊 Filtering Details</h4>
+              <div className="text-sm text-blue-700">
+                <div>• Found {results.data.filtering_stats.original_from_apify} items from Apify</div>
+                <div>• Filtered to {results.data.filtering_stats.after_filtering_comments} original posts (removed comments)</div>
+                <div>• Limited to {results.data.filtering_stats.after_count_limit} posts (your requested count)</div>
+                <div>• Successfully stored {results.data.filtering_stats.successfully_stored} posts in database</div>
+              </div>
+            </div>
+          )}
 
           {results.data.dataset_url && (
             <div className="mb-4">
