@@ -95,6 +95,18 @@ export async function POST(req) {
       );
     }
     
+    // Handle JSON parsing errors specifically
+    if (error.message && error.message.includes('JSON')) {
+      return NextResponse.json(
+        { 
+          error: "Failed to process AI response. Please try again.",
+          details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+          type: "parsing_error"
+        }, 
+        { status: 500 }
+      );
+    }
+    
     return NextResponse.json(
       { 
         error: "Failed to generate content. Please try again.",
@@ -248,35 +260,58 @@ async function analyzeUserVoice(pastPosts) {
     type: post.post_type
   }));
 
-     try {
-     const completion = await openai.chat.completions.create({
-       model: "gpt-4o",
-       messages: [
-         {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o", 
+      messages: [
+                 {
            role: "system",
-           content: "You are an expert at analyzing writing style and voice. Analyze the LinkedIn posts provided and identify key characteristics of the author's voice, tone, topics, and format preferences. Return your analysis as a JSON object."
+           content: "You are an expert at analyzing writing style and voice. Analyze the LinkedIn posts provided and identify key characteristics of the author's voice, tone, topics, and format preferences. Return ONLY a valid JSON object with no additional text or explanation."
          },
-         {
-           role: "user",
-           content: `Analyze these LinkedIn posts for voice characteristics:
+        {
+          role: "user",
+          content: `Analyze these LinkedIn posts for voice characteristics:
 
 ${postsForAnalysis.map((post, i) => `Post ${i + 1}: "${post.content}"`).join('\n\n')}
 
-Return analysis as JSON with these fields:
-- style: overall writing style
-- tone: emotional tone 
-- commonTopics: array of main topics
-- avgLength: estimated average post length
-- usesEmojis: boolean
-- usesHashtags: boolean  
-- preferredFormats: array of format types used`
-         }
-       ],
-       temperature: 0.3,
-       max_tokens: 800,
-     });
+Return analysis as JSON with these exact fields:
+{
+  "style": "overall writing style",
+  "tone": "emotional tone", 
+  "commonTopics": ["topic1", "topic2"],
+  "avgLength": 150,
+  "usesEmojis": false,
+  "usesHashtags": true,
+  "preferredFormats": ["format1", "format2"]
+}`
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 800,
+    });
 
-     return JSON.parse(completion.choices[0].message.content);
+        // Validate OpenAI response structure
+    if (!completion || !completion.choices || !completion.choices[0] || !completion.choices[0].message) {
+      console.error('Invalid OpenAI response structure:', completion);
+      throw new Error('Invalid response from OpenAI API');
+    }
+
+    // Try to parse the JSON response with error handling
+    try {
+      const responseContent = completion.choices[0].message.content;
+      console.log('Raw voice analysis response:', responseContent);
+      
+      if (!responseContent || typeof responseContent !== 'string') {
+        throw new Error('Empty or invalid response content from OpenAI');
+      }
+      
+      return JSON.parse(responseContent);
+    } catch (parseError) {
+      console.error('Error parsing voice analysis JSON:', parseError);
+      console.log('Failed response content:', completion.choices[0]?.message?.content);
+      // Return fallback structure if JSON parsing fails
+      throw new Error('Failed to parse voice analysis response');
+    }
   } catch (error) {
     console.error('Error analyzing voice:', error);
     
