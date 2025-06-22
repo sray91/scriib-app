@@ -5,6 +5,11 @@ import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
 
+// Configure the API route for AI processing
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300; // Allow up to 5 minutes for AI processing
+
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_COCREATE_API_KEY,
@@ -48,9 +53,25 @@ export async function POST(req) {
     const pastPosts = await fetchUserPastPosts(supabase, user.id);
     console.log(`📚 Found ${pastPosts.length} past posts for voice analysis`);
     
-    // Fetch user's training documents for enhanced voice analysis
+    // Fetch user's training documents for enhanced voice analysis (limit for performance)
     const trainingDocuments = await fetchUserTrainingDocuments(supabase, user.id);
     console.log(`📄 Found ${trainingDocuments.length} training documents for enhanced voice analysis`);
+    
+    // Limit training documents to prevent timeouts (max 5 docs, max 50k words total)
+    const limitedTrainingDocs = trainingDocuments
+      .slice(0, 5)
+      .filter(doc => doc.word_count <= 10000) // Skip very large documents
+      .reduce((acc, doc) => {
+        const totalWords = acc.reduce((sum, d) => sum + d.word_count, 0);
+        if (totalWords + doc.word_count <= 50000) {
+          acc.push(doc);
+        }
+        return acc;
+      }, []);
+    
+    if (limitedTrainingDocs.length < trainingDocuments.length) {
+      console.log(`⚠️ Limited training documents from ${trainingDocuments.length} to ${limitedTrainingDocs.length} to prevent timeouts`);
+    }
     
     // Log the actual past posts content for debugging
     if (pastPosts && pastPosts.length > 0) {
@@ -83,7 +104,7 @@ export async function POST(req) {
       action, 
       pastPosts, 
       trendingPosts,
-      trainingDocuments
+      limitedTrainingDocs
     );
     
     return NextResponse.json({
@@ -270,18 +291,28 @@ async function generatePostContentWithGPT4o(userMessage, currentDraft, action, p
     // Build the user prompt based on action
     const userPrompt = buildUserPrompt(userMessage, currentDraft, action);
     
-    // Call GPT-4o with better error handling
+    // Call GPT-4o with better error handling and timeout
     let completion;
     try {
-      completion = await openai.chat.completions.create({
-        model: "gpt-4o", // Using GPT-4o as requested
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 1500,
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('OpenAI API call timed out after 4 minutes')), 240000); // 4 minutes
       });
+
+      // Race between the OpenAI call and timeout
+      completion = await Promise.race([
+        openai.chat.completions.create({
+          model: "gpt-4o", // Using GPT-4o as requested
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          temperature: 0.7,
+          max_tokens: 1500,
+          timeout: 240000, // 4 minutes timeout for OpenAI
+        }),
+        timeoutPromise
+      ]);
     } catch (openaiError) {
       console.error('OpenAI API Error:', openaiError);
       
@@ -292,11 +323,13 @@ async function generatePostContentWithGPT4o(userMessage, currentDraft, action, p
         throw new Error('OpenAI API rate limit exceeded. Please try again in a moment.');
       } else if (openaiError.status === 402) {
         throw new Error('OpenAI API quota exceeded. Please check your billing.');
-      } else if (openaiError.code === 'insufficient_quota') {
-        throw new Error('OpenAI API quota exceeded. Please check your billing.');
-      } else {
-        throw new Error(`OpenAI API error: ${openaiError.message || 'Unknown error'}`);
-      }
+             } else if (openaiError.code === 'insufficient_quota') {
+         throw new Error('OpenAI API quota exceeded. Please check your billing.');
+       } else if (openaiError.message && openaiError.message.includes('timed out')) {
+         throw new Error('AI processing is taking longer than expected. Please try with a shorter request.');
+       } else {
+         throw new Error(`OpenAI API error: ${openaiError.message || 'Unknown error'}`);
+       }
     }
     
     const assistantResponse = completion.choices[0].message.content;
