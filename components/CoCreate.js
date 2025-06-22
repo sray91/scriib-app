@@ -230,20 +230,38 @@ const CoCreate = () => {
       });
 
       let data;
+      let responseText = '';
+      
+      // Clone the response before any attempts to read it
+      const responseClone = response.clone();
+      
       try {
         data = await response.json();
       } catch (jsonError) {
         console.error('Failed to parse JSON response:', jsonError);
         console.error('Response status:', response.status);
         
-        // Try to get the response as text to see what was actually returned
-        const responseText = await response.text();
-        console.error('Response text:', responseText);
+        // Now we can safely read the response text from the clone
+        try {
+          responseText = await responseClone.text();
+          console.error('Response text:', responseText);
+        } catch (textError) {
+          console.error('Could not read response text:', textError);
+          responseText = 'Unable to read server response';
+        }
         
         // Clear the processing timer
         clearInterval(processingTimerRef.current);
         
-        throw new Error('Server returned invalid response. Please try again.');
+        // Give a more specific error message based on what we got back
+        let errorMessage = 'Server returned invalid response. Please try again.';
+        if (responseText.includes('OpenAI') || responseText.includes('API')) {
+          errorMessage = 'AI service is currently unavailable. Please try again in a moment.';
+        } else if (response.status === 500) {
+          errorMessage = 'Server error occurred. Please try again.';
+        }
+        
+        throw new Error(errorMessage);
       }
       
       // Clear the processing timer
