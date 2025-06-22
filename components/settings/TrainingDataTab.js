@@ -274,7 +274,15 @@ const TrainingDataTab = () => {
           body: formData,
         });
 
-        const result = await response.json();
+        let result;
+        try {
+          result = await response.json();
+        } catch (jsonError) {
+          console.error('Failed to parse JSON response:', jsonError);
+          console.error('Response status:', response.status);
+          console.error('Response text:', await response.clone().text());
+          throw new Error('Server returned invalid response. Please try again.');
+        }
 
         if (!response.ok) {
           throw new Error(result.error || 'Failed to upload file');
@@ -612,7 +620,7 @@ const TrainingDataTab = () => {
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
                   Upload emails, transcripts, writing samples, or other documents to enhance AI voice analysis. 
-                  Supported formats: PDF, DOC, DOCX, TXT, MD
+                  Supported formats: PDF, DOC, DOCX, TXT, MD, CSV
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -662,7 +670,7 @@ const TrainingDataTab = () => {
                       id="file-upload"
                       type="file"
                       multiple
-                      accept=".pdf,.doc,.docx,.txt,.md"
+                      accept=".pdf,.doc,.docx,.txt,.md,.csv"
                       onChange={handleFileSelect}
                       className="hidden"
                     />

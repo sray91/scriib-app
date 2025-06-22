@@ -29,12 +29,12 @@ export async function POST(request) {
     }
 
     // Validate file type
-    const allowedTypes = ['.pdf', '.doc', '.docx', '.txt', '.md'];
+    const allowedTypes = ['.pdf', '.doc', '.docx', '.txt', '.md', '.csv'];
     const fileExtension = path.extname(file.name).toLowerCase();
     
     if (!allowedTypes.includes(fileExtension)) {
       return NextResponse.json(
-        { error: 'Unsupported file type. Allowed: PDF, DOC, DOCX, TXT, MD' },
+        { error: 'Unsupported file type. Allowed: PDF, DOC, DOCX, TXT, MD, CSV' },
         { status: 400 }
       );
     }
@@ -90,7 +90,8 @@ export async function POST(request) {
     } catch (extractError) {
       console.error('Text extraction error:', extractError);
       processingStatus = 'failed';
-      extractedText = '';
+      extractedText = '[Content extraction failed - file uploaded but text not available]';
+      // Still continue with the upload, just mark as failed extraction
     }
 
     // Store document metadata in database
@@ -158,26 +159,52 @@ async function extractTextFromFile(buffer, fileExtension, contentType) {
   switch (fileExtension.toLowerCase()) {
     case '.txt':
     case '.md':
-      return buffer.toString('utf-8');
+    case '.csv':
+      try {
+        return buffer.toString('utf-8');
+      } catch (error) {
+        console.error('Error reading text file:', error);
+        return '[Text file content - encoding error]';
+      }
     
     case '.pdf':
       // For PDF files, we'll use a simple text extraction
       // In production, you might want to use a library like pdf-parse
       try {
-        const pdfParse = require('pdf-parse');
+        // Try to require pdf-parse, but handle if it's not installed
+        let pdfParse;
+        try {
+          pdfParse = require('pdf-parse');
+        } catch (requireError) {
+          console.warn('pdf-parse dependency not found:', requireError.message);
+          return '[PDF content - pdf-parse library not installed. Install with: npm install pdf-parse]';
+        }
+        
         const data = await pdfParse(buffer);
         return data.text;
       } catch (error) {
-        console.warn('PDF parsing not available, storing as binary reference');
-        return '[PDF content - text extraction not available]';
+        console.warn('PDF parsing failed:', error.message);
+        return '[PDF content - text extraction failed]';
       }
     
     case '.doc':
     case '.docx':
-      // For Word documents, you would typically use mammoth or similar
-      // For now, we'll mark it as requiring processing
-      console.warn('Word document text extraction not implemented');
-      return '[Word document content - text extraction not available]';
+      // For Word documents, we'll use mammoth library
+      try {
+        let mammoth;
+        try {
+          mammoth = require('mammoth');
+        } catch (requireError) {
+          console.warn('mammoth dependency not found:', requireError.message);
+          return '[Word document content - mammoth library not installed. Install with: npm install mammoth]';
+        }
+        
+        const result = await mammoth.extractRawText({ buffer });
+        return result.value;
+      } catch (error) {
+        console.warn('Word document parsing failed:', error.message);
+        return '[Word document content - text extraction failed]';
+      }
     
     default:
       throw new Error(`Unsupported file type: ${fileExtension}`);
