@@ -24,271 +24,425 @@ export async function POST(req) {
     
     // Parse request body
     const body = await req.json();
-    const { userMessage, currentDraft, action } = body;
+    const { userMessage, currentDraft, action = 'create' } = body;
     
     // Validate input
     if (!userMessage) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
     
-    // 1. Fetch user's LinkedIn account
-    const { data: linkedInAccount, error: accountError } = await supabase
-      .from('social_accounts')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('platform', 'linkedin')
-      .single();
+    console.log(`🚀 CoCreate request from user ${user.id}: "${userMessage}"`);
     
-    if (accountError && accountError.code !== 'PGRST116') {
-      console.error('Error fetching LinkedIn account:', accountError);
-    }
+    // Fetch user's past posts from database to analyze their voice
+    const pastPosts = await fetchUserPastPosts(supabase, user.id);
+    console.log(`📚 Found ${pastPosts.length} past posts for voice analysis`);
     
-    // 2. Fetch user's past LinkedIn posts (if available)
-    let pastPosts = [];
-    if (linkedInAccount?.access_token && linkedInAccount?.platform_user_id) {
-      pastPosts = await fetchUserLinkedInPosts(linkedInAccount.access_token, linkedInAccount.platform_user_id);
-    } else {
-      // If no LinkedIn account, use mock data or fetch from your database
-      pastPosts = await fetchUserPostsFromDatabase(user.id);
-    }
+    // Fetch trending posts for inspiration
+    const trendingPosts = await fetchTrendingPosts(supabase);
+    console.log(`📈 Found ${trendingPosts.length} trending posts for inspiration`);
     
-    // 3. Fetch top-performing LinkedIn posts in relevant categories
-    const topPosts = await fetchTopLinkedInPosts();
+    // Generate post content using GPT-4o
+    const result = await generatePostContentWithGPT4o(
+      userMessage, 
+      currentDraft, 
+      action, 
+      pastPosts, 
+      trendingPosts
+    );
     
-    // 4. Generate or refine post content using AI
-    const result = await generatePostContent(userMessage, currentDraft, action, pastPosts, topPosts);
+    return NextResponse.json({
+      success: true,
+      message: result.assistantMessage,
+      updatedPost: result.postContent,
+      isSignificantUpdate: result.isSignificantUpdate,
+      processingSteps: result.processingSteps,
+      voiceAnalysis: result.voiceAnalysis,
+      trendingInsights: result.trendingInsights
+    });
     
-    return NextResponse.json(result);
   } catch (error) {
-    console.error('Error in coCreate API:', error);
+    console.error('Error in CoCreate API:', error);
+    
+    // Handle specific OpenAI errors
+    if (error.status === 429 || (error.error && error.error.type === 'insufficient_quota')) {
+      return NextResponse.json(
+        { 
+          error: "OpenAI API rate limit exceeded. Please try again in a moment.",
+          type: "rate_limit" 
+        }, 
+        { status: 429 }
+      );
+    }
+    
+    if (error.status === 401) {
+      return NextResponse.json(
+        { 
+          error: "OpenAI API key invalid or missing. Please check your configuration.",
+          type: "auth_error" 
+        }, 
+        { status: 500 }
+      );
+    }
+    
     return NextResponse.json(
-      { message: "Internal server error", error: "server_error" }, 
+      { 
+        error: "Failed to generate content. Please try again.",
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        type: "generation_error"
+      }, 
       { status: 500 }
     );
   }
 }
 
-// Function to fetch user's past LinkedIn posts
-async function fetchUserLinkedInPosts(accessToken, platformUserId) {
+// Fetch user's past posts from the database
+async function fetchUserPastPosts(supabase, userId) {
   try {
-    // Call LinkedIn API to get user's posts
-    const response = await fetch(
-      `https://api.linkedin.com/v2/ugcPosts?q=authors&authors=List(urn:li:person:${platformUserId})`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'X-Restli-Protocol-Version': '2.0.0',
-        'LinkedIn-Version': '202304',
-      }
-    });
-    
-    if (!response.ok) {
-      console.error('LinkedIn API error:', response.status, response.statusText);
+    const { data: posts, error } = await supabase
+      .from('past_posts')
+      .select(`
+        id,
+        content,
+        published_at,
+        metrics,
+        post_type,
+        post_url
+      `)
+      .eq('user_id', userId)
+      .eq('platform', 'linkedin')
+      .order('published_at', { ascending: false })
+      .limit(20); // Analyze up to 20 recent posts for voice
+
+    if (error) {
+      console.error('Error fetching past posts:', error);
       return [];
     }
-    
-    const data = await response.json();
-    
-    // Transform the response into a more usable format
-    return (data.elements || []).map(post => {
-      try {
-        const content = post.specificContent?.['com.linkedin.ugc.ShareContent']?.shareCommentary?.text || '';
-        const likes = post.socialDetail?.totalSocialActivityCounts?.numLikes || 0;
-        const comments = post.socialDetail?.totalSocialActivityCounts?.numComments || 0;
-        const shares = post.socialDetail?.totalSocialActivityCounts?.numShares || 0;
-        
-        return {
-          id: post.id,
-          content,
-          engagement: { likes, comments, shares },
-          timestamp: post.created?.time
-        };
-      } catch (e) {
-        console.error('Error parsing LinkedIn post:', e);
-        return null;
-      }
-    }).filter(Boolean);
+
+    return posts || [];
   } catch (error) {
-    console.error('Error fetching LinkedIn posts:', error);
+    console.error('Error in fetchUserPastPosts:', error);
     return [];
   }
 }
 
-// Fallback function to fetch posts from your database if LinkedIn is not connected
-async function fetchUserPostsFromDatabase(userId) {
-  // This would be your implementation to fetch posts from your database
-  // For now, we'll return mock data
-  return [
-    {
-      id: 'post1',
-      content: 'Excited to announce our new product launch! #innovation #tech',
-      engagement: { likes: 45, comments: 12, shares: 8 },
-      timestamp: '2023-10-15T14:30:00Z'
-    },
-    {
-      id: 'post2',
-      content: 'Just finished an amazing workshop with our team. The creativity and collaboration were inspiring! Looking forward to implementing these new ideas. #teamwork #leadership',
-      engagement: { likes: 78, comments: 23, shares: 15 },
-      timestamp: '2023-09-28T10:15:00Z'
-    },
-    {
-      id: 'post3',
-      content: 'Reflecting on the challenges and opportunities in our industry today. What trends are you seeing? I\'d love to hear your thoughts in the comments below.',
-      engagement: { likes: 32, comments: 41, shares: 5 },
-      timestamp: '2023-09-10T16:45:00Z'
-    }
-  ];
-}
-
-// Function to fetch top-performing LinkedIn posts
-async function fetchTopLinkedInPosts() {
-  // In a real implementation, you might use a service that provides trending content
-  // For now, we'll return mock data
-  return [
-    {
-      content: 'Three key lessons I learned from scaling our startup to 100 employees in 18 months:\n\n1. Culture eats strategy for breakfast\n2. Hire for attitude, train for skill\n3. Communicate until you\'re sick of hearing yourself\n\nWhat lessons have you learned from scaling your business?',
-      engagement: { likes: 1245, comments: 89, shares: 134 }
-    },
-    {
-      content: 'I asked ChatGPT to help me write a cold email. The results shocked me.\n\nOpen rate: 78%\nResponse rate: 42%\nMeetings booked: 12\n\nAI isn\'t replacing jobs. It\'s replacing people who don\'t know how to use AI.',
-      engagement: { likes: 3567, comments: 245, shares: 567 }
-    },
-    {
-        content: 'The best career advice I\'ve ever received:\n\n"Your network is your net worth."\n\nSimple but powerful.',
-      engagement: { likes: 2134, comments: 156, shares: 321 }
-    }
-  ];
-}
-
-// Function to generate or refine post content using AI
-async function generatePostContent(userMessage, currentDraft, action, pastPosts, topPosts) {
-  // Format past posts for the AI prompt
-  const pastPostsText = pastPosts.map(post => 
-    `Post: "${post.content}"\nEngagement: ${post.engagement.likes} likes, ${post.engagement.comments} comments, ${post.engagement.shares} shares`
-  ).join('\n\n');
-  
-  // Format top posts for the AI prompt
-  const topPostsText = topPosts.map(post => 
-    `Post: "${post.content}"\nEngagement: ${post.engagement.likes} likes, ${post.engagement.comments} comments, ${post.engagement.shares} shares`
-  ).join('\n\n');
-  
-  // Create the system prompt
-  let systemPrompt = `You are CoCreate, an expert LinkedIn post writer assistant. Your task is to ${action === 'refine' ? 'refine' : 'create'} a LinkedIn post that matches the user's personal style while incorporating elements from top-performing posts.
-
-PAST POSTS BY THE USER (for style analysis):
-${pastPostsText || "No past posts available."}
-
-TOP-PERFORMING LINKEDIN POSTS (for inspiration):
-${topPostsText}
-
-GUIDELINES:
-1. Maintain the user's authentic voice and style based on their past posts
-2. Incorporate elements that drive engagement (questions, lists, personal stories, etc.)
-3. Keep the post concise and impactful
-4. Use appropriate formatting (line breaks, emojis if appropriate)
-5. Include a call to action when relevant
-`;
-
-  // Create the user prompt
-  let userPrompt = action === 'refine' 
-    ? `Please refine this LinkedIn post draft based on my feedback: 
-    
-CURRENT DRAFT:
-${currentDraft}
-
-MY FEEDBACK:
-${userMessage}`
-    : `Please create a LinkedIn post based on this idea: ${userMessage}`;
-  
+// Fetch trending posts for inspiration
+async function fetchTrendingPosts(supabase) {
   try {
-    // Call OpenAI API
+    const { data: posts, error } = await supabase
+      .from('trending_posts')
+      .select(`
+        id,
+        content,
+        likes,
+        comments,
+        shares,
+        views,
+        author_name,
+        author_title,
+        post_type,
+        industry_tags,
+        engagement_rate,
+        post_url
+      `)
+      .eq('is_active', true)
+      .order('engagement_rate', { ascending: false })
+      .limit(10); // Top 10 trending posts
+
+    if (error) {
+      console.error('Error fetching trending posts:', error);
+      return [];
+    }
+
+    return posts || [];
+  } catch (error) {
+    console.error('Error in fetchTrendingPosts:', error);
+    return [];
+  }
+}
+
+// Generate post content using GPT-4o with advanced analysis
+async function generatePostContentWithGPT4o(userMessage, currentDraft, action, pastPosts, trendingPosts) {
+  try {
+    // Analyze user's voice from past posts
+    const voiceAnalysis = await analyzeUserVoice(pastPosts);
+    
+    // Analyze trending posts for patterns
+    const trendingInsights = await analyzeTrendingPosts(trendingPosts);
+    
+    // Build the comprehensive system prompt
+    const systemPrompt = buildSystemPrompt(pastPosts, trendingPosts, voiceAnalysis, trendingInsights);
+    
+    // Build the user prompt based on action
+    const userPrompt = buildUserPrompt(userMessage, currentDraft, action);
+    
+    // Call GPT-4o
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.5-preview",
+      model: "gpt-4o", // Using GPT-4o as requested
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
       ],
       temperature: 0.7,
-      max_tokens: 1000,
+      max_tokens: 1500,
     });
     
-    // Extract the generated content
-    const assistantMessage = completion.choices[0].message.content;
+    const assistantResponse = completion.choices[0].message.content;
     
-    // Extract the post content (assuming the AI formats it properly)
-    // In a real implementation, you might want to parse this more carefully
-    let postContent = assistantMessage;
-    
-    // If the response contains explanations, try to extract just the post
-    if (assistantMessage.includes("Here's the refined post:")) {
-      postContent = assistantMessage.split("Here's the refined post:")[1].trim();
-    } else if (assistantMessage.includes("Here's the post:")) {
-      postContent = assistantMessage.split("Here's the post:")[1].trim();
-    }
+    // Parse the response to extract post content and explanation
+    const { postContent, explanation } = parseGPTResponse(assistantResponse);
     
     // Determine if this is a significant update
     const isSignificantUpdate = action === 'create' || 
-      (currentDraft && levenshteinDistance(currentDraft, postContent) > currentDraft.length * 0.2);
+      (currentDraft && calculateTextSimilarity(currentDraft, postContent) < 0.8);
     
     return {
-      assistantMessage,
+      assistantMessage: explanation,
       postContent,
       isSignificantUpdate,
       processingSteps: [
-        "Analyzed your past LinkedIn posts to understand your writing style",
-        "Reviewed top-performing content for inspiration",
-        "Generated content that matches your voice while optimizing for engagement",
-        action === 'refine' ? "Refined your draft based on your feedback" : "Created a new post based on your idea"
-      ]
+        `Analyzed ${pastPosts.length} of your past posts to understand your voice`,
+        `Studied ${trendingPosts.length} top-performing posts for engagement patterns`,
+        `Identified your key writing style: ${voiceAnalysis.style}`,
+        `Applied trending formats: ${trendingInsights.topFormats.join(', ')}`,
+        action === 'refine' ? 'Refined your draft with insights' : 'Created new content optimized for engagement'
+      ],
+      voiceAnalysis,
+      trendingInsights
     };
+    
   } catch (error) {
-    console.error("Error generating post content:", error);
+    console.error('Error in generatePostContentWithGPT4o:', error);
+    throw error;
+  }
+}
+
+// Analyze user's writing voice from past posts
+async function analyzeUserVoice(pastPosts) {
+  if (!pastPosts || pastPosts.length === 0) {
+    return {
+      style: 'Professional and engaging',
+      tone: 'Confident and approachable',
+      commonTopics: ['Business', 'Leadership'],
+      avgLength: 150,
+      usesEmojis: false,
+      usesHashtags: true,
+      preferredFormats: ['Narrative', 'List']
+    };
+  }
+
+  // Analyze posts with GPT-4o for voice characteristics
+  const postsForAnalysis = pastPosts.slice(0, 10).map(post => ({
+    content: post.content,
+    engagement: post.metrics,
+    type: post.post_type
+  }));
+
+     try {
+     const completion = await openai.chat.completions.create({
+       model: "gpt-4o",
+       messages: [
+         {
+           role: "system",
+           content: "You are an expert at analyzing writing style and voice. Analyze the LinkedIn posts provided and identify key characteristics of the author's voice, tone, topics, and format preferences. Return your analysis as a JSON object."
+         },
+         {
+           role: "user",
+           content: `Analyze these LinkedIn posts for voice characteristics:
+
+${postsForAnalysis.map((post, i) => `Post ${i + 1}: "${post.content}"`).join('\n\n')}
+
+Return analysis as JSON with these fields:
+- style: overall writing style
+- tone: emotional tone 
+- commonTopics: array of main topics
+- avgLength: estimated average post length
+- usesEmojis: boolean
+- usesHashtags: boolean  
+- preferredFormats: array of format types used`
+         }
+       ],
+       temperature: 0.3,
+       max_tokens: 800,
+     });
+
+     return JSON.parse(completion.choices[0].message.content);
+  } catch (error) {
+    console.error('Error analyzing voice:', error);
     
-    // Check if it's a rate limit error from OpenAI
-    if (error.status === 429 || 
-        (error.error && error.error.type === 'insufficient_quota') ||
-        (error.message && error.message.includes('quota'))) {
-      
-      return { 
-        message: "You've reached the API rate limit. Please try again later.",
-        error: "rate_limit_exceeded"
-      };
-    }
+    // Fallback to simple analysis
+    const avgLength = pastPosts.reduce((sum, post) => sum + post.content.length, 0) / pastPosts.length;
+    const usesEmojis = pastPosts.some(post => /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/u.test(post.content));
+    const usesHashtags = pastPosts.some(post => post.content.includes('#'));
     
-    // For other errors
-    return { 
-      message: "Failed to generate post content",
-      error: "generation_failed"
+    return {
+      style: avgLength > 300 ? 'Detailed and thorough' : 'Concise and direct',
+      tone: 'Professional',
+      commonTopics: extractTopicsFromPosts(pastPosts),
+      avgLength: Math.round(avgLength),
+      usesEmojis,
+      usesHashtags,
+      preferredFormats: ['Narrative']
     };
   }
 }
 
-// Helper function to calculate Levenshtein distance (edit distance) between two strings
-// Used to determine if an update is "significant"
-function levenshteinDistance(str1, str2) {
-  const m = str1.length;
-  const n = str2.length;
+// Analyze trending posts for patterns
+async function analyzeTrendingPosts(trendingPosts) {
+  if (!trendingPosts || trendingPosts.length === 0) {
+    return {
+      topFormats: ['List', 'Question'],
+      avgEngagementRate: 3.5,
+      commonElements: ['Personal story', 'Call to action'],
+      bestPerformingTopics: ['Leadership', 'Career'],
+      optimalLength: 200
+    };
+  }
+
+  // Simple analysis of trending posts
+  const avgEngagementRate = trendingPosts.reduce((sum, post) => sum + (post.engagement_rate || 0), 0) / trendingPosts.length;
+  const avgLength = trendingPosts.reduce((sum, post) => sum + post.content.length, 0) / trendingPosts.length;
   
-  // Create a matrix of size (m+1) x (n+1)
-  const dp = Array(m + 1).fill().map(() => Array(n + 1).fill(0));
+  // Identify common formats
+  const formats = [];
+  trendingPosts.forEach(post => {
+    if (post.content.includes('1.') || post.content.includes('•')) formats.push('List');
+    if (post.content.includes('?')) formats.push('Question');
+    if (post.content.toLowerCase().includes('story') || post.content.toLowerCase().includes('learned')) formats.push('Story');
+  });
   
-  // Initialize the first row and column
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  const topFormats = [...new Set(formats)].slice(0, 3);
   
-  // Fill the matrix
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (str1[i - 1] === str2[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1];
-      } else {
-        dp[i][j] = 1 + Math.min(
-          dp[i - 1][j],     // deletion
-          dp[i][j - 1],     // insertion
-          dp[i - 1][j - 1]  // substitution
-        );
-      }
+  return {
+    topFormats: topFormats.length > 0 ? topFormats : ['List', 'Question'],
+    avgEngagementRate: Math.round(avgEngagementRate * 100) / 100,
+    commonElements: ['Personal insight', 'Call to action', 'Engagement question'],
+    bestPerformingTopics: extractTopicsFromTrendingPosts(trendingPosts),
+    optimalLength: Math.round(avgLength)
+  };
+}
+
+// Extract topics from posts
+function extractTopicsFromPosts(posts) {
+  const topics = [];
+  posts.forEach(post => {
+    const content = post.content.toLowerCase();
+    if (content.includes('leadership') || content.includes('leader')) topics.push('Leadership');
+    if (content.includes('career') || content.includes('job')) topics.push('Career');
+    if (content.includes('business') || content.includes('strategy')) topics.push('Business');
+    if (content.includes('innovation') || content.includes('technology')) topics.push('Innovation');
+    if (content.includes('team') || content.includes('collaboration')) topics.push('Teamwork');
+  });
+  return [...new Set(topics)].slice(0, 5);
+}
+
+// Extract topics from trending posts
+function extractTopicsFromTrendingPosts(posts) {
+  const topics = [];
+  posts.forEach(post => {
+    if (post.industry_tags && Array.isArray(post.industry_tags)) {
+      topics.push(...post.industry_tags);
     }
+    // Also extract from content
+    const content = post.content.toLowerCase();
+    if (content.includes('leadership')) topics.push('Leadership');
+    if (content.includes('career')) topics.push('Career');
+    if (content.includes('business')) topics.push('Business');
+    if (content.includes('marketing')) topics.push('Marketing');
+    if (content.includes('innovation')) topics.push('Innovation');
+  });
+  return [...new Set(topics)].slice(0, 5);
+}
+
+// Build comprehensive system prompt
+function buildSystemPrompt(pastPosts, trendingPosts, voiceAnalysis, trendingInsights) {
+  return `You are CoCreate, an expert LinkedIn content strategist and AI writing assistant. Your mission is to help users create high-performing LinkedIn posts that maintain their authentic voice while incorporating proven engagement strategies.
+
+## USER'S VOICE ANALYSIS
+Based on analysis of ${pastPosts.length} past posts:
+- Writing Style: ${voiceAnalysis.style}
+- Tone: ${voiceAnalysis.tone}
+- Common Topics: ${voiceAnalysis.commonTopics.join(', ')}
+- Average Length: ${voiceAnalysis.avgLength} characters
+- Uses Emojis: ${voiceAnalysis.usesEmojis ? 'Yes' : 'No'}
+- Uses Hashtags: ${voiceAnalysis.usesHashtags ? 'Yes' : 'No'}
+- Preferred Formats: ${voiceAnalysis.preferredFormats.join(', ')}
+
+## TRENDING POST INSIGHTS
+Analysis of ${trendingPosts.length} high-performing posts:
+- Top Formats: ${trendingInsights.topFormats.join(', ')}
+- Average Engagement Rate: ${trendingInsights.avgEngagementRate}%
+- Common Elements: ${trendingInsights.commonElements.join(', ')}
+- Best Topics: ${trendingInsights.bestPerformingTopics.join(', ')}
+- Optimal Length: ~${trendingInsights.optimalLength} characters
+
+## HIGH-PERFORMING POST EXAMPLES
+${trendingPosts.slice(0, 3).map((post, i) => 
+  `Example ${i + 1} (${post.engagement_rate}% engagement):
+  "${post.content.substring(0, 200)}${post.content.length > 200 ? '...' : ''}"
+  Engagement: ${post.likes} likes, ${post.comments} comments, ${post.shares} shares`
+).join('\n\n')}
+
+## YOUR INSTRUCTIONS
+1. MAINTAIN the user's authentic voice and style
+2. INCORPORATE proven engagement elements from trending posts
+3. OPTIMIZE for LinkedIn's algorithm (engagement, comments, shares)
+4. STRUCTURE content for readability (line breaks, formatting)
+5. INCLUDE relevant hashtags if the user typically uses them
+6. END with an engagement question when appropriate
+
+Format your response as:
+[POST CONTENT]
+
+---
+[BRIEF EXPLANATION OF YOUR APPROACH]`;
+}
+
+// Build user prompt based on request
+function buildUserPrompt(userMessage, currentDraft, action) {
+  if (action === 'refine' && currentDraft) {
+    return `Please refine this LinkedIn post based on my feedback:
+
+CURRENT DRAFT:
+${currentDraft}
+
+MY FEEDBACK:
+${userMessage}
+
+Improve the post while maintaining my voice and incorporating trending elements.`;
   }
   
-  return dp[m][n];
+  return `Create a LinkedIn post based on this request: ${userMessage}
+
+Make it engaging, authentic to my voice, and optimized for high performance.`;
+}
+
+// Parse GPT response to extract post content and explanation
+function parseGPTResponse(response) {
+  const parts = response.split('---');
+  
+  if (parts.length >= 2) {
+    return {
+      postContent: parts[0].trim(),
+      explanation: parts[1].trim()
+    };
+  }
+  
+  // Fallback if no separator found
+  return {
+    postContent: response,
+    explanation: "I've created a post optimized for engagement based on your request and writing style."
+  };
+}
+
+// Calculate text similarity (simple implementation)
+function calculateTextSimilarity(text1, text2) {
+  if (!text1 || !text2) return 0;
+  
+  const words1 = text1.toLowerCase().split(/\s+/);
+  const words2 = text2.toLowerCase().split(/\s+/);
+  
+  const commonWords = words1.filter(word => words2.includes(word));
+  const totalWords = new Set([...words1, ...words2]).size;
+  
+  return commonWords.length / totalWords;
 }
