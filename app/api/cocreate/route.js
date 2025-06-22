@@ -2,11 +2,22 @@ import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import OpenAI from 'openai';
+import fs from 'fs';
+import path from 'path';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_COCREATE_API_KEY,
 });
+
+// Load hooks knowledge base
+let hooksKnowledge = '';
+try {
+  const hooksPath = path.join(process.cwd(), 'docs', 'HOOKS_GUIDE.md');
+  hooksKnowledge = fs.readFileSync(hooksPath, 'utf8');
+} catch (error) {
+  console.warn('Could not load hooks knowledge base:', error.message);
+}
 
 export async function POST(req) {
   try {
@@ -382,13 +393,49 @@ ${trendingPosts.slice(0, 3).map((post, i) =>
   Engagement: ${post.likes} likes, ${post.comments} comments, ${post.shares} shares`
 ).join('\n\n')}
 
+## EXPERT KNOWLEDGE: CREATING COMPELLING HOOKS
+${hooksKnowledge ? hooksKnowledge : 'Hook knowledge base not available'}
+
+## TIM FERRISS CONCLUSION STYLE GUIDE
+Tim Ferriss is known for ending his content with practical, actionable conclusions. Key characteristics:
+
+**Structure Patterns:**
+- "The bottom line:" + practical takeaway
+- "Try this:" + specific experiment or action
+- "Here's the experiment:" + step-by-step challenge
+- "Your move:" + direct call to action
+- "The 80/20:" + focusing on the most impactful elements
+
+**Style Elements:**
+- Direct, no-fluff language
+- Specific timeframes ("next 30 days", "this week")
+- Measurable actions ("track X for 7 days", "try Y technique 3 times")
+- Often includes frameworks or systems
+- Challenges conventional wisdom
+- Emphasizes experimentation and testing
+
+**Example Tim Ferriss Conclusions:**
+- "The bottom line: Most productivity advice is garbage. Try this instead: Pick ONE task tomorrow that scares you most. Do it first. Track how you feel at noon."
+- "Here's the experiment: For the next 7 days, end every meeting 5 minutes early. Use those minutes to immediately capture your next action. Measure the difference."
+- "Your move: Stop planning. Start testing. Pick one idea from this post and implement it before Thursday. Then tell me what happened."
+
 ## YOUR INSTRUCTIONS
 1. MAINTAIN the user's authentic voice and style
 2. INCORPORATE proven engagement elements from trending posts
 3. OPTIMIZE for LinkedIn's algorithm (engagement, comments, shares)
 4. STRUCTURE content for readability (line breaks, formatting)
-5. INCLUDE relevant hashtags if the user typically uses them
-6. END with an engagement question when appropriate
+5. **NEVER use emojis** - keep the content clean and professional
+6. **NEVER use hashtags** - focus on organic reach through quality content
+7. **CRITICAL**: Always start with a compelling hook using the expert knowledge above. Choose the hook style that best matches the user's voice and the content topic.
+8. **LIST FORMATTING**: When creating numbered or bulleted lists, write each point as a unified thought in 2-3 complete sentences. NEVER use the "Title: Description" format. Instead, write flowing, cohesive thoughts that stand alone.
+
+   WRONG: "1. Fear of Failure: Embrace mistakes as stepping stones for growth."
+   RIGHT: "1. Many leaders avoid taking risks because they fear making mistakes. This mindset actually limits growth and innovation. The most successful leaders I know treat failures as essential learning experiences that build resilience."
+9. **CONCLUSION STYLE**: End every post with a Tim Ferriss-style conclusion that is:
+   - Direct and actionable
+   - Includes a specific challenge, experiment, or next step
+   - Uses his signature style of practical frameworks
+   - Often includes phrases like "Try this:", "The bottom line:", "Here's the experiment:", or "Your move:"
 
 Format your response as:
 [POST CONTENT]
@@ -421,15 +468,31 @@ function parseGPTResponse(response) {
   const parts = response.split('---');
   
   if (parts.length >= 2) {
+    let postContent = parts[0].trim();
+    
+    // Remove [POST CONTENT] prefix if it exists
+    postContent = postContent.replace(/^\[POST CONTENT\]\s*/, '');
+    
+    // Clean up asterisk formatting in lists (convert **text**: to text:)
+    postContent = postContent.replace(/\*\*(.*?)\*\*:/g, '$1:');
+    
     return {
-      postContent: parts[0].trim(),
+      postContent,
       explanation: parts[1].trim()
     };
   }
   
   // Fallback if no separator found
+  let postContent = response;
+  
+  // Remove [POST CONTENT] prefix if it exists
+  postContent = postContent.replace(/^\[POST CONTENT\]\s*/, '');
+  
+  // Clean up asterisk formatting in lists
+  postContent = postContent.replace(/\*\*(.*?)\*\*:/g, '$1:');
+  
   return {
-    postContent: response,
+    postContent,
     explanation: "I've created a post optimized for engagement based on your request and writing style."
   };
 }

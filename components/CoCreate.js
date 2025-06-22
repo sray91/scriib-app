@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, StopCircle, Send, RefreshCw, History, Copy, Sparkles, TrendingUp, User, BarChart3 } from 'lucide-react';
+import { Mic, StopCircle, Send, RefreshCw, History, Copy, Sparkles, TrendingUp, User, BarChart3, Edit, Calendar, Plus } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import PostEditorDialog from '@/components/post-forge/PostEditorDialog';
 
 const CoCreate = () => {
   const [input, setInput] = useState('');
@@ -22,6 +23,11 @@ const CoCreate = () => {
   const [voiceAnalysis, setVoiceAnalysis] = useState(null);
   const [trendingInsights, setTrendingInsights] = useState(null);
   const [showInsights, setShowInsights] = useState(false);
+  
+  // Post Editor states
+  const [isPostEditorOpen, setIsPostEditorOpen] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [isCreatingNewPost, setIsCreatingNewPost] = useState(false);
   
   const { toast } = useToast();
   const mediaRecorderRef = useRef(null);
@@ -307,6 +313,110 @@ const CoCreate = () => {
     });
   };
 
+  // Handle editing post
+  const handleEditPost = () => {
+    if (!currentPost) {
+      toast({
+        title: "No post to edit",
+        description: "Generate a post first before editing",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Create a post object compatible with the PostEditor
+    const postForEditing = {
+      content: currentPost,
+      scheduledTime: new Date(new Date().setHours(12, 0, 0, 0)).toISOString(),
+      status: 'draft',
+      platforms: {},
+      requiresApproval: false,
+      approverId: '',
+      ghostwriterId: '',
+      mediaFiles: [],
+      day_of_week: getCurrentDayOfWeek()
+    };
+
+    setSelectedPost(postForEditing);
+    setIsCreatingNewPost(true);
+    setIsPostEditorOpen(true);
+  };
+
+  // Handle scheduling post directly
+  const handleSchedulePost = () => {
+    if (!currentPost) {
+      toast({
+        title: "No post to schedule",
+        description: "Generate a post first before scheduling",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Create a post object compatible with the PostEditor
+    const postForScheduling = {
+      content: currentPost,
+      scheduledTime: new Date(new Date().setHours(12, 0, 0, 0)).toISOString(),
+      status: 'draft',
+      platforms: { linkedin: true }, // Default to LinkedIn
+      requiresApproval: false,
+      approverId: '',
+      ghostwriterId: '',
+      mediaFiles: [],
+      day_of_week: getCurrentDayOfWeek()
+    };
+
+    setSelectedPost(postForScheduling);
+    setIsCreatingNewPost(true);
+    setIsPostEditorOpen(true);
+
+    toast({
+      title: "Opening scheduler",
+      description: "Configure your post settings and schedule",
+    });
+  };
+
+  // Helper function to get current day of week
+  const getCurrentDayOfWeek = () => {
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const today = new Date();
+    return days[today.getDay()];
+  };
+
+  // Handle post save from editor
+  const handlePostSave = (savedPost) => {
+    // Update the current post if it was saved
+    if (savedPost && savedPost.content) {
+      setCurrentPost(savedPost.content);
+      
+      // Add to history
+      setPostHistory(prev => [...prev, { 
+        timestamp: new Date().toISOString(),
+        content: savedPost.content,
+        scheduled: savedPost.status === 'scheduled',
+        scheduledTime: savedPost.scheduled_time
+      }]);
+    }
+
+    // Close the editor
+    setIsPostEditorOpen(false);
+    setSelectedPost(null);
+
+    // Show success message
+    toast({
+      title: "Post saved successfully!",
+      description: savedPost?.status === 'scheduled' 
+        ? "Your post has been scheduled in Post Forge" 
+        : "Your post has been saved as a draft",
+    });
+  };
+
+  // Handle editor close
+  const handleEditorClose = () => {
+    setIsPostEditorOpen(false);
+    setSelectedPost(null);
+  };
+
   // Clean up the interval when component unmounts
   useEffect(() => {
     return () => {
@@ -360,10 +470,10 @@ const CoCreate = () => {
         </div>
 
         <TabsContent value="chat" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 h-[calc(100vh-12rem)]">
             {/* Chat Section */}
-            <div className="md:col-span-3 border rounded-lg p-4 bg-white shadow-sm">
-              <div className="flex flex-col h-[60vh]">
+            <div className="md:col-span-3 border rounded-lg p-4 bg-white shadow-sm flex flex-col">
+              <div className="flex flex-col flex-1 min-h-0">
                 {/* Messages Container */}
                 <div className="flex-1 overflow-y-auto mb-4 space-y-4">
                   {messages.map((msg, index) => (
@@ -440,10 +550,33 @@ const CoCreate = () => {
             </div>
             
             {/* Post Preview Section */}
-            <div className="md:col-span-2 border rounded-lg p-4 bg-white shadow-sm">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold">Current Draft</h2>
-                <div className="flex gap-2">
+            <div className="md:col-span-2 border rounded-lg bg-white shadow-sm flex flex-col">
+              <div className="flex flex-wrap justify-between items-center p-4 border-b bg-gray-50 rounded-t-lg">
+                <h2 className="text-lg font-semibold mb-2 md:mb-0">Current Draft</h2>
+                <div className="flex flex-wrap gap-2">
+                  {currentPost && (
+                    <>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={handleEditPost}
+                        title="Edit in Post Forge"
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={handleSchedulePost}
+                        title="Schedule in Post Forge"
+                        className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                      >
+                        <Calendar className="h-4 w-4 mr-1" />
+                        Schedule
+                      </Button>
+                    </>
+                  )}
                   <Button 
                     variant="outline" 
                     size="sm"
@@ -461,55 +594,109 @@ const CoCreate = () => {
                     title={showHistory ? "Hide history" : "Show history"}
                   >
                     <History className="h-4 w-4 mr-1" />
-                    {showHistory ? "Hide History" : "Show History"}
+                    {showHistory ? "Hide" : "History"}
                   </Button>
                 </div>
               </div>
               
-              {showHistory ? (
-                <div className="h-[50vh] overflow-y-auto space-y-4">
-                  {postHistory.length === 0 ? (
-                    <div className="text-center py-10 text-gray-500">
-                      No post history yet
-                    </div>
-                  ) : (
-                    postHistory.map((post, index) => (
-                      <div 
-                        key={index} 
-                        className="border rounded-lg p-4 cursor-pointer hover:border-gray-400 transition-colors"
-                        onClick={() => {
-                          setCurrentPost(post.content);
-                          setShowHistory(false);
-                        }}
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded">
-                            Version {index + 1}
-                          </span>
-                          <span className="text-sm text-gray-500">
-                            {new Date(post.timestamp).toLocaleString()}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-800">
-                          {post.content.length > 150 
-                            ? `${post.content.substring(0, 150)}...` 
-                            : post.content}
-                        </p>
+              <div className="flex-1 overflow-hidden">
+                {showHistory ? (
+                  <div className="h-full overflow-y-auto p-4 space-y-4">
+                    {postHistory.length === 0 ? (
+                      <div className="text-center py-10 text-gray-500">
+                        No post history yet
                       </div>
-                    ))
-                  )}
-                </div>
-              ) : (
-                <div className="h-[50vh] overflow-y-auto border rounded-lg p-4 bg-gray-50">
-                  {currentPost ? (
-                    <p className="whitespace-pre-wrap">{currentPost}</p>
-                  ) : (
-                    <div className="text-center py-10 text-gray-500">
-                      Start a conversation to create your post
-                    </div>
-                  )}
-                </div>
-              )}
+                    ) : (
+                      postHistory.map((post, index) => (
+                        <div 
+                          key={index} 
+                          className="border rounded-lg p-4 cursor-pointer hover:border-gray-400 transition-colors"
+                          onClick={() => {
+                            setCurrentPost(post.content);
+                            setShowHistory(false);
+                          }}
+                        >
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded">
+                              Version {index + 1}
+                            </span>
+                            {post.scheduled && (
+                              <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">
+                                Scheduled
+                              </span>
+                            )}
+                            <span className="text-sm text-gray-500">
+                              {new Date(post.timestamp).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-800 line-clamp-3">
+                            {post.content}
+                          </p>
+                          {post.scheduledTime && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Scheduled for: {new Date(post.scheduledTime).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ) : (
+                  <div className="h-full flex flex-col">
+                    {currentPost ? (
+                      <>
+                        <div className="flex-1 overflow-y-auto p-4">
+                          <div className="prose max-w-none">
+                            <p className="whitespace-pre-wrap text-gray-800 leading-relaxed">
+                              {currentPost}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="border-t bg-gray-50 p-4">
+                          <div className="flex gap-2">
+                            <Button 
+                              onClick={handleEditPost}
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                            >
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit in Post Forge
+                            </Button>
+                            <Button 
+                              onClick={handleSchedulePost}
+                              size="sm"
+                              className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              <Calendar className="h-4 w-4 mr-2" />
+                              Schedule Post
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center p-4">
+                        <div className="text-center text-gray-500 space-y-4">
+                          <div className="space-y-2">
+                            <p className="text-lg">Start a conversation to create your post</p>
+                            <p className="text-sm text-gray-400">or</p>
+                            <Button 
+                              onClick={handleGenerateNewPost}
+                              variant="outline"
+                              size="sm"
+                              disabled={isLoading}
+                              className="border-dashed"
+                            >
+                              <Plus className="h-4 w-4 mr-2" />
+                              Generate a post
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </TabsContent>
@@ -530,6 +717,11 @@ const CoCreate = () => {
                         <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
                           Version {index + 1}
                         </span>
+                        {post.scheduled && (
+                          <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">
+                            Scheduled
+                          </span>
+                        )}
                         <span className="text-sm text-gray-500">
                           {new Date(post.timestamp).toLocaleDateString()}
                         </span>
@@ -561,6 +753,11 @@ const CoCreate = () => {
                       </div>
                     </div>
                     <p className="text-sm text-gray-800 whitespace-pre-wrap">{post.content}</p>
+                    {post.scheduledTime && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        Scheduled for: {new Date(post.scheduledTime).toLocaleString()}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -646,6 +843,21 @@ const CoCreate = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Post Editor Dialog */}
+      <PostEditorDialog
+        isOpen={isPostEditorOpen}
+        onOpenChange={setIsPostEditorOpen}
+        post={selectedPost}
+        isNew={isCreatingNewPost}
+        onSave={handlePostSave}
+        onClose={handleEditorClose}
+        onDelete={() => {
+          // Handle delete if needed
+          setIsPostEditorOpen(false);
+          setSelectedPost(null);
+        }}
+      />
     </div>
   );
 };
