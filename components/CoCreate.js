@@ -173,6 +173,10 @@ const CoCreate = () => {
   const [trendingInsights, setTrendingInsights] = useState(null);
   const [showInsights, setShowInsights] = useState(false);
   
+  // New state for Model Ensemble details
+  const [ensembleDetails, setEnsembleDetails] = useState(null);
+  const [showEnsembleModal, setShowEnsembleModal] = useState(false);
+  
   // Post Editor states
   const [isPostEditorOpen, setIsPostEditorOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
@@ -206,7 +210,7 @@ const CoCreate = () => {
       "🔍 Analyzing your request...",
       "📚 Loading your past LinkedIn posts for voice analysis...",
       "🧠 Running AI analysis on your writing patterns...",
-      "✍️ Generating content in your authentic voice..."
+      "✍️ Generating content with Model Ensemble..."
     ]);
     setCurrentStep(0);
     
@@ -216,7 +220,7 @@ const CoCreate = () => {
     }, 1200);
     
     try {
-      // Call the real CoCreate API
+      // Call the CoCreate Model Ensemble API
       const response = await fetch('/api/cocreate', {
         method: 'POST',
         headers: {
@@ -309,6 +313,11 @@ const CoCreate = () => {
         setTrendingInsights(data.trendingInsights);
       }
       
+      // Store Model Ensemble details
+      if (data.ensembleDetails) {
+        setEnsembleDetails(data.ensembleDetails);
+      }
+      
       // Add debug information to chat if available
       if (data.debugInfo) {
         const debugMessage = {
@@ -322,11 +331,11 @@ const CoCreate = () => {
       
       toast({
         title: "Content generated successfully!",
-        description: "Your post has been created based on your voice and trending insights.",
+        description: `Created using Model Ensemble: ${data.ensembleDetails?.modelsUsed?.join(', ') || 'AI models'}`,
       });
       
     } catch (error) {
-      console.error('Error calling CoCreate API:', error);
+      console.error('Error calling CoCreate Model Ensemble API:', error);
       
       // Clear the processing timer
       clearInterval(processingTimerRef.current);
@@ -712,9 +721,19 @@ const CoCreate = () => {
       <div className="flex justify-between items-center mb-6 md:mt-0 mt-10">
         <div>
           <h1 className="text-2xl font-bold md:ml-0 ml-10">CoCreate</h1>
-          <p className="text-sm text-gray-600 md:ml-0 ml-10">AI-powered LinkedIn post generator</p>
+          <p className="text-sm text-gray-600 md:ml-0 ml-10">AI-powered LinkedIn post generator with Model Ensemble</p>
         </div>
         <div className="flex gap-2">
+          {ensembleDetails && (
+            <Button 
+              variant="outline"
+              onClick={() => setShowEnsembleModal(!showEnsembleModal)}
+              className="mr-2"
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              Model Ensemble
+            </Button>
+          )}
           {(voiceAnalysis || trendingInsights) && (
             <Button 
               variant="outline"
@@ -735,6 +754,81 @@ const CoCreate = () => {
           </Button>
         </div>
       </div>
+
+      {/* Model Ensemble Details Modal */}
+      {showEnsembleModal && ensembleDetails && (
+        <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-lg font-semibold text-blue-800">🔀 Model Ensemble Details</h3>
+            <button 
+              onClick={() => setShowEnsembleModal(false)}
+              className="text-blue-600 hover:text-blue-800"
+            >
+              ✕
+            </button>
+          </div>
+          
+          <div className="space-y-3">
+            <div>
+              <h4 className="font-medium text-blue-700 mb-1">Models Used:</h4>
+              <div className="flex flex-wrap gap-2">
+                {ensembleDetails.modelsUsed.map((model, i) => (
+                  <span key={i} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                    {model}
+                  </span>
+                ))}
+              </div>
+            </div>
+            
+            {ensembleDetails.styleGuide && (
+              <div>
+                <h4 className="font-medium text-purple-700 mb-1">📄 Gemini 2.5 Style Guide:</h4>
+                <p className="text-sm text-gray-700">
+                  {typeof ensembleDetails.styleGuide === 'object' 
+                    ? ensembleDetails.styleGuide.voice_tone || 'Style guide created from training documents'
+                    : ensembleDetails.styleGuide.substring(0, 200) + '...'
+                  }
+                </p>
+              </div>
+            )}
+            
+            {ensembleDetails.stylePreset && (
+              <div>
+                <h4 className="font-medium text-green-700 mb-1">🎨 Claude 4 Sonnet Style Preset:</h4>
+                <p className="text-sm text-gray-700">
+                  {ensembleDetails.stylePreset.source || 'Style preset created from past posts'}
+                  {ensembleDetails.stylePreset.posts_analyzed && (
+                    <span className="ml-2 text-xs text-green-600">
+                      ({ensembleDetails.stylePreset.posts_analyzed} posts analyzed)
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
+            
+            {ensembleDetails.qualityReview && (
+              <div>
+                <h4 className="font-medium text-orange-700 mb-1">🔍 Quality Review:</h4>
+                <p className="text-sm text-gray-700">
+                  Score: {ensembleDetails.qualityReview.score}/10
+                  {ensembleDetails.qualityReview.improvements && ensembleDetails.qualityReview.improvements.length > 0 && (
+                    <span className="ml-2 text-xs text-orange-600">
+                      ({ensembleDetails.qualityReview.improvements.join(', ')})
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
+            
+            {ensembleDetails.error && (
+              <div>
+                <h4 className="font-medium text-red-700 mb-1">⚠️ Fallback Used:</h4>
+                <p className="text-sm text-red-600">{ensembleDetails.error}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <div className="flex justify-between items-center">
