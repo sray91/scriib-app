@@ -220,9 +220,9 @@ Create a detailed style guide that captures:
 
 Return a comprehensive style guide as JSON with these sections.`;
 
-  // Add timeout for Gemini API call (12 seconds max for hobby plan optimization)
+  // Add timeout for Gemini API call (20 seconds for better reliability)
   const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Gemini API call timed out')), 12000);
+    setTimeout(() => reject(new Error('Gemini API call timed out')), 20000);
   });
 
   const result = await Promise.race([
@@ -279,7 +279,7 @@ async function createStylePresetWithClaude(pastPosts, userId, supabase) {
   try {
     // Use Claude's Styles API to create a style preset (with timeout for hobby plan)
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Claude API call timed out')), 10000); // 10 seconds
+      setTimeout(() => reject(new Error('Claude API call timed out')), 25000); // 25 seconds for better reliability
     });
 
     const message = await Promise.race([

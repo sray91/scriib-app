@@ -60,8 +60,19 @@ export async function fetchUserTrainingDocuments(supabase, userId) {
       doc.extracted_text && 
       doc.extracted_text.length > 50 && // Minimum 50 characters
       !doc.extracted_text.includes('[PDF content - text extraction not available]') &&
-      !doc.extracted_text.includes('[Word document content - text extraction not available]')
+      !doc.extracted_text.includes('[Word document content - text extraction not available]') &&
+      !doc.extracted_text.includes('[Content extraction failed')
     );
+
+    console.log(`📄 Found ${documents?.length || 0} training documents, ${validDocuments.length} valid for analysis`);
+    if (validDocuments.length > 0) {
+      console.log('Valid documents:', validDocuments.map(d => ({
+        name: d.file_name,
+        type: d.file_type,
+        status: d.processing_status,
+        words: d.word_count
+      })));
+    }
 
     return validDocuments;
   } catch (error) {
