@@ -44,17 +44,25 @@ export async function POST(req) {
     const trainingDocuments = await fetchUserTrainingDocuments(supabase, user.id);
     console.log(`📄 Found ${trainingDocuments.length} training documents for enhanced voice analysis`);
     
-    // Limit training documents to prevent timeouts (max 5 docs, max 50k words total)
+    // Limit training documents to prevent timeouts (max 8 docs, max 100k words total)
     const limitedTrainingDocs = trainingDocuments
-      .slice(0, 5)
-      .filter(doc => doc.word_count <= 10000) // Skip very large documents
+      .slice(0, 8)
+      .filter(doc => doc.word_count <= 25000)
       .reduce((acc, doc) => {
         const totalWords = acc.reduce((sum, d) => sum + d.word_count, 0);
-        if (totalWords + doc.word_count <= 50000) {
+        if (totalWords + doc.word_count <= 100000) {
           acc.push(doc);
         }
         return acc;
       }, []);
+    
+    console.log(`📊 Training document filtering:`, {
+      originalCount: trainingDocuments.length,
+      afterSlice: Math.min(trainingDocuments.length, 8),
+      afterWordFilter: trainingDocuments.filter(doc => doc.word_count <= 25000).length,
+      finalCount: limitedTrainingDocs.length,
+      skippedDocs: trainingDocuments.filter(doc => doc.word_count > 25000).map(d => ({ name: d.file_name, words: d.word_count }))
+    });
     
     if (limitedTrainingDocs.length < trainingDocuments.length) {
       console.log(`⚠️ Limited training documents from ${trainingDocuments.length} to ${limitedTrainingDocs.length} to prevent timeouts`);

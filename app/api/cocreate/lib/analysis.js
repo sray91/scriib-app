@@ -33,7 +33,7 @@ export async function analyzeUserVoice(pastPosts, userMessage = '', trainingDocu
       commonTopics: ['Business', 'Leadership'],
       avgLength: 150,
       usesEmojis: false,
-      usesHashtags: false, // FIXED: Default to no hashtags unless detected in user content
+      usesHashtags: false, // Keep default to false - only set to true if detected in actual content
       preferredFormats: ['Narrative', 'List']
     };
   }
@@ -59,15 +59,30 @@ export async function analyzeUserVoice(pastPosts, userMessage = '', trainingDocu
   // Debug emoji detection across all content
   const emojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/u;
   const actualUsesEmojis = allContentForAnalysis.some(item => emojiRegex.test(item.content));
-  const actualUsesHashtags = allContentForAnalysis.some(item => item.content.includes('#'));
+  // Improved hashtag detection - look for # followed by word characters
+  const hashtagRegex = /#\w+/;
+  const actualUsesHashtags = allContentForAnalysis.some(item => hashtagRegex.test(item.content));
   
   console.log('🔍 Content analysis debug:');
   console.log(`- Total content pieces: ${allContentForAnalysis.length} (${postsForAnalysis.length} posts + ${documentsForAnalysis.length} documents)`);
   console.log(`- actualUsesEmojis: ${actualUsesEmojis}`);
   console.log(`- actualUsesHashtags: ${actualUsesHashtags}`);
+  
+  // Show hashtags found in content for debugging
+  const foundHashtags = [];
+  allContentForAnalysis.forEach((item, i) => {
+    const hashtags = item.content.match(hashtagRegex) || [];
+    if (hashtags.length > 0) {
+      foundHashtags.push({ source: item.source, hashtags: hashtags.slice(0, 3) });
+    }
+  });
+  if (foundHashtags.length > 0) {
+    console.log(`- Found hashtags:`, foundHashtags);
+  }
+  
   allContentForAnalysis.slice(0, 3).forEach((item, i) => {
     const hasEmoji = emojiRegex.test(item.content);
-    const hasHashtag = item.content.includes('#');
+    const hasHashtag = hashtagRegex.test(item.content);
     console.log(`- ${item.source} ${i+1}: emoji=${hasEmoji}, hashtag=${hasHashtag}, content="${item.content.substring(0, 100)}..."`);
   });
 
@@ -153,7 +168,7 @@ Focus on their natural writing patterns, vocabulary, and authentic voice across 
   // Fallback to simple analysis
   const avgLength = pastPosts.reduce((sum, post) => sum + post.content.length, 0) / pastPosts.length;
   const usesEmojis = pastPosts.some(post => /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/u.test(post.content));
-  const usesHashtags = pastPosts.some(post => post.content.includes('#'));
+  const usesHashtags = pastPosts.some(post => /#\w+/.test(post.content));
   
   console.log(`🔄 Fallback analysis - usesEmojis: ${usesEmojis}, usesHashtags: ${usesHashtags}`);
   

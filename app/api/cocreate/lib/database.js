@@ -78,13 +78,28 @@ export async function fetchUserTrainingDocuments(supabase, userId) {
     }
 
     // Filter out documents without extracted text
-    const validDocuments = (documents || []).filter(doc => 
-      doc.extracted_text && 
-      doc.extracted_text.length > 50 && // Minimum 50 characters
-      !doc.extracted_text.includes('[PDF content - text extraction not available]') &&
-      !doc.extracted_text.includes('[Word document content - text extraction not available]') &&
-      !doc.extracted_text.includes('[Content extraction failed')
-    );
+    const validDocuments = (documents || []).filter(doc => {
+      const hasText = doc.extracted_text && doc.extracted_text.length > 50;
+      const notPdfError = !doc.extracted_text?.includes('[PDF content - text extraction not available]');
+      const notWordError = !doc.extracted_text?.includes('[Word document content - text extraction not available]');
+      const notExtractionError = !doc.extracted_text?.includes('[Content extraction failed');
+      
+      const isValid = hasText && notPdfError && notWordError && notExtractionError;
+      
+      // Log why documents are being filtered out
+      if (!isValid) {
+        console.log(`❌ Filtering out ${doc.file_name}:`, {
+          hasText: hasText,
+          textLength: doc.extracted_text?.length || 0,
+          notPdfError: notPdfError,
+          notWordError: notWordError,
+          notExtractionError: notExtractionError,
+          textPreview: doc.extracted_text?.substring(0, 100) || 'No text'
+        });
+      }
+      
+      return isValid;
+    });
 
     console.log(`📄 Found ${documents?.length || 0} training documents, ${validDocuments.length} valid for analysis`);
     if (validDocuments.length > 0) {
