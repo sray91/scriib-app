@@ -8,7 +8,7 @@ import path from 'path';
 // Configure the API route for AI processing
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // Allow up to 5 minutes for AI processing
+export const maxDuration = 60; // Maximum allowed for hobby plan (60 seconds)
 
 // Initialize AI clients for the Model Ensemble
 const openai = new OpenAI({
@@ -198,6 +198,7 @@ export async function POST(req) {
  * Model 1: Gemini 2.5 - Large document analysis and style guide creation
  * Model 2: Claude 4 Sonnet - Style preset creation from past posts using Claude's Styles API
  * Model 3: Claude Sonnet 4 - Draft generation and quality review
+ * Optimized for 60-second serverless function timeout
  */
 async function generateWithModelEnsemble(userMessage, currentDraft, action, pastPosts, trendingPosts, trainingDocuments, userId, supabase) {
   const processingSteps = [];
@@ -210,8 +211,13 @@ async function generateWithModelEnsemble(userMessage, currentDraft, action, past
   };
 
   try {
-    // === STEP 1: Gemini 2.5 for Large Document Analysis ===
-    let styleGuide = null;
+    // Set up global timeout for entire ensemble (45 seconds max to leave buffer)
+    const ensembleTimeout = 45000;
+    const startTime = Date.now();
+    
+    const processEnsemble = async () => {
+      // === STEP 1: Gemini 2.5 for Large Document Analysis ===
+      let styleGuide = null;
     if (trainingDocuments && trainingDocuments.length > 0) {
       processingSteps.push(`🧠 Gemini 2.5: Analyzing ${trainingDocuments.length} training documents for style guide creation...`);
       
@@ -321,6 +327,15 @@ async function generateWithModelEnsemble(userMessage, currentDraft, action, past
     }
 
     return finalResult;
+    
+    }; // End processEnsemble function
+
+    // Race between ensemble processing and timeout
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Model Ensemble timed out - falling back to GPT-4o')), ensembleTimeout);
+    });
+
+    return await Promise.race([processEnsemble(), timeoutPromise]);
 
   } catch (error) {
     console.error('Error in Model Ensemble:', error);
@@ -396,7 +411,15 @@ Create a detailed style guide that captures:
 
 Return a comprehensive style guide as JSON with these sections.`;
 
-  const result = await model.generateContent(prompt);
+  // Add timeout for Gemini API call (12 seconds max for hobby plan optimization)
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Gemini API call timed out')), 12000);
+  });
+
+  const result = await Promise.race([
+    model.generateContent(prompt),
+    timeoutPromise
+  ]);
   const response = await result.response;
   const text = response.text();
 
@@ -445,13 +468,18 @@ async function createStylePresetWithClaude(pastPosts, userId, supabase) {
   const postsContent = pastPosts.slice(0, 15).map(post => post.content).join('\n\n---\n\n');
 
   try {
-    // Use Claude's Styles API to create a style preset
-    const message = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 2000,
-      messages: [{
-        role: "user",
-        content: `Analyze these LinkedIn posts to create a reusable style preset that captures the author's authentic voice, sentence rhythm, vocabulary, and tone.
+    // Use Claude's Styles API to create a style preset (with timeout for hobby plan)
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Claude API call timed out')), 10000); // 10 seconds
+    });
+
+    const message = await Promise.race([
+      anthropic.messages.create({
+        model: "claude-3-5-sonnet-20241022",
+        max_tokens: 2000,
+        messages: [{
+          role: "user",
+          content: `Analyze these LinkedIn posts to create a reusable style preset that captures the author's authentic voice, sentence rhythm, vocabulary, and tone.
 
 PAST POSTS:
 ${postsContent}
@@ -484,8 +512,10 @@ Create a comprehensive style analysis focusing on:
    - Community interaction approach
 
 Return as a structured style preset object.`
-      }]
-    });
+        }]
+      }),
+      timeoutPromise
+    ]);
 
     const styleAnalysis = message.content[0].text;
 
@@ -700,9 +730,9 @@ async function generatePostContentWithGPT4o(userMessage, currentDraft, action, p
     // Call GPT-4o with better error handling and timeout
     let completion;
     try {
-      // Create a timeout promise
+      // Create a timeout promise (reduced for hobby plan limits)
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('OpenAI API call timed out after 4 minutes')), 240000); // 4 minutes
+        setTimeout(() => reject(new Error('OpenAI API call timed out after 45 seconds')), 45000); // 45 seconds to leave buffer
       });
 
       // Race between the OpenAI call and timeout
@@ -715,7 +745,7 @@ async function generatePostContentWithGPT4o(userMessage, currentDraft, action, p
           ],
           temperature: 0.7,
           max_tokens: 1500,
-          timeout: 240000, // 4 minutes timeout for OpenAI
+          timeout: 45000, // 45 seconds timeout for OpenAI
         }),
         timeoutPromise
       ]);
