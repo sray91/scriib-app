@@ -33,7 +33,7 @@ export async function analyzeUserVoice(pastPosts, userMessage = '', trainingDocu
       commonTopics: ['Business', 'Leadership'],
       avgLength: 150,
       usesEmojis: false,
-      usesHashtags: true,
+      usesHashtags: false, // FIXED: Default to no hashtags unless detected in user content
       preferredFormats: ['Narrative', 'List']
     };
   }
@@ -154,6 +154,8 @@ Focus on their natural writing patterns, vocabulary, and authentic voice across 
   const avgLength = pastPosts.reduce((sum, post) => sum + post.content.length, 0) / pastPosts.length;
   const usesEmojis = pastPosts.some(post => /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/u.test(post.content));
   const usesHashtags = pastPosts.some(post => post.content.includes('#'));
+  
+  console.log(`🔄 Fallback analysis - usesEmojis: ${usesEmojis}, usesHashtags: ${usesHashtags}`);
   
   return {
     style: 'Professional and engaging',

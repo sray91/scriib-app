@@ -49,8 +49,8 @@ ${samplePosts}${sampleDocuments ? '\n\n' + sampleDocuments : ''}
 - If the topic is professional, reflect their professional voice
 - Don't force engagement optimization - let their authentic voice shine through
 - End posts naturally in their style, not with forced CTAs unless that's their pattern
-- **CRITICAL**: Only use emojis if they actually use them (usesEmojis: ${voiceAnalysis.usesEmojis}). If false, NEVER add emojis.
-- **CRITICAL**: Only use hashtags if they actually use them (usesHashtags: ${voiceAnalysis.usesHashtags}). If false, NEVER add hashtags.
+- **ABSOLUTELY CRITICAL**: ${voiceAnalysis.usesEmojis ? 'This user DOES use emojis - include them naturally' : 'This user NEVER uses emojis - DO NOT include ANY emojis (🚫 NO: 😊, 👍, 💼, etc.)'}
+- **ABSOLUTELY CRITICAL**: ${voiceAnalysis.usesHashtags ? 'This user DOES use hashtags - include them naturally' : 'This user NEVER uses hashtags - DO NOT include ANY hashtags (🚫 NO: #LinkedIn, #leadership, etc.)'}
 
 Write the post as this specific user would write it, using their authentic voice and patterns.
 

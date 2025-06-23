@@ -33,6 +33,17 @@ export async function fetchUserPastPosts(supabase, userId) {
 // Fetch user's training documents from the database
 export async function fetchUserTrainingDocuments(supabase, userId) {
   try {
+    console.log(`🔍 fetchUserTrainingDocuments called for user: ${userId}`);
+    
+    // First, let's see ALL documents for this user (debug query)
+    const { data: allDocs, error: debugError } = await supabase
+      .from('training_documents')
+      .select('id, file_name, user_id, is_active, processing_status, word_count')
+      .eq('user_id', userId);
+      
+    console.log(`📊 Debug - ALL user documents:`, allDocs);
+    if (debugError) console.log(`❌ Debug query error:`, debugError);
+
     const { data: documents, error } = await supabase
       .from('training_documents')
       .select(`
@@ -49,6 +60,17 @@ export async function fetchUserTrainingDocuments(supabase, userId) {
       .eq('processing_status', 'completed')
       .order('created_at', { ascending: false })
       .limit(10); // Analyze up to 10 most recent documents
+
+    console.log(`📋 Main query result:`, { 
+      documentsFound: documents?.length || 0, 
+      error: error?.message || 'none',
+      documents: documents?.map(d => ({ 
+        name: d.file_name, 
+        status: d.processing_status, 
+        active: d.is_active,
+        extractedLength: d.extracted_text?.length || 0 
+      }))
+    });
 
     if (error) {
       console.error('Error fetching training documents:', error);
