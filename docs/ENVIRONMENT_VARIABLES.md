@@ -1,6 +1,6 @@
 # Environment Variables
 
-This document lists all environment variables used in the Creator Task App and explains their purpose.
+This document lists all environment variables used in the Scriib App and explains their purpose.
 
 ## Authentication Variables
 
@@ -13,26 +13,26 @@ This document lists all environment variables used in the Creator Task App and e
 - `NEXT_PUBLIC_SITE_URL` - The base URL of your application (e.g. http://localhost:3000 for development or https://your-app.com for production)
   - **IMPORTANT**: Must include the full URL with protocol (http:// or https://)
   - Development: `http://localhost:3000`
-  - Production: `https://your-production-domain.com` (no trailing slash)
+  - Production: `https://app.scriib.ai` (no trailing slash)
 
 ### Approver Invitation 
 - `APPROVER_CALLBACK_URL` - The URL to redirect approvers to after they click the authentication link in their email
   - Development: `http://localhost:3000/auth/callback`
-  - Production: `https://your-production-domain.com/auth/callback`
+  - Production: `https://app.scriib.ai/auth/callback`
 
 ### Social Login - Twitter
 - `TWITTER_CLIENT_ID` - Your Twitter API client ID
 - `TWITTER_CLIENT_SECRET` - Your Twitter API client secret
 - `TWITTER_REDIRECT_URI` - The redirect URI for Twitter authentication callbacks
   - Example: `http://localhost:3000/api/auth/twitter/callback` (development)
-  - Example: `https://your-app.com/api/auth/twitter/callback` (production)
+  - Example: `https://app.scriib.ai/api/auth/twitter/callback` (production)
 
 ### Social Login - LinkedIn
 - `LINKEDIN_CLIENT_ID` - Your LinkedIn API client ID
 - `LINKEDIN_CLIENT_SECRET` - Your LinkedIn API client secret
 - `LINKEDIN_REDIRECT_URI` - The redirect URI for LinkedIn authentication callbacks
   - Example: `http://localhost:3000/api/auth/linkedin/callback` (development)
-  - Example: `https://your-app.com/api/auth/linkedin/callback` (production)
+  - Example: `https://app.scriib.ai/api/auth/linkedin/callback` (production)
 
 ## Setting Up Environment Variables
 
@@ -72,18 +72,18 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-production-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-production-service-role-key
 
 # Site URLs - PRODUCTION ENVIRONMENT
-NEXT_PUBLIC_SITE_URL=https://your-production-domain.com
-APPROVER_CALLBACK_URL=https://your-production-domain.com/auth/callback
+NEXT_PUBLIC_SITE_URL=https://app.scriib.ai
+APPROVER_CALLBACK_URL=https://app.scriib.ai/auth/callback
 
 # Twitter
 TWITTER_CLIENT_ID=your-twitter-client-id
 TWITTER_CLIENT_SECRET=your-twitter-client-secret
-TWITTER_REDIRECT_URI=https://your-production-domain.com/api/auth/twitter/callback
+TWITTER_REDIRECT_URI=https://app.scriib.ai/api/auth/twitter/callback
 
 # LinkedIn
 LINKEDIN_CLIENT_ID=your-linkedin-client-id
 LINKEDIN_CLIENT_SECRET=your-linkedin-client-secret
-LINKEDIN_REDIRECT_URI=https://your-production-domain.com/api/auth/linkedin/callback
+LINKEDIN_REDIRECT_URI=https://app.scriib.ai/api/auth/linkedin/callback
 ```
 
 ## Troubleshooting

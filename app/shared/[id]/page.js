@@ -61,9 +61,9 @@ export default function SharedPosts({ params }) {
       <header className="border-b">
         <Link href="/" className="flex items-center gap-2 px-4 py-6">
           <div className="flex h-12 w-12 items-center justify-center">
-            <Image src="/creator-task-logo.png" width={100} height={100} alt="" />
+            <Image src="/scriib-logo.png" width={100} height={100} alt="" />
           </div>
-          <div className="font-bebas-neue text-2xl tracking-wide text-black">CREATORTASK</div>
+          <div className="font-bebas-neue text-2xl tracking-wide text-black">SCRIIB</div>
         </Link>
         <div className="max-w-6xl mx-auto px-4 py-6">
           <h1 className="text-3xl font-bold text-[#FF4400]">
@@ -95,7 +95,7 @@ export default function SharedPosts({ params }) {
       <footer className="border-t mt-auto">
         <div className="max-w-6xl mx-auto px-4 py-6">
           <p className="text-center text-sm text-muted-foreground">
-            Shared via CreatorTask
+            Shared via Scriib
           </p>
         </div>
       </footer>

@@ -91,9 +91,9 @@ export default function SidebarComponent() {
         <SidebarHeader>
           <Link href="/" className="flex items-center gap-2 px-4 py-6">
             <div className="flex h-12 w-12 items-center justify-center">
-              <Image src="/creator-task-logo.png" width={100} height={100} alt="" />
+              <Image src="/scriib-logo.png" width={100} height={100} alt="" />
             </div>
-            <div className="font-bebas-neue text-2xl tracking-wide text-white">CREATORTASK</div>
+            <div className="font-bebas-neue text-2xl tracking-wide text-white">SCRIIB</div>
           </Link>
         </SidebarHeader>
         <SidebarContent>

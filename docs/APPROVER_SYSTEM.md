@@ -201,6 +201,6 @@ Ensure these environment variables are properly set:
 
 ```
 # Site URLs - NO trailing slashes!
-NEXT_PUBLIC_SITE_URL=https://your-domain.com
-APPROVER_CALLBACK_URL=https://your-domain.com/auth/callback
+NEXT_PUBLIC_SITE_URL=https://app.scriib.ai
+APPROVER_CALLBACK_URL=https://app.scriib.ai/auth/callback
 ``` 

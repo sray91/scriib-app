@@ -31,7 +31,7 @@ export default function HomePage() {
 
   return (
     <div className="container max-w-6xl py-8">
-      <h1 className="text-3xl font-bold mb-6">Welcome to CreatorTask</h1>
+              <h1 className="text-3xl font-bold mb-6">Welcome to Scriib</h1>
       <p className="text-muted-foreground mb-8">
         Select a tool from the sidebar to get started!
       </p>
@@ -46,7 +46,7 @@ export default function HomePage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">Access guides and instructions for CreatorTask</p>
+            <p className="text-sm text-muted-foreground mb-4">Access guides and instructions for Scriib</p>
             
             {isLoadingDocs ? (
               <div className="flex items-center justify-center py-4">

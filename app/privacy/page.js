@@ -25,10 +25,10 @@ export default function PrivacyPolicyPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p>
-              CreatorTask (&quot;we,&quot; &quot;our,&quot; or &quot;us&quot;) is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our content creation and management platform.
+              Scriib (&quot;we,&quot; &quot;our,&quot; or &quot;us&quot;) is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our content creation and management platform.
             </p>
             <p>
-              By using CreatorTask, you agree to the collection and use of information in accordance with this policy.
+              By using Scriib, you agree to the collection and use of information in accordance with this policy.
             </p>
           </CardContent>
         </Card>
@@ -217,7 +217,7 @@ export default function PrivacyPolicyPage() {
           </CardHeader>
           <CardContent>
             <p>
-              CreatorTask is not intended for children under 13 years of age. We do not knowingly collect personal information from children under 13. If you believe we have collected information from a child under 13, please contact us immediately so we can delete such information.
+              Scriib is not intended for children under 13 years of age. We do not knowingly collect personal information from children under 13. If you believe we have collected information from a child under 13, please contact us immediately so we can delete such information.
             </p>
           </CardContent>
         </Card>
@@ -256,10 +256,10 @@ export default function PrivacyPolicyPage() {
               If you have any questions about this Privacy Policy or our data practices, please contact us:
             </p>
             
-            <div className="space-y-2 text-sm">
-              <p><strong>Email:</strong> privacy@creatortask.com</p>
-              <p><strong>Subject Line:</strong> Privacy Policy Inquiry</p>
-            </div>
+                          <div className="space-y-2 text-sm">
+                <p><strong>Email:</strong> privacy@scriib.ai</p>
+                <p><strong>Subject Line:</strong> Privacy Policy Inquiry</p>
+              </div>
             
             <p className="mt-4 text-sm text-muted-foreground">
               We will respond to your inquiry within 30 days of receipt.
