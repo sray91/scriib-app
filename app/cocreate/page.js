@@ -1,10 +1,10 @@
 import React from 'react'
-import CoCreate from '@/components/CoCreate'
+import CoCreateCanvas from '@/components/CoCreateCanvas'
 
 const CoCreatePage = () => {
   return (
-    <div>
-      <CoCreate />
+    <div className="h-screen w-full">
+      <CoCreateCanvas />
     </div>
   )
 }
