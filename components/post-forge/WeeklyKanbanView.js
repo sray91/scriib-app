@@ -3,7 +3,8 @@ import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trash2, ChevronLeft, ChevronRight, Plus, Calendar } from 'lucide-react';
+import PostCard from './PostCard';
 
 const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -13,7 +14,8 @@ export default function WeeklyKanbanView({
   onCreatePost, 
   onEditPost,
   onMovePost,
-  onDeletePost
+  onDeletePost,
+  currentUser
 }) {
   // For mobile view, we'll show only a subset of days
   const [visibleDayIndex, setVisibleDayIndex] = useState(0);
@@ -92,26 +94,54 @@ export default function WeeklyKanbanView({
 
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-7'} gap-4`}>
-          {visibleDays.map((day) => (
-            <div key={day} className="flex flex-col h-full">
-              {!isMobile && (
-                <div className="flex justify-between items-center mb-2 px-2">
-                  <h3 className="font-medium">{day}</h3>
+          {visibleDays.map((day) => {
+            const dayPosts = posts.filter(post => post.day_of_week === day);
+            const getDateForDay = () => {
+              const today = new Date();
+              const dayIndex = DAYS_OF_WEEK.indexOf(day);
+              const targetDate = new Date(today);
+              const diff = dayIndex - today.getDay() + (dayIndex < today.getDay() ? 7 : 0);
+              targetDate.setDate(today.getDate() + diff);
+              if (isNextWeek) {
+                targetDate.setDate(targetDate.getDate() + 7);
+              }
+              return targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            };
+
+            return (
+              <div key={day} className="flex flex-col h-full">
+                {/* Day Header */}
+                <div className="flex justify-between items-center mb-3 px-3 py-2 bg-white rounded-lg border">
+                  <div className="flex flex-col">
+                    <h3 className="font-semibold text-gray-900">{day}</h3>
+                    <span className="text-xs text-gray-500">{getDateForDay()}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-xs">
+                      {dayPosts.length}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0"
+                      onClick={() => onCreatePost(day)}
+                    >
+                      <Plus size={14} />
+                    </Button>
+                  </div>
                 </div>
-              )}
-              
-              <Droppable droppableId={day}>
-                {(provided, snapshot) => (
-                  <div
-                    {...provided.droppableProps}
-                    ref={provided.innerRef}
-                    className={`flex-1 p-2 rounded-md ${isMobile ? 'min-h-[60vh]' : 'min-h-[70vh]'} overflow-y-auto ${
-                      snapshot.isDraggingOver ? 'bg-gray-100' : 'bg-gray-50'
-                    }`}
-                  >
-                    {posts
-                      .filter(post => post.day_of_week === day)
-                      .map((post, index) => (
+                
+                {/* Posts Column */}
+                <Droppable droppableId={day}>
+                  {(provided, snapshot) => (
+                    <div
+                      {...provided.droppableProps}
+                      ref={provided.innerRef}
+                      className={`flex-1 p-2 rounded-md ${isMobile ? 'min-h-[60vh]' : 'min-h-[70vh]'} overflow-y-auto transition-colors ${
+                        snapshot.isDraggingOver ? 'bg-blue-50' : 'bg-gray-50'
+                      }`}
+                    >
+                      {dayPosts.map((post, index) => (
                         <Draggable 
                           key={post.id} 
                           draggableId={post.id.toString()} 
@@ -122,60 +152,41 @@ export default function WeeklyKanbanView({
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
-                              className={`mb-2 relative ${snapshot.isDragging ? 'opacity-70' : ''}`}
+                              className="mb-3"
                             >
-                              <Card className="relative group">
-                                <div 
-                                  className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    e.preventDefault();
-                                    onDeletePost(post.id);
-                                  }}
-                                >
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-6 w-6 text-gray-500 hover:text-red-500 hover:bg-red-50"
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                                <div 
-                                  className="cursor-pointer"
-                                  onClick={() => onEditPost(post)}
-                                >
-                                  <CardHeader className="py-2 px-3 pr-8">
-                                    <div className="flex justify-between items-center">
-                                      <Badge className={`
-                                        ${post.status === 'draft' ? 'bg-gray-100 text-gray-800' : ''}
-                                        ${post.status === 'scheduled' ? 'bg-blue-100 text-blue-800' : ''}
-                                        ${post.status === 'pending_approval' ? 'bg-yellow-100 text-yellow-800' : ''}
-                                        ${post.status === 'published' ? 'bg-green-100 text-green-800' : ''}
-                                        ${post.status === 'rejected' ? 'bg-red-100 text-red-800' : ''}
-                                      `}>
-                                        {post.status.replace('_', ' ')}
-                                      </Badge>
-                                      <span className="text-xs text-gray-500">
-                                        {new Date(post.scheduled_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                      </span>
-                                    </div>
-                                  </CardHeader>
-                                  <CardContent className="py-2 px-3">
-                                    <p className="line-clamp-3 text-sm">{post.content}</p>
-                                  </CardContent>
-                                </div>
-                              </Card>
+                              <PostCard
+                                post={post}
+                                onEdit={onEditPost}
+                                onDelete={onDeletePost}
+                                onDuplicate={(post) => onCreatePost(day, post.id)}
+                                isDragging={snapshot.isDragging}
+                                currentUser={currentUser}
+                              />
                             </div>
                           )}
                         </Draggable>
                       ))}
-                    {provided.placeholder}
-                  </div>
-                )}
-              </Droppable>
-            </div>
-          ))}
+                      {provided.placeholder}
+                      
+                      {/* Add Post Button for empty columns */}
+                      {dayPosts.length === 0 && (
+                        <div className="flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-lg">
+                          <Button
+                            variant="ghost"
+                            className="flex flex-col items-center gap-2 text-gray-500 hover:text-gray-700"
+                            onClick={() => onCreatePost(day)}
+                          >
+                            <Plus size={24} />
+                            <span className="text-sm">Add Post</span>
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Droppable>
+              </div>
+            );
+          })}
         </div>
       </DragDropContext>
     </div>
