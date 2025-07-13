@@ -6,10 +6,14 @@ import { cn } from '@/lib/utils'
 const SidebarContext = createContext({})
 
 export function SidebarProvider({ children }) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(true) // Default to collapsed
+
+  const toggleSidebar = () => {
+    setIsCollapsed(!isCollapsed)
+  }
 
   return (
-    <SidebarContext.Provider value={{ isCollapsed, setIsCollapsed }}>
+    <SidebarContext.Provider value={{ isCollapsed, setIsCollapsed, toggleSidebar }}>
       {children}
     </SidebarContext.Provider>
   )
@@ -32,7 +36,13 @@ export function Sidebar({ className, children }) {
 }
 
 export function SidebarHeader({ className, children }) {
-  return <div className={cn('p-4', className)}>{children}</div>
+  const { isCollapsed } = useContext(SidebarContext)
+  
+  return (
+    <div className={cn('p-4', isCollapsed && 'px-2', className)}>
+      {children}
+    </div>
+  )
 }
 
 export function SidebarContent({ className, children }) {
@@ -40,7 +50,13 @@ export function SidebarContent({ className, children }) {
 }
 
 export function SidebarFooter({ className, children }) {
-  return <div className={cn('p-4', className)}>{children}</div>
+  const { isCollapsed } = useContext(SidebarContext)
+  
+  return (
+    <div className={cn('p-4', isCollapsed && 'px-2', className)}>
+      {children}
+    </div>
+  )
 }
 
 export function SidebarMenu({ className, children }) {
@@ -52,11 +68,14 @@ export function SidebarMenuItem({ className, children }) {
 }
 
 export function SidebarMenuButton({ className, children, isActive, ...props }) {
+  const { isCollapsed } = useContext(SidebarContext)
+  
   return (
     <button
       className={cn(
         'flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-muted',
         isActive ? 'bg-muted text-foreground' : 'text-muted-foreground',
+        isCollapsed && 'justify-center px-2',
         className
       )}
       {...props}
@@ -64,4 +83,13 @@ export function SidebarMenuButton({ className, children, isActive, ...props }) {
       {children}
     </button>
   )
+}
+
+// Custom hook to use sidebar context
+export function useSidebar() {
+  const context = useContext(SidebarContext)
+  if (!context) {
+    throw new Error('useSidebar must be used within a SidebarProvider')
+  }
+  return context
 }

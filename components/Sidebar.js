@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import Image from 'next/image'
 import { useState, useEffect } from 'react'
+import { Button } from './ui/button'
 
 import {
   Sidebar,
@@ -15,6 +16,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar
 } from '@/components/ui/sidebar'
 
 const betaNavigation = [
@@ -35,6 +37,7 @@ const navigation = [
 export default function SidebarComponent() {
   const pathname = usePathname()
   const supabase = createClientComponentClient()
+  const { isCollapsed, toggleSidebar } = useSidebar()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
 
@@ -89,12 +92,37 @@ export default function SidebarComponent() {
         }`}
       >
         <SidebarHeader>
-          <Link href="/" className="flex items-center gap-2 px-4 py-6">
-            <div className="flex h-12 w-12 items-center justify-center">
-              <Image src="/scriib-logo.png" width={100} height={100} alt="" />
+          <div className="flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-2">
+              <div className={`flex items-center justify-center transition-all duration-300 ${
+                isCollapsed ? 'h-12 w-12' : 'h-12 w-12'
+              }`}>
+                <Image 
+                  src="/scriib-logo.png" 
+                  width={isCollapsed ? 48 : 100} 
+                  height={isCollapsed ? 48 : 100} 
+                  alt="Scriib Logo" 
+                  className="transition-all duration-300"
+                />
+              </div>
+              {!isCollapsed && (
+                <div className="font-bebas-neue text-2xl tracking-wide text-white">SCRIIB</div>
+              )}
+            </Link>
+            
+            {/* Desktop toggle button */}
+            <div className="hidden md:block">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleSidebar}
+                className="text-white hover:bg-[#2A2F3C] p-1 h-8 w-8 flex items-center justify-center"
+                aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
+                {isCollapsed ? <Menu size={16} /> : <X size={16} />}
+              </Button>
             </div>
-            <div className="font-bebas-neue text-2xl tracking-wide text-white">SCRIIB</div>
-          </Link>
+          </div>
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
@@ -107,9 +135,12 @@ export default function SidebarComponent() {
                     <SidebarMenuButton 
                       isActive={isActive}
                       className={`text-white hover:bg-[#fb2e01] ${isActive ? 'bg-[#fb2e01] text-white' : ''}`}
+                      title={isCollapsed ? item.name : undefined}
                     >
-                      <Icon className={`h-4 w-4 mr-3 ${isActive ? 'text-white' : ''}`} />
-                      <span className="font-lexend-deca">{item.name}</span>
+                      <Icon className={`h-4 w-4 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-white' : ''}`} />
+                      {!isCollapsed && (
+                        <span className="font-lexend-deca">{item.name}</span>
+                      )}
                     </SidebarMenuButton>
                   </Link>
                 </SidebarMenuItem>
@@ -124,9 +155,12 @@ export default function SidebarComponent() {
                 <SidebarMenuButton 
                   isActive={pathname === '/settings'}
                   className="text-white hover:bg-[#2A2F3C] data-[active=true]:bg-[#fb2e01] data-[active=true]:text-black"
+                  title={isCollapsed ? 'Settings' : undefined}
                 >
-                  <Settings className="h-4 w-4 mr-3 group-data-[active=true]:text-black" />
-                  <span className="font-lexend-deca">Settings</span>
+                  <Settings className={`h-4 w-4 ${isCollapsed ? '' : 'mr-3'} group-data-[active=true]:text-black`} />
+                  {!isCollapsed && (
+                    <span className="font-lexend-deca">Settings</span>
+                  )}
                 </SidebarMenuButton>
               </Link>
             </SidebarMenuItem>
@@ -134,9 +168,12 @@ export default function SidebarComponent() {
               <SidebarMenuButton 
                 onClick={handleLogout}
                 className="text-white bg-[#fb2e01] hover:bg-[#e02a01] mt-2"
+                title={isCollapsed ? 'Logout' : undefined}
               >
-                <LogOut className="h-4 w-4 mr-3" />
-                <span className="font-lexend-deca">Logout</span>
+                <LogOut className={`h-4 w-4 ${isCollapsed ? '' : 'mr-3'}`} />
+                {!isCollapsed && (
+                  <span className="font-lexend-deca">Logout</span>
+                )}
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
