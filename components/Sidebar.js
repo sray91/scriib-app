@@ -116,10 +116,12 @@ export default function SidebarComponent() {
                 variant="ghost"
                 size="sm"
                 onClick={toggleSidebar}
-                className="text-white hover:bg-[#2A2F3C] p-1 h-8 w-8 flex items-center justify-center"
+                className="text-white hover:bg-[#2A2F3C] hover:text-white p-1 h-8 w-8 flex items-center justify-center"
                 aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               >
-                {isCollapsed ? <Menu size={16} /> : <X size={16} />}
+                <div className="text-white">
+                  {isCollapsed ? <Menu size={16} /> : <X size={16} />}
+                </div>
               </Button>
             </div>
           </div>
