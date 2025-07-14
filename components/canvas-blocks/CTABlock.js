@@ -88,11 +88,11 @@ const CTABlock = ({ data, id }) => {
         minWidth={350}
         minHeight={200}
         isVisible={true}
-        lineClassName="border-red-400"
-        handleClassName="bg-red-500"
+        lineClassName="border-red-500/30"
+        handleClassName="w-3 h-3 bg-red-500/80 hover:bg-red-600 transition-all rounded-sm border border-white/50"
       />
-            <div className={`bg-white rounded-lg shadow-lg border-2 border-red-200 w-full h-full overflow-auto flex flex-col`}>
-      <div className="flex items-center gap-2 p-3 bg-red-50 rounded-t-lg border-b">
+            <div className={`bg-white shadow-lg border-2 border-red-200 w-full h-full overflow-auto flex flex-col`}>
+      <div className="flex items-center gap-2 p-3 bg-red-50 border-b">
         <Target className="h-5 w-5 text-red-600" />
         <span className="font-medium text-red-800">Call-to-Action</span>
         <button

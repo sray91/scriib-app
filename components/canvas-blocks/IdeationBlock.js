@@ -106,11 +106,11 @@ const IdeationBlock = ({ data, id }) => {
         minWidth={350}
         minHeight={300}
         isVisible={true}
-        lineClassName="border-blue-400"
-        handleClassName="bg-blue-500"
+        lineClassName="border-blue-500/30"
+        handleClassName="w-3 h-3 bg-blue-500/80 hover:bg-blue-600 transition-all rounded-sm border border-white/50"
       />
-      <div className="bg-white rounded-lg shadow-lg border-2 border-blue-200 w-full h-full relative flex flex-col">
-      <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-t-lg border-b">
+      <div className="bg-white shadow-lg border-2 border-blue-200 w-full h-full relative flex flex-col">
+      <div className="flex items-center gap-2 p-3 bg-blue-50 border-b">
         <Brain className="h-5 w-5 text-blue-600" />
         <span className="font-medium text-blue-800">Ideation</span>
       </div>

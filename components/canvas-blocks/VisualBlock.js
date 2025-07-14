@@ -188,11 +188,11 @@ const VisualBlock = ({ data, id }) => {
         minWidth={350}
         minHeight={300}
         isVisible={true}
-        lineClassName="border-purple-400"
-        handleClassName="bg-purple-500"
+        lineClassName="border-purple-500/30"
+        handleClassName="w-3 h-3 bg-purple-500/80 hover:bg-purple-600 transition-all rounded-sm border border-white/50"
       />
-      <div className={`bg-white rounded-lg shadow-lg border-2 border-purple-200 w-full h-full overflow-auto flex flex-col`}>
-        <div className="flex items-center gap-2 p-3 bg-purple-50 rounded-t-lg border-b">
+      <div className={`bg-white shadow-lg border-2 border-purple-200 w-full h-full overflow-auto flex flex-col`}>
+        <div className="flex items-center gap-2 p-3 bg-purple-50 border-b">
           <Image className="h-5 w-5 text-purple-600" />
           <span className="font-medium text-purple-800">Visual Generator</span>
           {step > 0 && (

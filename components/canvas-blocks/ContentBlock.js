@@ -44,11 +44,11 @@ const ContentBlock = ({ data, id }) => {
         minWidth={350}
         minHeight={250}
         isVisible={true}
-        lineClassName="border-orange-400"
-        handleClassName="bg-orange-500"
+        lineClassName="border-orange-500/30"
+        handleClassName="w-3 h-3 bg-orange-500/80 hover:bg-orange-600 transition-all rounded-sm border border-white/50"
       />
-            <div className={`bg-white rounded-lg shadow-lg border-2 border-orange-200 w-full h-full overflow-auto flex flex-col`}>
-      <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-t-lg border-b">
+            <div className={`bg-white shadow-lg border-2 border-orange-200 w-full h-full overflow-auto flex flex-col`}>
+      <div className="flex items-center gap-2 p-3 bg-orange-50 border-b">
         <Type className="h-5 w-5 text-orange-600" />
         <span className="font-medium text-orange-800">Content Editor</span>
         <button
