@@ -31,7 +31,6 @@ const navigation = [
   { name: 'Swipe File', href: '/viral', icon: Search },
   { name: 'CoCreate', href: '/cocreate', icon: Lightbulb },
   { name: 'Post Forge', href: '/post-forge', icon: PenTool },
-  { name: 'Infogen', href: '/infogen', icon: ImageIcon },
 ]
 
 export default function SidebarComponent() {

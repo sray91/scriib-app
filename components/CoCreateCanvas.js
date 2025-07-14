@@ -14,9 +14,10 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { Play, Plus, Brain, Fish, Image, Type } from 'lucide-react';
+import { Play, Plus, Brain, Fish, Image, Type, Target, ChevronDown, X } from 'lucide-react';
 import { create } from 'zustand';
 import { createClient } from '@supabase/supabase-js';
+import TemplateCard from '@/components/info-gen/TemplateCard';
 
 // Zustand store for canvas state
 const useCanvasStore = create((set, get) => ({
@@ -215,8 +216,20 @@ function IdeationBlock({ data, id }) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const { toast } = useToast();
   const { session, updateDynamicContext, addToHistory } = useCanvasStore();
+  
+  // Function to add connected block
+  const addConnectedBlock = (blockType) => {
+    // We'll need to access the canvas functions from here
+    // For now, we'll trigger an event that the parent canvas can listen to
+    const event = new CustomEvent('addConnectedBlock', {
+      detail: { blockType, sourceId: id }
+    });
+    window.dispatchEvent(event);
+    setShowDropdown(false);
+  };
   
   const handleSendMessage = async () => {
     if (!input.trim()) return;
@@ -294,10 +307,49 @@ function IdeationBlock({ data, id }) {
   };
   
   return (
-    <div className="bg-white rounded-lg shadow-lg border-2 border-blue-200 min-w-[350px]">
+    <div className="bg-white rounded-lg shadow-lg border-2 border-blue-200 min-w-[350px] relative">
       <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-t-lg border-b">
         <Brain className="h-5 w-5 text-blue-600" />
         <span className="font-medium text-blue-800">Ideation</span>
+      </div>
+      
+      {/* Plus Button */}
+      <div className="absolute -right-4 top-1/2 transform -translate-y-1/2">
+        <div className="relative">
+          <button
+            onClick={() => setShowDropdown(!showDropdown)}
+            className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center hover:bg-blue-600 transition-colors shadow-lg"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          
+          {/* Dropdown Menu */}
+          {showDropdown && (
+            <div className="absolute left-10 top-0 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-10 min-w-[120px]">
+              <button
+                onClick={() => addConnectedBlock('visual')}
+                className="w-full px-3 py-2 text-left hover:bg-gray-100 flex items-center gap-2 text-sm"
+              >
+                <Image className="h-4 w-4 text-purple-600" />
+                Visual
+              </button>
+              <button
+                onClick={() => addConnectedBlock('hook')}
+                className="w-full px-3 py-2 text-left hover:bg-gray-100 flex items-center gap-2 text-sm"
+              >
+                <Fish className="h-4 w-4 text-green-600" />
+                Hook
+              </button>
+              <button
+                onClick={() => addConnectedBlock('cta')}
+                className="w-full px-3 py-2 text-left hover:bg-gray-100 flex items-center gap-2 text-sm"
+              >
+                <Target className="h-4 w-4 text-red-600" />
+                CTA
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       
       <div className="p-4">
@@ -348,6 +400,15 @@ function HookBlock({ data, id }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
   const { session, updateDynamicContext, addToHistory } = useCanvasStore();
+  
+  const handleClose = () => {
+    if (data.onClose) {
+      data.onClose();
+    } else {
+      // Fallback: dispatch custom event
+      window.dispatchEvent(new CustomEvent('removeNode', { detail: { nodeId: id } }));
+    }
+  };
   
   const generateHooks = async () => {
     if (!session?.dynamicContext?.ideas?.length) {
@@ -414,10 +475,17 @@ function HookBlock({ data, id }) {
   };
   
   return (
-    <div className="bg-white rounded-lg shadow-lg border-2 border-green-200 min-w-[350px]">
+    <div className="bg-white rounded-lg shadow-lg border-2 border-green-200 min-w-[350px] resize overflow-auto">
       <div className="flex items-center gap-2 p-3 bg-green-50 rounded-t-lg border-b">
         <Fish className="h-5 w-5 text-green-600" />
         <span className="font-medium text-green-800">Hook Generator</span>
+        <button
+          onClick={handleClose}
+          className="ml-auto p-1 hover:bg-green-100 rounded-full transition-colors"
+          title="Close block"
+        >
+          <X className="h-4 w-4 text-green-600" />
+        </button>
       </div>
       
       <div className="p-4">
@@ -450,14 +518,51 @@ function HookBlock({ data, id }) {
 function VisualBlock({ data, id }) {
   const [generatedImage, setGeneratedImage] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [step, setStep] = useState(0); // 0: template selection, 1: content input, 2: generated result
+  const [content, setContent] = useState('');
+  const [context, setContext] = useState('');
   const { toast } = useToast();
   const { session, updateDynamicContext } = useCanvasStore();
   
+  const handleClose = () => {
+    if (data.onClose) {
+      data.onClose();
+    } else {
+      window.dispatchEvent(new CustomEvent('removeNode', { detail: { nodeId: id } }));
+    }
+  };
+  
+  const templates = [
+    { id: 1, title: "Myth vs. Fact", imageSrc: "/images/templates/myth-vs-fact.png" },
+    { id: 2, title: "12 Info Blocks", imageSrc: "/images/templates/info-blocks.png" },
+    { id: 3, title: "Cheat Sheet", imageSrc: "/images/templates/cheat-sheet.png" },
+    { id: 4, title: "10 Brutal Truths", imageSrc: "/images/templates/brutal-truths.png" },
+    { id: 5, title: "Listicle", imageSrc: "/images/templates/listicle.png" },
+    { id: 6, title: "8 Radial Options", imageSrc: "/images/templates/radial-options.png" },
+    { id: 7, title: "5 Lessons", imageSrc: "/images/templates/lessons.png" },
+    { id: 8, title: "Roadmap", imageSrc: "/images/templates/roadmap.png" },
+    { id: 9, title: "7 Things About Archetype", imageSrc: "/images/templates/archetype.png" },
+  ];
+  
+  const handleTemplateSelect = (template) => {
+    setSelectedTemplate(template);
+    
+    // Auto-populate content from connected ideation blocks
+    if (session?.dynamicContext?.ideas?.length) {
+      const latestIdea = session.dynamicContext.ideas[session.dynamicContext.ideas.length - 1];
+      setContent(latestIdea.content.substring(0, 500));
+      setContext('LinkedIn post visual');
+    }
+    
+    setStep(1);
+  };
+  
   const generateVisual = async () => {
-    if (!session?.dynamicContext?.ideas?.length) {
+    if (!content.trim()) {
       toast({
-        title: "No content found",
-        description: "Connect to content blocks first",
+        title: "Content required",
+        description: "Please provide content for the visual",
         variant: "destructive",
       });
       return;
@@ -466,15 +571,13 @@ function VisualBlock({ data, id }) {
     setIsGenerating(true);
     
     try {
-      const latestIdea = session.dynamicContext.ideas[session.dynamicContext.ideas.length - 1];
-      
       const response = await fetch('/api/infogen/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          content: latestIdea.content.substring(0, 200),
-          context: 'LinkedIn post visual',
-          templateId: 5 // Listicle template
+          content: content.trim(),
+          context: context || 'LinkedIn post visual',
+          templateId: selectedTemplate?.id || 5
         }),
       });
       
@@ -490,20 +593,26 @@ function VisualBlock({ data, id }) {
             url: result.imageUrl,
             type: 'infographic',
             source: 'visual',
-            blockId: id
+            blockId: id,
+            templateId: selectedTemplate?.id,
+            templateName: selectedTemplate?.title
           }]
         });
+        
+        setStep(2);
         
         toast({
           title: "Visual generated!",
           description: "Infographic added to session context"
         });
+      } else {
+        throw new Error(result.error || 'Failed to generate visual');
       }
     } catch (error) {
       console.error('Error generating visual:', error);
       toast({
         title: "Error",
-        description: "Failed to generate visual",
+        description: error.message || "Failed to generate visual",
         variant: "destructive",
       });
     } finally {
@@ -511,37 +620,155 @@ function VisualBlock({ data, id }) {
     }
   };
   
+  const resetToTemplateSelection = () => {
+    setStep(0);
+    setSelectedTemplate(null);
+    setContent('');
+    setContext('');
+    setGeneratedImage(null);
+  };
+  
   return (
-    <div className="bg-white rounded-lg shadow-lg border-2 border-purple-200 min-w-[350px]">
+    <div className="bg-white rounded-lg shadow-lg border-2 border-purple-200 w-[500px] resize overflow-auto">
       <div className="flex items-center gap-2 p-3 bg-purple-50 rounded-t-lg border-b">
         <Image className="h-5 w-5 text-purple-600" />
         <span className="font-medium text-purple-800">Visual Generator</span>
+        {step > 0 && (
+          <button
+            onClick={resetToTemplateSelection}
+            className="text-xs text-purple-600 hover:text-purple-800"
+          >
+            ← Back to templates
+          </button>
+        )}
+        <button
+          onClick={handleClose}
+          className="ml-auto p-1 hover:bg-purple-100 rounded-full transition-colors"
+          title="Close block"
+        >
+          <X className="h-4 w-4 text-purple-600" />
+        </button>
       </div>
       
       <div className="p-4">
-        <div className="h-48 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center mb-4">
-          {generatedImage ? (
-            <img 
-              src={generatedImage} 
-              alt="Generated visual" 
-              className="max-h-full max-w-full object-contain rounded"
-            />
-          ) : (
-            <div className="text-center text-gray-500">
-              <Image className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <div className="text-sm">No visual generated yet</div>
+        {/* Template Selection */}
+        {step === 0 && (
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-gray-700">Choose a Template</h3>
+            <div className="grid grid-cols-3 gap-2 max-h-96">
+              {templates.map((template) => (
+                <div 
+                  key={template.id}
+                  onClick={() => handleTemplateSelect(template)}
+                  className="border rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-shadow duration-200 bg-white"
+                >
+                  <div className="relative h-20">
+                    {template.imageSrc ? (
+                      <img 
+                        src={template.imageSrc} 
+                        alt={template.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                        <div className="text-center p-1">
+                          <div className="text-gray-500 text-lg">📄</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-2">
+                    <h3 className="font-medium text-gray-900 text-xs leading-tight">{template.title}</h3>
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
         
-        <Button
-          onClick={generateVisual}
-          disabled={isGenerating}
-          className="w-full"
-          variant="outline"
-        >
-          {isGenerating ? 'Generating...' : 'Generate Visual'}
-        </Button>
+        {/* Content Input */}
+        {step === 1 && (
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-gray-600 mb-2">
+                Template: <span className="font-medium">{selectedTemplate?.title}</span>
+              </p>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Content
+              </label>
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm resize-none"
+                rows={4}
+                placeholder="Enter content for your visual..."
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Context (optional)
+              </label>
+              <input
+                type="text"
+                value={context}
+                onChange={(e) => setContext(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                placeholder="e.g., LinkedIn post visual"
+              />
+            </div>
+            
+            <Button
+              onClick={generateVisual}
+              disabled={isGenerating || !content.trim()}
+              className="w-full"
+              variant="outline"
+            >
+              {isGenerating ? 'Generating...' : 'Generate Visual'}
+            </Button>
+          </div>
+        )}
+        
+        {/* Generated Result */}
+        {step === 2 && (
+          <div className="space-y-4">
+            <div className="bg-gray-50 rounded-lg p-4">
+              {generatedImage ? (
+                <img 
+                  src={generatedImage} 
+                  alt="Generated visual" 
+                  className="w-full h-auto rounded"
+                />
+              ) : (
+                <div className="text-center text-gray-500 py-8">
+                  <Image className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <div className="text-sm">Visual generation in progress...</div>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex gap-2">
+              <Button
+                onClick={resetToTemplateSelection}
+                variant="outline"
+                className="flex-1"
+              >
+                New Visual
+              </Button>
+              {generatedImage && (
+                <Button
+                  onClick={() => window.open(generatedImage, '_blank')}
+                  className="flex-1"
+                >
+                  Download
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -550,6 +777,14 @@ function VisualBlock({ data, id }) {
 function ContentBlock({ data, id }) {
   const [content, setContent] = useState('');
   const { session, updateDynamicContext } = useCanvasStore();
+  
+  const handleClose = () => {
+    if (data.onClose) {
+      data.onClose();
+    } else {
+      window.dispatchEvent(new CustomEvent('removeNode', { detail: { nodeId: id } }));
+    }
+  };
   
   const compileContent = () => {
     if (!session?.dynamicContext) return;
@@ -573,10 +808,17 @@ function ContentBlock({ data, id }) {
   };
   
   return (
-    <div className="bg-white rounded-lg shadow-lg border-2 border-orange-200 min-w-[350px]">
+    <div className="bg-white rounded-lg shadow-lg border-2 border-orange-200 min-w-[350px] resize overflow-auto">
       <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-t-lg border-b">
         <Type className="h-5 w-5 text-orange-600" />
         <span className="font-medium text-orange-800">Content Editor</span>
+        <button
+          onClick={handleClose}
+          className="ml-auto p-1 hover:bg-orange-100 rounded-full transition-colors"
+          title="Close block"
+        >
+          <X className="h-4 w-4 text-orange-600" />
+        </button>
       </div>
       
       <div className="p-4">
@@ -601,12 +843,130 @@ function ContentBlock({ data, id }) {
   );
 }
 
+function CTABlock({ data, id }) {
+  const [ctas, setCtas] = useState([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const { toast } = useToast();
+  const { session, updateDynamicContext, addToHistory } = useCanvasStore();
+  
+  const handleClose = () => {
+    if (data.onClose) {
+      data.onClose();
+    } else {
+      window.dispatchEvent(new CustomEvent('removeNode', { detail: { nodeId: id } }));
+    }
+  };
+  
+  const generateCTA = async () => {
+    if (!session?.dynamicContext?.ideas?.length) {
+      toast({
+        title: "No content found",
+        description: "Connect to an ideation block first",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsGenerating(true);
+    
+    try {
+      const latestIdea = session.dynamicContext.ideas[session.dynamicContext.ideas.length - 1];
+      
+      const response = await fetch('/api/cocreate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userMessage: `Create 3 compelling call-to-action options for this content: ${latestIdea.content}. Focus on engagement, connection, and driving action.`,
+          action: 'create'
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        const generatedCTAs = [
+          { id: 1, text: "💬 What's your experience with this?" },
+          { id: 2, text: "🔗 Connect with me if you found this helpful!" },
+          { id: 3, text: "📩 DM me for more insights like this" }
+        ];
+        
+        setCtas(generatedCTAs);
+        
+        // Update session context
+        updateDynamicContext({
+          ctas: [...(session?.dynamicContext?.ctas || []), ...generatedCTAs.map(c => ({
+            id: `cta-${Date.now()}-${c.id}`,
+            content: c.text,
+            source: 'cta',
+            blockId: id
+          }))]
+        });
+        
+        toast({
+          title: "CTAs generated!",
+          description: "3 new call-to-action options added"
+        });
+      }
+    } catch (error) {
+      console.error('Error generating CTAs:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate CTAs",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+  
+  return (
+    <div className="bg-white rounded-lg shadow-lg border-2 border-red-200 min-w-[350px] resize overflow-auto">
+      <div className="flex items-center gap-2 p-3 bg-red-50 rounded-t-lg border-b">
+        <Target className="h-5 w-5 text-red-600" />
+        <span className="font-medium text-red-800">Call-to-Action</span>
+        <button
+          onClick={handleClose}
+          className="ml-auto p-1 hover:bg-red-100 rounded-full transition-colors"
+          title="Close block"
+        >
+          <X className="h-4 w-4 text-red-600" />
+        </button>
+      </div>
+      
+      <div className="p-4">
+        <div className="space-y-3 mb-4">
+          {ctas.map((cta) => (
+            <div key={cta.id} className="p-3 bg-red-50 rounded-lg border border-red-200">
+              <div className="text-sm text-red-800">{cta.text}</div>
+            </div>
+          ))}
+          {ctas.length === 0 && (
+            <div className="text-center text-gray-500 text-sm py-8">
+              No CTAs generated yet
+            </div>
+          )}
+        </div>
+        
+        <Button
+          onClick={generateCTA}
+          disabled={isGenerating}
+          className="w-full"
+          variant="outline"
+        >
+          {isGenerating ? 'Generating...' : 'Generate CTAs'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // Custom Node Types
 const nodeTypes = {
   ideationBlock: IdeationBlock,
   hookBlock: HookBlock,
   visualBlock: VisualBlock,
   contentBlock: ContentBlock,
+  ctaBlock: CTABlock,
 };
 
 // Main Canvas Component
@@ -620,6 +980,26 @@ const CoCreateCanvas = () => {
   
   useEffect(() => {
     initializeSession();
+    
+    // Add default ideation block
+    const defaultIdeationBlock = {
+      id: 'ideation-default',
+      type: 'ideationBlock',
+      position: { x: 100, y: 100 },
+      data: { 
+        label: 'ideation',
+        onUpdate: (updates) => {
+          setNodes(nds => nds.map(node => 
+            node.id === 'ideation-default' 
+              ? { ...node, data: { ...node.data, ...updates } }
+              : node
+          ));
+        }
+        // No onClose function for the default ideation block
+      },
+    };
+    
+    setNodes([defaultIdeationBlock]);
   }, []);
   
   // Keyboard shortcuts
@@ -666,6 +1046,26 @@ const CoCreateCanvas = () => {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [selectedNodes, isLoading]);
   
+  // Handle adding connected blocks
+  useEffect(() => {
+    const handleAddConnectedBlock = (event) => {
+      const { blockType, sourceId } = event.detail;
+      addConnectedBlock(blockType, sourceId);
+    };
+    
+    const handleRemoveNode = (event) => {
+      const { nodeId } = event.detail;
+      removeNode(nodeId);
+    };
+    
+    window.addEventListener('addConnectedBlock', handleAddConnectedBlock);
+    window.addEventListener('removeNode', handleRemoveNode);
+    return () => {
+      window.removeEventListener('addConnectedBlock', handleAddConnectedBlock);
+      window.removeEventListener('removeNode', handleRemoveNode);
+    };
+  }, []);
+  
   // Handle node selection
   const onSelectionChange = useCallback((elements) => {
     const nodeIds = elements.nodes.map(node => node.id);
@@ -677,23 +1077,71 @@ const CoCreateCanvas = () => {
   }, [setEdges]);
   
   const addNode = (type) => {
+    const nodeId = `${type}-${Date.now()}`;
     const newNode = {
-      id: `${type}-${Date.now()}`,
+      id: nodeId,
       type: `${type}Block`,
       position: { x: Math.random() * 400, y: Math.random() * 400 },
       data: { 
         label: type,
         onUpdate: (updates) => {
           setNodes(nds => nds.map(node => 
-            node.id === newNode.id 
+            node.id === nodeId 
               ? { ...node, data: { ...node.data, ...updates } }
               : node
           ));
-        }
+        },
+        onClose: type !== 'ideation' ? () => removeNode(nodeId) : undefined
       },
     };
     
     setNodes((nds) => nds.concat(newNode));
+  };
+  
+  const addConnectedBlock = (type, sourceId) => {
+    // Find the source node to position the new block relative to it
+    const sourceNode = nodes.find(node => node.id === sourceId);
+    const sourcePosition = sourceNode ? sourceNode.position : { x: 100, y: 100 };
+    
+    const nodeId = `${type}-${Date.now()}`;
+    const newNode = {
+      id: nodeId,
+      type: `${type}Block`,
+      position: { 
+        x: sourcePosition.x + 400, 
+        y: sourcePosition.y + (Math.random() - 0.5) * 200 
+      },
+      data: { 
+        label: type,
+        onUpdate: (updates) => {
+          setNodes(nds => nds.map(node => 
+            node.id === nodeId 
+              ? { ...node, data: { ...node.data, ...updates } }
+              : node
+          ));
+        },
+        onClose: () => removeNode(nodeId)
+      },
+    };
+    
+    // Add the new node
+    setNodes((nds) => nds.concat(newNode));
+    
+    // Create connection from source to new node
+    const newEdge = {
+      id: `${sourceId}-${nodeId}`,
+      source: sourceId,
+      target: nodeId,
+      type: 'default',
+      animated: true,
+    };
+    
+    setEdges((eds) => eds.concat(newEdge));
+  };
+
+  const removeNode = (nodeId) => {
+    setNodes(nds => nds.filter(node => node.id !== nodeId));
+    setEdges(eds => eds.filter(edge => edge.source !== nodeId && edge.target !== nodeId));
   };
   
   const compilePost = async () => {
@@ -904,115 +1352,9 @@ const CoCreateCanvas = () => {
           </div>
         </Panel>
         
-        {/* Block Library */}
-        <Panel position="top-left">
-          <div className="bg-white rounded-lg shadow-lg p-4">
-            <h3 className="font-semibold mb-3">Add Blocks</h3>
-            <div className="space-y-2">
-              <Button
-                onClick={() => addNode('ideation')}
-                variant="outline"
-                className="w-full justify-start"
-              >
-                <Brain className="h-4 w-4 mr-2" />
-                Ideation
-                <span className="ml-auto text-xs text-gray-500">⌘1</span>
-              </Button>
-              <Button
-                onClick={() => addNode('hook')}
-                variant="outline"
-                className="w-full justify-start"
-              >
-                <Fish className="h-4 w-4 mr-2" />
-                Hook
-                <span className="ml-auto text-xs text-gray-500">⌘2</span>
-              </Button>
-              <Button
-                onClick={() => addNode('visual')}
-                variant="outline"
-                className="w-full justify-start"
-              >
-                <Image className="h-4 w-4 mr-2" />
-                Visual
-                <span className="ml-auto text-xs text-gray-500">⌘3</span>
-              </Button>
-              <Button
-                onClick={() => addNode('content')}
-                variant="outline"
-                className="w-full justify-start"
-              >
-                <Type className="h-4 w-4 mr-2" />
-                Content
-                <span className="ml-auto text-xs text-gray-500">⌘4</span>
-              </Button>
-            </div>
-            
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <h4 className="font-medium text-sm mb-2">Shortcuts</h4>
-              <div className="text-xs text-gray-600 space-y-1">
-                <div>⌘↵ Compile Post</div>
-                <div>⌫ Delete Selected</div>
-                <div>Drag to Connect</div>
-              </div>
-            </div>
-          </div>
-        </Panel>
+
         
-        {/* Session Context */}
-        <Panel position="bottom-right">
-          <div className="bg-white rounded-lg shadow-lg p-4 max-w-sm">
-            <h3 className="font-semibold mb-3">Session Context</h3>
-            
-            {/* User Voice Analysis */}
-            {session?.intrinsicContext?.userVoiceAnalysis && (
-              <div className="mb-4">
-                <h4 className="font-medium text-sm mb-2">Your Voice</h4>
-                <div className="text-xs text-gray-600 space-y-1">
-                  <div>Style: {session.intrinsicContext.userVoiceAnalysis.style}</div>
-                  <div>Tone: {session.intrinsicContext.userVoiceAnalysis.tone}</div>
-                  {session.intrinsicContext.userVoiceAnalysis.postsAnalyzed && (
-                    <div>From {session.intrinsicContext.userVoiceAnalysis.postsAnalyzed} posts</div>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            {/* Dynamic Context */}
-            {session?.dynamicContext && (
-              <div className="mb-4">
-                <h4 className="font-medium text-sm mb-2">Generated Content</h4>
-                <div className="text-sm space-y-2">
-                  <div className="flex justify-between">
-                    <span>Ideas:</span>
-                    <span className="font-medium">{session.dynamicContext.ideas?.length || 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Hooks:</span>
-                    <span className="font-medium">{session.dynamicContext.hooks?.length || 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Visuals:</span>
-                    <span className="font-medium">{session.dynamicContext.visuals?.length || 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Content:</span>
-                    <span className="font-medium">{session.dynamicContext.generatedContent?.length || 0}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Canvas Stats */}
-            <div className="pt-4 border-t border-gray-200">
-              <h4 className="font-medium text-sm mb-2">Canvas</h4>
-              <div className="text-xs text-gray-600 space-y-1">
-                <div>Blocks: {nodes.length}</div>
-                <div>Connections: {edges.length}</div>
-                <div>Selected: {selectedNodes.length}</div>
-              </div>
-            </div>
-          </div>
-        </Panel>
+
       </ReactFlow>
     </div>
   );
