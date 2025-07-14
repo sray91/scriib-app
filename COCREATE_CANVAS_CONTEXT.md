@@ -223,21 +223,18 @@ Body: { userMessage, action: 'create' }
 **Purpose**: Create infographics and visual content
 
 **Features**:
-- **Step 1**: Template selection (9 predefined templates)
-  - Myth vs. Fact
-  - 12 Info Blocks  
-  - Cheat Sheet
-  - 10 Brutal Truths
-  - Listicle
-  - 8 Radial Options
-  - 5 Lessons
-  - Roadmap
-  - 7 Things About Archetype
+- **Step 0**: Generation method selection
+  - Generate via Prompt: Create infographic from text description
+  - Use Template: Choose from 9 predefined templates
+  - Upload Reference: Use uploaded image as reference
+- **Step 1**: Template selection or image upload (depending on method)
+  - Templates: Myth vs. Fact, 12 Info Blocks, Cheat Sheet, 10 Brutal Truths, Listicle, 8 Radial Options, 5 Lessons, Roadmap, 7 Things About Archetype
+  - Upload: Drag-and-drop interface for reference images
 - **Step 2**: Content input with context
 - **Step 3**: Generated visual display
 - Auto-populates content from connected ideation blocks
 - Downloads generated visuals
-- Integrates with `/api/infogen/generate`
+- Integrates with `/api/infogen/generate` and `/api/infogen/upload`
 
 ### 4. ContentBlock (Type Icon - Orange Theme)
 **Location**: `components/canvas-blocks/ContentBlock.js`
@@ -318,9 +315,10 @@ if (latestGeneratedContent || latestIdea) {
 - **Output**: Generated content, updated post
 
 ### Visual Generation (via VisualBlock)
-- **Endpoint**: `/api/infogen/generate`
+- **Generate Endpoint**: `/api/infogen/generate`
+- **Upload Endpoint**: `/api/infogen/upload`
 - **Purpose**: Create infographics from text content within the canvas workflow
-- **Input**: Content, context, template ID
+- **Input**: Content, context, template ID (optional), reference image (optional)
 - **Output**: Generated image URL
 
 ### Post Management
