@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Play, Plus, Brain, Fish, Image, Target } from 'lucide-react';
+import { NodeResizer } from 'reactflow';
 import { useCanvasStore } from '@/lib/stores/canvasStore';
 import { API_ENDPOINTS, CANVAS_SETTINGS } from '@/lib/constants/canvasConfig';
 
@@ -100,7 +101,15 @@ const IdeationBlock = ({ data, id }) => {
   };
   
   return (
-    <div className="bg-white rounded-lg shadow-lg border-2 border-blue-200 min-w-[350px] relative">
+    <>
+      <NodeResizer
+        minWidth={350}
+        minHeight={300}
+        isVisible={true}
+        lineClassName="border-blue-400"
+        handleClassName="bg-blue-500"
+      />
+      <div className="bg-white rounded-lg shadow-lg border-2 border-blue-200 w-full h-full relative flex flex-col">
       <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-t-lg border-b">
         <Brain className="h-5 w-5 text-blue-600" />
         <span className="font-medium text-blue-800">Ideation</span>
@@ -145,9 +154,9 @@ const IdeationBlock = ({ data, id }) => {
         </div>
       </div>
       
-      <div className="p-4">
+      <div className="p-4 flex-1 flex flex-col min-h-0">
         {/* Chat Messages */}
-        <div className={`h-40 overflow-y-auto mb-4 space-y-2`} style={{ height: `${CANVAS_SETTINGS.CHAT_HEIGHT}px` }}>
+        <div className="flex-1 overflow-y-auto mb-4 space-y-2 min-h-0">
           {messages.map((message, index) => (
             <div key={index} className={`p-2 rounded text-sm ${
               message.role === 'user' 
@@ -184,7 +193,8 @@ const IdeationBlock = ({ data, id }) => {
           </Button>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

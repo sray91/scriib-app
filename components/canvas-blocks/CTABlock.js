@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Target, X } from 'lucide-react';
+import { NodeResizer } from 'reactflow';
 import { useCanvasStore } from '@/lib/stores/canvasStore';
 import { DEFAULT_CTA_TEMPLATES, API_ENDPOINTS, CANVAS_SETTINGS } from '@/lib/constants/canvasConfig';
 
@@ -82,8 +83,15 @@ const CTABlock = ({ data, id }) => {
   };
   
   return (
-    <div className={`bg-white rounded-lg shadow-lg border-2 border-red-200 resize overflow-auto`}
-         style={{ minWidth: `${CANVAS_SETTINGS.MIN_BLOCK_WIDTH}px` }}>
+    <>
+      <NodeResizer
+        minWidth={350}
+        minHeight={200}
+        isVisible={true}
+        lineClassName="border-red-400"
+        handleClassName="bg-red-500"
+      />
+            <div className={`bg-white rounded-lg shadow-lg border-2 border-red-200 w-full h-full overflow-auto flex flex-col`}>
       <div className="flex items-center gap-2 p-3 bg-red-50 rounded-t-lg border-b">
         <Target className="h-5 w-5 text-red-600" />
         <span className="font-medium text-red-800">Call-to-Action</span>
@@ -96,7 +104,7 @@ const CTABlock = ({ data, id }) => {
         </button>
       </div>
       
-      <div className="p-4">
+      <div className="p-4 flex-1 flex flex-col min-h-0">
         <div className="space-y-3 mb-4">
           {ctas.map((cta) => (
             <div key={cta.id} className="p-3 bg-red-50 rounded-lg border border-red-200">
@@ -119,7 +127,8 @@ const CTABlock = ({ data, id }) => {
           {isGenerating ? 'Generating...' : 'Generate CTAs'}
         </Button>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

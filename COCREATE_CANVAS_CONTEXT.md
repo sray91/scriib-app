@@ -82,7 +82,7 @@ Four specialized hooks for canvas operations:
 Centralized configuration management:
 
 ```javascript
-// Visual templates for InfoGen
+// Visual templates for VisualBlock
 export const VISUAL_TEMPLATES = [
   { id: 'myth-vs-fact', name: 'Myth vs. Fact', preview: '/images/templates/myth-vs-fact.png' },
   // ... 8 more templates
@@ -317,9 +317,9 @@ if (latestGeneratedContent || latestIdea) {
 - **Input**: User message, action type
 - **Output**: Generated content, updated post
 
-### Visual Generation  
+### Visual Generation (via VisualBlock)
 - **Endpoint**: `/api/infogen/generate`
-- **Purpose**: Create infographics from text content
+- **Purpose**: Create infographics from text content within the canvas workflow
 - **Input**: Content, context, template ID
 - **Output**: Generated image URL
 
@@ -381,7 +381,7 @@ User compiles → Validate content → Assemble final post → Save to database 
 
 ### External APIs
 - CoCreate API for content generation
-- InfoGen API for visual creation
+- Visual generation API (via VisualBlock) for infographic creation
 - Post Forge integration for final storage
 
 ## Extension Points

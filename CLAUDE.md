@@ -24,9 +24,8 @@ This is a Next.js 14 creator app built for LinkedIn content creation with AI ass
 
 1. **CoCreate**: AI-powered LinkedIn post generation using voice analysis and training documents
 2. **Post Forge**: Content management with scheduling, approval workflows, and media handling  
-3. **InfoGen**: AI infographic generator with 9 predefined templates
-4. **Viral Posts**: "Swipe file" for collecting and organizing reference content
-5. **Analytics**: Post performance tracking and engagement metrics
+3. **Viral Posts**: "Swipe file" for collecting and organizing reference content
+4. **Analytics**: Post performance tracking and engagement metrics
 
 ### User Roles & Workflow
 - **Ghostwriters**: Create and draft content

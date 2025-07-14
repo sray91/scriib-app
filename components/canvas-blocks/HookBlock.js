@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Fish, X } from 'lucide-react';
+import { NodeResizer } from 'reactflow';
 import { useCanvasStore } from '@/lib/stores/canvasStore';
 import { API_ENDPOINTS } from '@/lib/constants/canvasConfig';
 
@@ -85,7 +86,15 @@ const HookBlock = ({ data, id }) => {
   };
   
   return (
-    <div className="bg-white rounded-lg shadow-lg border-2 border-green-200 min-w-[350px] resize overflow-auto">
+    <>
+      <NodeResizer
+        minWidth={350}
+        minHeight={200}
+        isVisible={true}
+        lineClassName="border-green-400"
+        handleClassName="bg-green-500"
+      />
+      <div className="bg-white rounded-lg shadow-lg border-2 border-green-200 w-full h-full overflow-auto flex flex-col">
       <div className="flex items-center gap-2 p-3 bg-green-50 rounded-t-lg border-b">
         <Fish className="h-5 w-5 text-green-600" />
         <span className="font-medium text-green-800">Hook Generator</span>
@@ -98,7 +107,7 @@ const HookBlock = ({ data, id }) => {
         </button>
       </div>
       
-      <div className="p-4">
+      <div className="p-4 flex-1 flex flex-col min-h-0">
         <div className="space-y-3 mb-4">
           {hooks.map((hook) => (
             <div key={hook.id} className="p-3 bg-green-50 rounded-lg border border-green-200">
@@ -121,7 +130,8 @@ const HookBlock = ({ data, id }) => {
           {isGenerating ? 'Generating...' : 'Generate Hooks'}
         </Button>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

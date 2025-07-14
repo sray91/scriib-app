@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Type, X } from 'lucide-react';
+import { NodeResizer } from 'reactflow';
 import { useCanvasStore } from '@/lib/stores/canvasStore';
 import { CANVAS_SETTINGS } from '@/lib/constants/canvasConfig';
 
@@ -38,8 +39,15 @@ const ContentBlock = ({ data, id }) => {
   };
   
   return (
-    <div className={`bg-white rounded-lg shadow-lg border-2 border-orange-200 resize overflow-auto`}
-         style={{ minWidth: `${CANVAS_SETTINGS.MIN_BLOCK_WIDTH}px` }}>
+    <>
+      <NodeResizer
+        minWidth={350}
+        minHeight={250}
+        isVisible={true}
+        lineClassName="border-orange-400"
+        handleClassName="bg-orange-500"
+      />
+            <div className={`bg-white rounded-lg shadow-lg border-2 border-orange-200 w-full h-full overflow-auto flex flex-col`}>
       <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-t-lg border-b">
         <Type className="h-5 w-5 text-orange-600" />
         <span className="font-medium text-orange-800">Content Editor</span>
@@ -52,13 +60,12 @@ const ContentBlock = ({ data, id }) => {
         </button>
       </div>
       
-      <div className="p-4">
+      <div className="p-4 flex-1 flex flex-col min-h-0">
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Compiled content will appear here..."
-          className="w-full p-3 border rounded-md text-sm resize-none"
-          style={{ height: `${CANVAS_SETTINGS.CHAT_HEIGHT}px` }}
+          className="w-full flex-1 p-3 border rounded-md text-sm resize-none min-h-0"
         />
         
         <div className="flex gap-2 mt-4">
@@ -71,7 +78,8 @@ const ContentBlock = ({ data, id }) => {
           </Button>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

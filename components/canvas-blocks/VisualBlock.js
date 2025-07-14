@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Image, X } from 'lucide-react';
+import { NodeResizer } from 'reactflow';
 import { useCanvasStore } from '@/lib/stores/canvasStore';
 import { VISUAL_TEMPLATES, API_ENDPOINTS, CANVAS_SETTINGS } from '@/lib/constants/canvasConfig';
 
@@ -107,8 +108,15 @@ const VisualBlock = ({ data, id }) => {
   };
   
   return (
-    <div className={`bg-white rounded-lg shadow-lg border-2 border-purple-200 resize overflow-auto`} 
-         style={{ width: `${CANVAS_SETTINGS.VISUAL_BLOCK_WIDTH}px` }}>
+    <>
+      <NodeResizer
+        minWidth={350}
+        minHeight={300}
+        isVisible={true}
+        lineClassName="border-purple-400"
+        handleClassName="bg-purple-500"
+      />
+            <div className={`bg-white rounded-lg shadow-lg border-2 border-purple-200 w-full h-full overflow-auto flex flex-col`}>
       <div className="flex items-center gap-2 p-3 bg-purple-50 rounded-t-lg border-b">
         <Image className="h-5 w-5 text-purple-600" />
         <span className="font-medium text-purple-800">Visual Generator</span>
@@ -129,13 +137,12 @@ const VisualBlock = ({ data, id }) => {
         </button>
       </div>
       
-      <div className="p-4">
+      <div className="p-4 flex-1 flex flex-col min-h-0">
         {/* Template Selection */}
         {step === 0 && (
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-gray-700">Choose a Template</h3>
-            <div className={`grid grid-cols-${CANVAS_SETTINGS.TEMPLATES_GRID_COLS} gap-2`} 
-                 style={{ maxHeight: `${CANVAS_SETTINGS.TEMPLATES_MAX_HEIGHT}px` }}>
+            <div className={`grid grid-cols-${CANVAS_SETTINGS.TEMPLATES_GRID_COLS} gap-2 max-h-full overflow-y-auto`}>
               {VISUAL_TEMPLATES.map((template) => (
                 <div 
                   key={template.id}
@@ -250,7 +257,8 @@ const VisualBlock = ({ data, id }) => {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

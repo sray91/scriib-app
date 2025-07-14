@@ -99,9 +99,13 @@ const CoCreateCanvas = () => {
         deleteKeyCode="Delete"
         selectNodesOnDrag={false}
       >
-        <Controls />
         <MiniMap />
         <Background />
+        
+        {/* Controls Panel */}
+        <Panel position="bottom-right" style={{ marginRight: '10px', marginBottom: '10px' }}>
+          <Controls showZoom={true} showFitView={true} showInteractive={true} />
+        </Panel>
         
         {/* Top Panel */}
         <Panel position="top-right">
