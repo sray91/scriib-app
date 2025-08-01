@@ -1,15 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { FileIcon, Trash2, AlertCircle, Users } from 'lucide-react';
+
+import { FileIcon, Trash2, AlertCircle, Users, Send } from 'lucide-react';
 import Image from 'next/image';
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import { Alert, AlertDescription } from '@/components/ui/alert.js';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const supabase = createClientComponentClient();
 
@@ -88,10 +89,11 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
     ...post
   });
   const [approvers, setApprovers] = useState([]);
-  const [ghostwriters, setGhostwriters] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [error, setError] = useState(null);
+  const [showApprovalDialog, setShowApprovalDialog] = useState(false);
+  const [approvalComment, setApprovalComment] = useState('');
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -108,19 +110,7 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
     fetchCurrentUser();
   }, []);
 
-  useEffect(() => {
-    if (currentUser) {
-      fetchApprovers();
-      fetchGhostwriters();
-      
-      // If editing an existing post, fetch its media files
-      if (!isNew && post?.id) {
-        fetchPostMedia(post.id);
-      }
-    }
-  }, [currentUser, isNew, post?.id]);
-
-  async function fetchApprovers() {
+  const fetchApprovers = useCallback(async () => {
     try {
       // Get all linked and active approvers for the current user
       const { data, error } = await supabase
@@ -176,68 +166,10 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
       // Silently set empty approvers rather than showing an error
       setApprovers([]);
     }
-  }
-
-  async function fetchGhostwriters() {
-    try {
-      // Get all linked and active ghostwriters for the current user
-      const { data, error } = await supabase
-        .from('ghostwriter_approver_link')
-        .select(`
-          id,
-          ghostwriter_id,
-          active
-        `)
-        .eq('approver_id', currentUser.id)
-        .eq('active', true);
-
-      if (error) {
-        console.error('Error fetching ghostwriters:', error);
-        // Silently set empty ghostwriters rather than showing an error
-        setGhostwriters([]);
-        return;
-      }
-      
-      // Get ghostwriter details in a separate query
-      if (data && data.length > 0) {
-        const ghostwriterIds = data.map(link => link.ghostwriter_id);
-        
-        const { data: ghostwriterDetails, error: ghostwriterError } = await supabase
-          .from('users_view')
-          .select('id, email, raw_user_meta_data')
-          .in('id', ghostwriterIds);
-        
-        if (ghostwriterError) {
-          console.error('Error fetching ghostwriter details:', ghostwriterError);
-          setGhostwriters([]);
-          return;
-        }
-        
-        // Transform the data
-        const formattedGhostwriters = data.map(link => {
-          const ghostwriterInfo = ghostwriterDetails?.find(g => g.id === link.ghostwriter_id) || {};
-          const userMetadata = ghostwriterInfo.raw_user_meta_data || {};
-          
-          return {
-            id: ghostwriterInfo.id || link.ghostwriter_id,
-            email: ghostwriterInfo.email || 'Unknown email',
-            name: userMetadata.full_name || userMetadata.name || (ghostwriterInfo.email ? ghostwriterInfo.email.split('@')[0] : 'Unknown user')
-          };
-        }).filter(item => item.id); // Ensure ghostwriter exists
-        
-        setGhostwriters(formattedGhostwriters);
-      } else {
-        setGhostwriters([]);
-      }
-    } catch (error) {
-      console.error('Error fetching ghostwriters:', error);
-      // Silently set empty ghostwriters rather than showing an error
-      setGhostwriters([]);
-    }
-  }
+  }, [currentUser]);
 
   // Function to fetch media files associated with a post
-  async function fetchPostMedia(postId) {
+  const fetchPostMedia = useCallback(async (postId) => {
     try {
       const { data, error } = await supabase
         .from('post_media')
@@ -270,9 +202,20 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
     } catch (fetchError) {
       console.error('Error in fetchPostMedia:', fetchError);
     }
-  }
+  }, []);
 
-  async function handleMediaUpload(e) {
+  useEffect(() => {
+    if (currentUser) {
+      fetchApprovers();
+      
+      // If editing an existing post, fetch its media files
+      if (!isNew && post?.id) {
+        fetchPostMedia(post.id);
+      }
+    }
+  }, [currentUser, isNew, post?.id, fetchApprovers, fetchPostMedia]);
+
+  const handleMediaUpload = useCallback(async (e) => {
     e.preventDefault();
     
     // Get files from either drop event or file input
@@ -344,9 +287,9 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
         variant: "destructive",
       });
     }
-  }
+  }, [toast]);
 
-  function handleRemoveMedia(index) {
+  const handleRemoveMedia = useCallback((index) => {
     setPostData(prev => {
       const updatedMediaFiles = [...(prev.mediaFiles || [])];
       updatedMediaFiles.splice(index, 1);
@@ -355,10 +298,10 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
         mediaFiles: updatedMediaFiles
       };
     });
-  }
+  }, []);
 
-  async function handleSavePost(e, actionType = 'draft') {
-    e.preventDefault();
+  const handleSavePost = useCallback(async (e, actionType = 'draft') => {
+    if (e) e.preventDefault();
     
     try {
       setIsSaving(true);
@@ -719,19 +662,13 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
     } finally {
       setIsSaving(false);
     }
-  }
+  }, [currentUser, isNew, post, postData, toast, onSave, onClose]);
 
-  // Determine if the current user is primarily a ghostwriter or approver for this post
-  // by counting their relationships in each role
+  // Keep approvers list for the approval dialog
   const hasApprovers = approvers.length > 0;
-  const hasGhostwriters = ghostwriters.length > 0;
-  const isGhostwriter = hasApprovers && !hasGhostwriters;
-  const isApprover = hasGhostwriters && !hasApprovers;
-  const isBoth = hasGhostwriters && hasApprovers;
-  const hasWorkflowOptions = hasApprovers || hasGhostwriters;
 
   // Add a function to handle deletion
-  const handleDelete = (e) => {
+  const handleDelete = useCallback((e) => {
     e.preventDefault();
     
     if (window.confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
@@ -750,7 +687,42 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
         });
       }
     }
-  };
+  }, [onDelete, post?.id, toast]);
+
+  // Handle sending for approval
+  const handleSendForApproval = useCallback(async () => {
+    try {
+      setIsSaving(true);
+      
+      // Update post data with approval comment if provided
+      if (approvalComment.trim()) {
+        setPostData(prev => ({
+          ...prev,
+          approval_comment: approvalComment.trim()
+        }));
+      }
+      
+      // Save the post and send for approval
+      await handleSavePost(null, 'send_for_approval');
+      
+      setShowApprovalDialog(false);
+      setApprovalComment('');
+      
+      toast({
+        title: "Success",
+        description: "Post sent for approval successfully",
+      });
+    } catch (error) {
+      console.error('Error sending for approval:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send post for approval",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [approvalComment, setPostData, handleSavePost, setShowApprovalDialog, setApprovalComment, toast]);
 
   if (error) {
     return (
@@ -848,216 +820,6 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
           <p>Drag & drop or click to upload media</p>
         </div>
 
-        {/* Add approver selection here - always visible */}
-        <div className="mt-4">
-          <Label htmlFor="post-approver" className="block mb-2">Assign Approver</Label>
-          <select
-            id="post-approver"
-            value={postData.approverId || ''}
-            onChange={(e) => setPostData(prev => ({
-              ...prev,
-              approverId: e.target.value
-            }))}
-            className="w-full p-2 border rounded-lg"
-            disabled={postData.status === 'pending_approval'} // Disable selection if already pending approval
-          >
-            <option value="">Select an approver</option>
-            {approvers.map((approver) => (
-              <option key={approver.id} value={approver.id}>
-                {approver.name}
-              </option>
-            ))}
-          </select>
-          {postData.status === 'pending_approval' && (
-            <p className="text-sm text-yellow-600 mt-1">
-              This post is already in the approval process
-            </p>
-          )}
-        </div>
-
-        {/* Workflow Actions Section - Only show if there are workflow options */}
-        {hasWorkflowOptions && (
-          <div className="mt-6 p-4 border rounded-lg bg-gray-50">
-            <h3 className="font-medium mb-3">Post Workflow</h3>
-            
-            {/* Different actions based on user role and post status */}
-            {isGhostwriter && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="requiresApproval"
-                    checked={!!postData.approverId}
-                    onCheckedChange={(checked) => setPostData(prev => ({
-                      ...prev,
-                      approverId: checked ? (approvers[0]?.id || '') : ''
-                    }))}
-                  />
-                  <Label htmlFor="requiresApproval">
-                    Send for approval
-                  </Label>
-                </div>
-
-                {!!postData.approverId && (
-                  <div className="ml-6">
-                    <Label htmlFor="approver" className="block mb-1">
-                      Select Approver
-                    </Label>
-                    <select
-                      id="approver"
-                      value={postData.approverId}
-                      onChange={(e) => setPostData(prev => ({
-                        ...prev,
-                        approverId: e.target.value
-                      }))}
-                      className="w-full p-2 border rounded-lg"
-                    >
-                      <option value="">Select an approver</option>
-                      {approvers.map((approver) => (
-                        <option key={approver.id} value={approver.id}>
-                          {approver.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {isApprover && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="needsEdit"
-                    checked={!!postData.ghostwriterId}
-                    onCheckedChange={(checked) => setPostData(prev => ({
-                      ...prev,
-                      ghostwriterId: checked ? (ghostwriters[0]?.id || '') : ''
-                    }))}
-                  />
-                  <Label htmlFor="needsEdit">
-                    Send to ghostwriter for edits
-                  </Label>
-                </div>
-
-                {!!postData.ghostwriterId && (
-                  <div className="ml-6">
-                    <Label htmlFor="ghostwriter" className="block mb-1">
-                      Select Ghostwriter
-                    </Label>
-                    <select
-                      id="ghostwriter"
-                      value={postData.ghostwriterId}
-                      onChange={(e) => setPostData(prev => ({
-                        ...prev,
-                        ghostwriterId: e.target.value
-                      }))}
-                      className="w-full p-2 border rounded-lg"
-                    >
-                      <option value="">Select a ghostwriter</option>
-                      {ghostwriters.map((ghostwriter) => (
-                        <option key={ghostwriter.id} value={ghostwriter.id}>
-                          {ghostwriter.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {isBoth && (
-              <Tabs defaultValue="as_ghostwriter" className="w-full">
-                <TabsList className="grid grid-cols-2 mb-2">
-                  <TabsTrigger value="as_ghostwriter">As Ghostwriter</TabsTrigger>
-                  <TabsTrigger value="as_approver">As Approver</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="as_ghostwriter" className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="requiresApproval"
-                      checked={!!postData.approverId}
-                      onCheckedChange={(checked) => setPostData(prev => ({
-                        ...prev,
-                        approverId: checked ? (approvers[0]?.id || '') : '',
-                        ghostwriterId: ''
-                      }))}
-                    />
-                    <Label htmlFor="requiresApproval">
-                      Send for approval
-                    </Label>
-                  </div>
-
-                  {!!postData.approverId && (
-                    <div className="ml-6">
-                      <Label htmlFor="approver" className="block mb-1">
-                        Select Approver
-                      </Label>
-                      <select
-                        id="approver"
-                        value={postData.approverId}
-                        onChange={(e) => setPostData(prev => ({
-                          ...prev,
-                          approverId: e.target.value
-                        }))}
-                        className="w-full p-2 border rounded-lg"
-                      >
-                        <option value="">Select an approver</option>
-                        {approvers.map((approver) => (
-                          <option key={approver.id} value={approver.id}>
-                            {approver.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </TabsContent>
-                
-                <TabsContent value="as_approver" className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="needsEdit"
-                      checked={!!postData.ghostwriterId}
-                      onCheckedChange={(checked) => setPostData(prev => ({
-                        ...prev,
-                        ghostwriterId: checked ? (ghostwriters[0]?.id || '') : '',
-                        approverId: ''
-                      }))}
-                    />
-                    <Label htmlFor="needsEdit">
-                      Send to ghostwriter for edits
-                    </Label>
-                  </div>
-
-                  {!!postData.ghostwriterId && (
-                    <div className="ml-6">
-                      <Label htmlFor="ghostwriter" className="block mb-1">
-                        Select Ghostwriter
-                      </Label>
-                      <select
-                        id="ghostwriter"
-                        value={postData.ghostwriterId}
-                        onChange={(e) => setPostData(prev => ({
-                          ...prev,
-                          ghostwriterId: e.target.value
-                        }))}
-                        className="w-full p-2 border rounded-lg"
-                      >
-                        <option value="">Select a ghostwriter</option>
-                        {ghostwriters.map((ghostwriter) => (
-                          <option key={ghostwriter.id} value={ghostwriter.id}>
-                            {ghostwriter.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-            )}
-          </div>
-        )}
-
         <div className="flex justify-between items-center mt-6">
           <div className="flex gap-2">
             {!isNew && onDelete && typeof onDelete === 'function' && (
@@ -1070,51 +832,27 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
                 <Trash2 className="h-4 w-4 mr-2" /> Delete Post
               </Button>
             )}
-            <Button 
-              variant="outline" 
-              onClick={(e) => handleSavePost(e, 'draft')}
-              disabled={isSaving}
-            >
-              Save as Draft
-            </Button>
-            {!isNew && (
-              <Button 
-                variant="outline" 
-                onClick={(e) => handleSavePost(e, 'save_changes')}
-                disabled={isSaving}
-                className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200"
-              >
-                Save Changes
-              </Button>
-            )}
           </div>
           
-          <div>
-            {postData.approverId ? (
+          <div className="flex gap-2">
+            {hasApprovers && (
               <Button 
-                onClick={(e) => handleSavePost(e, 'send_for_approval')}
-                disabled={isSaving || !postData.approverId}
-                className="bg-[#fb2e01] hover:bg-[#fb2e01]/90"
+                variant="outline"
+                onClick={() => setShowApprovalDialog(true)}
+                disabled={isSaving}
+                className="flex items-center gap-2"
               >
+                <Send className="h-4 w-4" />
                 Send for Approval
               </Button>
-            ) : postData.ghostwriterId && hasGhostwriters ? (
-              <Button 
-                onClick={(e) => handleSavePost(e, 'send_to_ghostwriter')}
-                disabled={isSaving || !postData.ghostwriterId}
-                className="bg-[#fb2e01] hover:bg-[#fb2e01]/90"
-              >
-                Send for Editing
-              </Button>
-            ) : (
-              <Button 
-                onClick={(e) => handleSavePost(e, 'schedule')}
-                disabled={isSaving}
-                className="bg-[#fb2e01] hover:bg-[#fb2e01]/90"
-              >
-                Schedule Post
-              </Button>
             )}
+            <Button 
+              onClick={(e) => handleSavePost(e, 'schedule')}
+              disabled={isSaving}
+              className="bg-[#fb2e01] hover:bg-[#fb2e01]/90"
+            >
+              Save Post
+            </Button>
           </div>
         </div>
       </div>
@@ -1158,6 +896,103 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
           </div>
         </div>
       </div>
+
+      {/* Approval Dialog */}
+      {showApprovalDialog && (
+        <Dialog open={showApprovalDialog} onOpenChange={setShowApprovalDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Send for Approval</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 my-4">
+              {/* Post Content Preview */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="text-sm text-gray-600 mb-2">
+                  Scheduled for: {new Date(postData.scheduledTime).toLocaleString()}
+                </div>
+                <p className="text-gray-800 whitespace-pre-wrap">{postData.content || 'No content yet...'}</p>
+                
+                {/* Show media files if any */}
+                {postData.mediaFiles && postData.mediaFiles.length > 0 && (
+                  <div className="grid grid-cols-2 gap-3 mt-4">
+                    {postData.mediaFiles.map((file, index) => (
+                      <div key={index} className="relative h-[200px] w-full">
+                        <Image
+                          src={file.url}
+                          alt="Post media"
+                          fill
+                          className="rounded-lg object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {postData.user_id && (
+                  <div className="flex items-center gap-2 mt-3 text-sm text-gray-500">
+                    <Users className="w-4 h-4" />
+                    <span>Created by: {currentUser?.email?.split('@')[0] || 'You'}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Approver Selection */}
+              <div>
+                <Label htmlFor="post-approver" className="block mb-2">Select Approver</Label>
+                <select
+                  id="post-approver"
+                  value={postData.approverId || ''}
+                  onChange={(e) => setPostData(prev => ({
+                    ...prev,
+                    approverId: e.target.value
+                  }))}
+                  className="w-full p-2 border rounded-lg"
+                >
+                  <option value="">Select an approver</option>
+                  {approvers.map((approver) => (
+                    <option key={approver.id} value={approver.id}>
+                      {approver.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Optional Comment */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">
+                  Additional Notes <span className="text-gray-500">(optional)</span>
+                </Label>
+                <Textarea
+                  value={approvalComment}
+                  onChange={(e) => setApprovalComment(e.target.value)}
+                  placeholder="Add any notes for the approver..."
+                  rows={3}
+                  className="resize-none"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowApprovalDialog(false)}
+                disabled={isSaving}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSendForApproval}
+                disabled={isSaving || !postData.approverId}
+                className="bg-[#fb2e01] hover:bg-[#fb2e01]/90"
+              >
+                <Send className="mr-2 h-4 w-4" />
+                Send for Approval
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 } 

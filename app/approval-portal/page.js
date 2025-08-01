@@ -171,7 +171,7 @@ export default function ApprovalPortal() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Content Approval Portal</h1>
           <p className="text-gray-600">
-            Review and approve content that's pending your approval
+            Review and approve content that&apos;s pending your approval
           </p>
         </div>
 
