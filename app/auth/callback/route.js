@@ -104,8 +104,7 @@ export async function GET(request) {
           acceptUrl.searchParams.set('email', email)
         }
         
-        // Always add setPassword=true for ghostwriter invites to ensure they set a password
-        acceptUrl.searchParams.set('setPassword', 'true')
+
         
         // Log for debugging
         console.log("Redirecting approver invite to:", acceptUrl.toString())
@@ -135,8 +134,6 @@ export async function GET(request) {
         // If the next URL is the accept page and we have an email, add it to the query params
         if ((next.includes('/accept') || redirectUrl.pathname.includes('/accept')) && email) {
           redirectUrl.searchParams.set('email', email)
-          // Add a flag to indicate this is a new user via magic link who will need to set a password
-          redirectUrl.searchParams.set('setPassword', 'true')
         }
       } else {
         // Otherwise, redirect to the dashboard or home page

@@ -18,8 +18,7 @@ export default function SignUpPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [sendingMagicLink, setSendingMagicLink] = useState(false)
-  const [magicLinkSent, setMagicLinkSent] = useState(false)
+
   const router = useRouter()
   const searchParams = useSearchParams()
   const nextUrl = searchParams.get('next') || '/'
@@ -78,9 +77,9 @@ export default function SignUpPage() {
         router.push(`/login?message=Check your email to confirm your account&next=${encodeURIComponent(nextUrl)}`)
       }
     } catch (error) {
-      // If the error is about an existing account, suggest using magic link
+      // If the error is about an existing account, suggest logging in
       if (error.message?.includes('already registered')) {
-        setError(`This email is already registered. You can try logging in with a password or use the "Email Magic Link" option below.`)
+        setError(`This email is already registered. Please try logging in with your password instead.`)
       } else {
         setError(error.message)
       }
@@ -89,65 +88,7 @@ export default function SignUpPage() {
     }
   }
   
-  const handleMagicLinkSignup = async (e) => {
-    e.preventDefault()
-    
-    if (!email) {
-      setError('Please enter your email address')
-      return
-    }
-    
-    setSendingMagicLink(true)
-    setError(null)
-    
-    try {
-      // Use the environment variable for the site URL
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
-      
-      // For approver invites, construct URL more carefully
-      let redirectUrl
-      
-      if (nextUrl.includes('/accept')) {
-        // Extract the ghostwriter ID if present
-        const ghostwriter = searchParams.get('ghostwriter') || 
-                          (nextUrl.includes('ghostwriter=') ? 
-                            new URLSearchParams(nextUrl.split('?')[1]).get('ghostwriter') : 
-                            null)
-        
-        if (ghostwriter) {
-          // Direct construction to avoid issues with URL parsing
-          redirectUrl = `${siteUrl.replace(/\/+$/, '')}/auth/callback?ghostwriter=${ghostwriter}&setPassword=true`
-        } else {
-          const acceptUrl = new URL(nextUrl, siteUrl)
-          acceptUrl.searchParams.set('setPassword', 'true')
-          redirectUrl = `${siteUrl.replace(/\/+$/, '')}/auth/callback?next=${encodeURIComponent(acceptUrl.pathname + acceptUrl.search)}`
-        }
-      } else {
-        // For regular URLs, just encode the nextUrl
-        redirectUrl = `${siteUrl.replace(/\/+$/, '')}/auth/callback?next=${encodeURIComponent(nextUrl)}`
-      }
-      
-      console.log("Magic link redirect for signup:", redirectUrl)
-      
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: redirectUrl,
-          data: {
-            sign_up_method: 'magic_link'
-          }
-        }
-      })
-      
-      if (error) throw error
-      
-      setMagicLinkSent(true)
-    } catch (error) {
-      setError(error.message)
-    } finally {
-      setSendingMagicLink(false)
-    }
-  }
+
   
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -164,81 +105,44 @@ export default function SignUpPage() {
             </Alert>
           )}
           
-          {magicLinkSent ? (
-            <div className="text-center py-6 px-2">
-              <h3 className="text-lg font-medium mb-2">Check Your Email</h3>
-              <p className="text-gray-600 mb-4">
-                We&apos;ve sent a magic link to <strong>{email}</strong>
-              </p>
-              <p className="text-sm text-gray-500">
-                Click the link in the email to sign in. If you don&apos;t see it, check your spam folder.
-              </p>
+          <form onSubmit={handleSignUp} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="m@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={!!inviteEmail}
+              />
             </div>
-          ) : (
-            <>
-              <form onSubmit={handleSignUp} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="m@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    disabled={!!inviteEmail}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm Password</Label>
-                  <Input
-                    id="confirm-password"
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? 'Creating account...' : 'Sign up with Password'}
-                </Button>
-              </form>
-              
-              <div className="mt-4 relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-gray-300" />
-                </div>
-                <div className="relative flex justify-center text-xs">
-                  <span className="bg-background px-2 text-gray-500">Or continue with</span>
-                </div>
-              </div>
-              
-              <form onSubmit={handleMagicLinkSignup} className="mt-4">
-                <Button 
-                  type="submit" 
-                  variant="outline" 
-                  className="w-full" 
-                  disabled={sendingMagicLink || !email}
-                >
-                  {sendingMagicLink ? 'Sending...' : 'Email Magic Link'}
-                </Button>
-                <p className="text-xs text-gray-500 mt-2 text-center">
-                  Don&apos;t want to set a password? We&apos;ll email you a secure login link.
-                </p>
-              </form>
-            </>
-          )}
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm Password</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+            </div>
+            
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Creating account...' : 'Sign up'}
+            </Button>
+          </form>
           
           <div className="mt-4 text-center text-sm">
             Already have an account?{' '}

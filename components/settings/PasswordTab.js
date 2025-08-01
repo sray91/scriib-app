@@ -51,13 +51,12 @@ export default function PasswordTab() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
         
-        // More accurate check for users that were created with magic links
+        // Check for users that might need to set their first password
         const { data, error } = await supabase.auth.getSession()
         
         if (!error && data?.session) {
-          // Check if this is a new user from a magic link/OTP
-          if (data.session.user?.app_metadata?.provider === 'email' || 
-              data.session.user?.identities?.some(i => i.provider === 'email' && !i.identity_data?.email_verified)) {
+          // Check if this is a new user who hasn't set a password yet
+          if (data.session.user?.app_metadata?.provider === 'email') {
             setNeedsPassword(true)
             
             // Check if the user is recently created (within the last hour)
@@ -186,7 +185,7 @@ export default function PasswordTab() {
           <Alert className="mb-4 bg-blue-50 border-blue-200">
             <Info className="h-4 w-4 text-blue-600" />
             <AlertDescription className="text-blue-700">
-              You logged in with a magic link. Setting a password will allow you to use either method in the future.
+              You're a new user. Setting a password will secure your account for future logins.
             </AlertDescription>
           </Alert>
         )}

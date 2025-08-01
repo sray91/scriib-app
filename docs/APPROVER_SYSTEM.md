@@ -6,42 +6,26 @@ This document explains how the approver invitation system works and how to troub
 
 The approver invitation system allows users (ghostwriters) to invite other users to approve their content before publishing. The process involves:
 
-1. Sending an invitation email
-2. The approver clicking the link in the email
-3. The approver being redirected to accept the invitation
-4. Creating a link between the ghostwriter and approver in the database
-5. Prompting the approver to set a password for enhanced security
+1. Creating an invitation relationship in the database
+2. The approver creates an account using the standard sign-up process
+3. When they sign up with the invited email address, they automatically become an approver
+4. They can then log in and start approving content
 
 ## Authentication Methods
 
-The system supports multiple authentication methods to accommodate both new and existing users:
+The system uses password-based authentication for all users:
 
-1. **Password Authentication**: Regular sign-up and login with email/password
-2. **Magic Link Authentication**: Passwordless login via email links - ideal for approvers
+1. **Password Authentication**: Sign-up and login with email/password
 
-When a user is invited as an approver, they receive a magic link email. This allows them to sign in securely without needing to create a password. After signing in, they can accept the invitation to become an approver.
-
-### Magic Link Flow
-
-1. Approver receives invitation email with a secure link
-2. Clicking the link logs them in automatically (one-time use)
-3. They're redirected to accept the invitation
-4. After accepting the invitation, they're prompted to set a password
-5. For future logins, they can:
-   - Request another magic link by clicking "Email Magic Link"
-   - Use their email and password if they've set one
-   - Manage their password through the account settings
-
-This approach ensures that approvers can get started immediately without the friction of creating a password, but still have the option to set one for added security.
+When a user is invited as an approver, they need to create an account using the standard sign-up process. Once they create an account with the same email address they were invited with, they will automatically become an approver.
 
 ## Password Management
 
-After accepting an invitation, approvers are encouraged to set a password for their account:
+Approvers must create an account with a password during the standard sign-up process. They can manage their password through the account settings:
 
-1. A prompt is displayed after accepting the invitation
-2. The approver can click the "Set Password" button to go to the password settings
-3. They can set a password without needing to know their current password (for accounts created via Magic Link)
-4. Once set, they can use either password login or Magic Link for future logins
+1. Navigate to Settings > Password
+2. Update their password as needed
+3. Use their email and password for all future logins
 
 Approvers can always manage their password later through the Settings > Password tab.
 

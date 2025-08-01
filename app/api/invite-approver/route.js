@@ -125,28 +125,10 @@ export async function POST(request) {
           }
         }
         
-        // Send invitation email using standard auth
-        const { error: signupError } = await supabase.auth.signInWithOtp({
-          email: email,
-          options: {
-            // Use a new direct approver-signup URL that will handle everything in one page
-            emailRedirectTo: `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://app.scriib.ai/').replace(/\/$/, '')}/auth/callback?ghostwriter=${encodeURIComponent(user.id)}&email=${encodeURIComponent(email)}&fromApproverSignup=true`,
-            // Add email subject
-            emailSubject: "Invitation to become an approver",
-            // Add a custom message to the email
-            data: {
-              invite_message: `You have been invited to become an approver. Click the link below to create your account - you will be able to set your password on the next page.`
-            }
-          }
-        });
-        
-        if (signupError) {
-          console.error("Error sending invitation OTP:", signupError);
-          return NextResponse.json(
-            { error: "Unable to send invitation email. Please check your Supabase configuration." },
-            { status: 500 }
-          );
-        }
+        // Note: With magic links removed, approvers will need to sign up manually
+        // The relationship is created here, and when they sign up with the same email,
+        // they will automatically become an approver
+        console.log(`Approver invitation prepared for ${email}. They will need to sign up manually.`);
       }
       
     } catch (authError) {

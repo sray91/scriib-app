@@ -129,20 +129,9 @@ export async function GET(request) {
         throw new Error("Could not create approver relationship");
       }
       
-      // Send the magic link for setting a password
-      const { error: magicLinkError } = await supabase.auth.signInWithOtp({
-        email: email,
-        options: {
-          emailRedirectTo: `${url.origin}/settings?tab=password&success=invite_accepted&ghostwriter=${ghostwriterId}`
-        }
-      });
-      
-      if (magicLinkError) {
-        console.error("Error sending magic link:", magicLinkError);
-      }
-      
-      // Redirect to a special page that doesn't require auth
-      return NextResponse.redirect(new URL(`/invite-complete?email=${encodeURIComponent(email)}`, url.origin));
+      // Approver relationship created successfully
+      // Since magic links are removed, redirect to login page with success message
+      return NextResponse.redirect(new URL(`/login?message=${encodeURIComponent("You have been successfully added as an approver. Please sign in with your account.")}&email=${encodeURIComponent(email)}`, url.origin));
       
     } catch (error) {
       console.error("Error in direct approve process:", error);

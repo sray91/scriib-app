@@ -139,12 +139,12 @@ The content will now be marked as "Approved" and can be published by the content
 
 Both approvers and content creators can log in using:
 
-1. **Magic Link**: Click "Email Magic Link" on the login page and receive a one-time login link via email
+1. **Password Login**: Use your email and password to sign in
 2. **Email/Password**: Enter your email and password if you've set one up
 
 ### Setting a Password
 
-If you initially signed in using a Magic Link:
+To set up or change your password:
 
 1. Go to **Settings > Password**
 2. Enter your desired password

@@ -22,18 +22,14 @@ export default function InviteCompletePage() {
           
           <div className="bg-blue-50 p-4 rounded-lg mt-6">
             <Mail className="w-8 h-8 text-blue-500 mx-auto mb-2" />
-            <h3 className="font-medium text-blue-700 mb-2">Check Your Email</h3>
+            <h3 className="font-medium text-blue-700 mb-2">Next Steps</h3>
             <p className="text-blue-600">
-              We just sent a magic link to <strong>{email}</strong> 
+              You can now sign in to your account at <strong>{email}</strong> 
             </p>
             <p className="text-sm text-blue-500 mt-2">
-              Click the link in your email to set a password for your account.
+              Use your existing password to log in and start approving content.
             </p>
           </div>
-          
-          <p className="text-gray-500 text-sm mt-6">
-            If you don&apos;t see the email, please check your spam folder. You can also use the Magic Link option on the login page.
-          </p>
         </CardContent>
       </Card>
     </div>
