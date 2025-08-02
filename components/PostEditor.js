@@ -900,12 +900,12 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
       {/* Approval Dialog */}
       {showApprovalDialog && (
         <Dialog open={showApprovalDialog} onOpenChange={setShowApprovalDialog}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle>Send for Approval</DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-4 my-4">
+            <div className="flex-1 overflow-y-auto space-y-4 my-4">
               {/* Post Content Preview */}
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="text-sm text-gray-600 mb-2">
@@ -973,7 +973,7 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
               </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="flex-shrink-0">
               <Button
                 variant="outline"
                 onClick={() => setShowApprovalDialog(false)}
