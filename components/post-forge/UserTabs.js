@@ -4,6 +4,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Users, ChevronDown } from 'lucide-react';
+import Image from 'next/image';
 
 export default function UserTabs({ 
   selectedUser, 
@@ -185,9 +186,11 @@ export default function UserTabs({
             <div className="relative">
               <Avatar className="w-8 h-8">
                 {user.avatar ? (
-                  <img 
+                  <Image 
                     src={user.avatar} 
                     alt={user.name}
+                    width={32}
+                    height={32}
                     className="w-full h-full rounded-full object-cover"
                   />
                 ) : (

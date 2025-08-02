@@ -185,7 +185,7 @@ export default function PasswordTab() {
           <Alert className="mb-4 bg-blue-50 border-blue-200">
             <Info className="h-4 w-4 text-blue-600" />
             <AlertDescription className="text-blue-700">
-              You're a new user. Setting a password will secure your account for future logins.
+              You&apos;re a new user. Setting a password will secure your account for future logins.
             </AlertDescription>
           </Alert>
         )}

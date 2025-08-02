@@ -6,4 +6,4 @@ const ContentPage = () => {
   )
 }
 
-export default page
+export default ContentPage

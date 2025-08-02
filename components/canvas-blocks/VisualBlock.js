@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { Image, X, FileImage, Grid3X3, Upload } from 'lucide-react';
+import { Image as ImageIcon, X, FileImage, Grid3X3, Upload } from 'lucide-react';
+import Image from 'next/image';
 import { NodeResizer } from 'reactflow';
 import { useCanvasStore } from '@/lib/stores/canvasStore';
 import { VISUAL_TEMPLATES, API_ENDPOINTS, CANVAS_SETTINGS } from '@/lib/constants/canvasConfig';
@@ -193,7 +194,7 @@ const VisualBlock = ({ data, id }) => {
       />
       <div className={`bg-white shadow-lg border-2 border-purple-200 w-full h-full overflow-auto flex flex-col`}>
         <div className="flex items-center gap-2 p-3 bg-purple-50 border-b">
-          <Image className="h-5 w-5 text-purple-600" />
+          <ImageIcon className="h-5 w-5 text-purple-600" />
           <span className="font-medium text-purple-800">Visual Generator</span>
           {step > 0 && (
             <button
@@ -267,10 +268,11 @@ const VisualBlock = ({ data, id }) => {
                   >
                     <div className="relative h-20">
                       {template.imageSrc ? (
-                        <img 
+                        <Image 
                           src={template.imageSrc} 
                           alt={template.title}
-                          className="w-full h-full object-cover"
+                          fill
+                          className="object-cover"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gray-100">
@@ -318,9 +320,11 @@ const VisualBlock = ({ data, id }) => {
               {referenceImage && (
                 <div className="mt-4">
                   <div className="text-sm font-medium text-gray-700 mb-2">Uploaded Reference:</div>
-                  <img 
+                  <Image 
                     src={referenceImage} 
                     alt="Reference" 
+                    width={400}
+                    height={128}
                     className="w-full max-h-32 object-contain border rounded"
                   />
                 </div>
@@ -395,14 +399,16 @@ const VisualBlock = ({ data, id }) => {
             <div className="space-y-4">
               <div className="bg-gray-50 rounded-lg p-4">
                 {generatedImage ? (
-                  <img 
+                  <Image 
                     src={generatedImage} 
                     alt="Generated visual" 
+                    width={400}
+                    height={300}
                     className="w-full h-auto rounded"
                   />
                 ) : (
                   <div className="text-center text-gray-500 py-8">
-                    <Image className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
                     <div className="text-sm">Visual generation in progress...</div>
                   </div>
                 )}

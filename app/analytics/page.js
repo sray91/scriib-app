@@ -85,8 +85,6 @@ export default function AnalyticsPage() {
     averageEngagement: 0
   }
   
-  const posts = analyticsData?.posts || []
-
   // Format numbers for display
   const formatNumber = (num) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
@@ -96,6 +94,7 @@ export default function AnalyticsPage() {
 
   // Sort posts based on selected criteria
   const sortedPosts = useMemo(() => {
+    const posts = analyticsData?.posts || []
     if (!posts.length) return []
     
     return [...posts].sort((a, b) => {
@@ -138,7 +137,7 @@ export default function AnalyticsPage() {
         return aValue > bValue ? 1 : -1
       }
     })
-  }, [posts, sortBy, sortOrder])
+  }, [analyticsData, sortBy, sortOrder])
 
   const handleSort = (field) => {
     if (sortBy === field) {

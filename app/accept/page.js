@@ -227,7 +227,7 @@ export default function AcceptInvitationPage() {
     }
     
     activateLink()
-  }, [ghostwriterId, authenticated, isCheckingAuth, supabase, shouldSetPassword, router])
+  }, [ghostwriterId, authenticated, isCheckingAuth, supabase, shouldSetPassword, router, success])
   
   // Function to redirect to login
   const goToLogin = () => {
