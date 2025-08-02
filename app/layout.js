@@ -33,6 +33,41 @@ export default async function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
+        {/* Primary Meta Tags */}
+        <title>Scriib - AI-Powered Content Creation Platform</title>
+        <meta name="title" content="Scriib - AI-Powered Content Creation Platform" />
+        <meta name="description" content="Create, edit, and schedule engaging social media content with AI assistance. Streamline your content workflow with approval workflows and team collaboration." />
+        <meta name="keywords" content="content creation, social media, AI, automation, scheduling, approval workflow" />
+        <meta name="author" content="Scriib" />
+        <meta name="robots" content="index, follow" />
+        
+        {/* Open Graph / Facebook */}
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://app.scriib.ai/" />
+        <meta property="og:title" content="Scriib - AI-Powered Content Creation Platform" />
+        <meta property="og:description" content="Create, edit, and schedule engaging social media content with AI assistance. Streamline your content workflow with approval workflows and team collaboration." />
+        <meta property="og:image" content="https://app.scriib.ai/scriib-logo.png" />
+        
+        {/* Twitter */}
+        <meta property="twitter:card" content="summary_large_image" />
+        <meta property="twitter:url" content="https://app.scriib.ai/" />
+        <meta property="twitter:title" content="Scriib - AI-Powered Content Creation Platform" />
+        <meta property="twitter:description" content="Create, edit, and schedule engaging social media content with AI assistance. Streamline your content workflow with approval workflows and team collaboration." />
+        <meta property="twitter:image" content="https://app.scriib.ai/scriib-logo.png" />
+        
+        {/* Favicon */}
+        <link rel="icon" type="image/png" sizes="32x32" href="/scriib-logo.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/scriib-logo.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/scriib-logo.png" />
+        <link rel="manifest" href="/site.webmanifest" />
+        
+        {/* Viewport */}
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        
+        {/* Theme Color */}
+        <meta name="theme-color" content="#fb2e01" />
+        
+        {/* Font Preloads */}
         <link
           rel="preload"
           href={bebasNeue.url}

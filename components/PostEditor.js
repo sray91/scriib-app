@@ -344,22 +344,27 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
             throw error;
           }
           
-          // Handle media files
-          if (postData.mediaFiles && postData.mediaFiles.length > 0) {
-            try {
-              const mediaUrls = postData.mediaFiles.map(file => file.url);
-              const { error: mediaError } = await supabase
-                .from('post_media')
-                .upsert({ 
-                  post_id: data.id, 
-                  media_urls: mediaUrls,
-                  updated_at: new Date().toISOString()
-                });
-              
-              if (mediaError) console.error('Error saving media:', mediaError);
-            } catch (mediaError) {
-              console.error('Error processing media:', mediaError);
+          // Handle media files using API route for consistent permissions (always call to ensure cleanup)
+          try {
+            const mediaUrls = postData.mediaFiles ? postData.mediaFiles.map(file => file.url) : [];
+            
+            const response = await fetch('/api/posts/save-media', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                postId: data.id,
+                mediaUrls: mediaUrls
+              }),
+            });
+            
+            if (!response.ok) {
+              const errorData = await response.json();
+              console.error('Error saving media:', errorData.error || 'Failed to save media');
             }
+          } catch (mediaError) {
+            console.error('Error processing media:', mediaError);
           }
           
           toast({
@@ -597,27 +602,29 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
         }
       }
       
-      // Handle media files if any
-      if (postData.mediaFiles && postData.mediaFiles.length > 0) {
-        try {
-          // Extract the URLs or paths from the media files
-          const mediaUrls = postData.mediaFiles.map(file => file.url);
-          
-          // Update the post with media URLs
-          const { error: mediaError } = await supabase
-            .from('post_media')
-            .upsert({ 
-              post_id: result.id, 
-              media_urls: mediaUrls,
-              updated_at: new Date().toISOString()
-            });
-          
-          if (mediaError) {
-            console.error('Error saving media references:', mediaError);
-          }
-        } catch (mediaError) {
-          console.error('Error processing media:', mediaError);
+      // Handle media files (always call API to ensure proper cleanup if files were removed)
+      try {
+        // Extract the URLs or paths from the media files (empty array if no files)
+        const mediaUrls = postData.mediaFiles ? postData.mediaFiles.map(file => file.url) : [];
+        
+        // Use the save-media API route for consistent permissions (bypasses RLS)
+        const response = await fetch('/api/posts/save-media', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            postId: result.id,
+            mediaUrls: mediaUrls
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Error saving media:', errorData.error || 'Failed to save media');
         }
+      } catch (mediaError) {
+        console.error('Error processing media:', mediaError);
       }
       
       // Set appropriate success message
