@@ -262,14 +262,16 @@ export default function ApprovalPortal() {
                           {postMedia[post.id].slice(0, 3).map((media, index) => (
                             <div key={index} className="relative h-24 w-full rounded-lg overflow-hidden">
                               {media.type?.startsWith('video/') ? (
-                                <video
-                                  src={media.url}
-                                  className="object-cover w-full h-full"
-                                  preload="metadata"
-                                  muted
-                                >
-                                  Your browser does not support the video tag.
-                                </video>
+                                <div className="bg-black w-full h-full flex items-center justify-center">
+                                  <video
+                                    src={media.url}
+                                    className="object-contain max-w-full max-h-full"
+                                    preload="metadata"
+                                    muted
+                                  >
+                                    Your browser does not support the video tag.
+                                  </video>
+                                </div>
                               ) : (
                                 <Image
                                   src={media.url}

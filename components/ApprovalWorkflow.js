@@ -54,10 +54,10 @@ function MediaPreview({ file, index, onRemove, onImageClick }) {
   
   if (file.type?.startsWith('video/')) {
     return (
-      <div className="relative h-[200px] w-full">
+      <div className="relative h-[200px] w-full bg-black rounded-lg overflow-hidden">
         <video
           src={file.url}
-          className="rounded-lg object-cover w-full h-full"
+          className="rounded-lg object-contain w-full h-full"
           controls
           preload="metadata"
         >

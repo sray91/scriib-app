@@ -54,10 +54,10 @@ function MediaPreview({ file, index, onRemove }) {
   
   if (file.type?.startsWith('video/')) {
     return (
-      <div className="relative h-[200px] w-full">
+      <div className="relative h-[200px] w-full bg-black rounded-lg overflow-hidden">
         <video
           src={file.url}
-          className="rounded-lg object-cover w-full h-full"
+          className="rounded-lg object-contain w-full h-full"
           controls
           preload="metadata"
         >
@@ -961,14 +961,16 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
                     {postData.mediaFiles.map((file, index) => (
                       <div key={index} className="relative h-[200px] w-full">
                         {file.type?.startsWith('video/') ? (
-                          <video
-                            src={file.url}
-                            className="rounded-lg object-cover w-full h-full"
-                            controls
-                            preload="metadata"
-                          >
-                            Your browser does not support the video tag.
-                          </video>
+                          <div className="bg-black rounded-lg w-full h-full flex items-center justify-center">
+                            <video
+                              src={file.url}
+                              className="rounded-lg object-contain max-w-full max-h-full"
+                              controls
+                              preload="metadata"
+                            >
+                              Your browser does not support the video tag.
+                            </video>
+                          </div>
                         ) : (
                           <Image
                             src={file.url}
