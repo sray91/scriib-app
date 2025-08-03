@@ -96,6 +96,7 @@ export default function WeeklyKanbanView({
         <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-7'} gap-4`}>
           {visibleDays.map((day) => {
             const dayPosts = posts.filter(post => post.day_of_week === day);
+            const pendingApprovalPosts = dayPosts.filter(post => post.status === 'pending_approval');
             const getDateForDay = () => {
               const today = new Date();
               const dayIndex = DAYS_OF_WEEK.indexOf(day);
@@ -120,6 +121,11 @@ export default function WeeklyKanbanView({
                     <Badge variant="secondary" className="text-xs">
                       {dayPosts.length}
                     </Badge>
+                    {pendingApprovalPosts.length > 0 && (
+                      <Badge variant="destructive" className="text-xs">
+                        {pendingApprovalPosts.length} pending
+                      </Badge>
+                    )}
                     <Button
                       size="sm"
                       variant="ghost"

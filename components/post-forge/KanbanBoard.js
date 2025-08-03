@@ -71,12 +71,12 @@ export default function KanbanBoard() {
       
       // Get the date range for the current week or next week
       const today = new Date();
-      const currentDay = today.getDay();
       
-      // Calculate the start of the week (Monday)
+      // Calculate the start of the week (Monday) - simpler approach
       const startOfWeek = new Date(today);
-      const daysFromMonday = currentDay === 0 ? 6 : currentDay - 1;
-      startOfWeek.setDate(today.getDate() - daysFromMonday);
+      const dayOfWeek = today.getDay();
+      const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Adjust when day is Sunday
+      startOfWeek.setDate(diff);
       startOfWeek.setHours(0, 0, 0, 0);
       
       // If planning for next week, add 7 days
@@ -88,24 +88,71 @@ export default function KanbanBoard() {
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
       endOfWeek.setHours(23, 59, 59, 999);
+      
+      // Extend to cover the full day to avoid timezone issues
+      endOfWeek.setDate(endOfWeek.getDate() + 1);
+      endOfWeek.setHours(23, 59, 59, 999);
+
+      console.log('Debug - Date range:', {
+        today: today.toISOString(),
+        startOfWeek: startOfWeek.toISOString(),
+        endOfWeek: endOfWeek.toISOString(),
+        isNextWeek,
+        selectedUser: selectedUser?.id
+      });
 
       // Fetch posts for the selected user and date range
-      const { data: postsData, error } = await supabase
+      // First, get posts with scheduled_time in the current week
+      const { data: scheduledPosts, error: scheduledError } = await supabase
         .from('posts')
         .select('*')
-        .or(`user_id.eq.${selectedUser.id},approver_id.eq.${selectedUser.id},ghostwriter_id.eq.${selectedUser.id}`)
+        .or(`user_id.eq."${selectedUser.id}",approver_id.eq."${selectedUser.id}",ghostwriter_id.eq."${selectedUser.id}"`)
         .gte('scheduled_time', startOfWeek.toISOString())
         .lte('scheduled_time', endOfWeek.toISOString())
         .order('scheduled_time');
       
-      if (error) throw error;
+      if (scheduledError) throw scheduledError;
+      
+      console.log('Debug - Scheduled posts found:', scheduledPosts?.length || 0);
+      console.log('Debug - Scheduled posts:', scheduledPosts);
+      
+      // Second, get posts that are pending approval for this user (regardless of date)
+      const { data: pendingPosts, error: pendingError } = await supabase
+        .from('posts')
+        .select('*')
+        .or(`user_id.eq."${selectedUser.id}",approver_id.eq."${selectedUser.id}",ghostwriter_id.eq."${selectedUser.id}"`)
+        .eq('status', 'pending_approval')
+        .order('created_at');
+      
+      if (pendingError) throw pendingError;
+      
+      console.log('Debug - Pending posts found:', pendingPosts?.length || 0);
+      console.log('Debug - Pending posts:', pendingPosts);
+      
+      // Combine and deduplicate posts
+      const allPosts = [...(scheduledPosts || []), ...(pendingPosts || [])];
+      const uniquePosts = allPosts.filter((post, index, self) => 
+        index === self.findIndex(p => p.id === post.id)
+      );
       
       // Transform posts to include day_of_week and user info
-      const transformedPosts = postsData.map(post => ({
-        ...post,
-        day_of_week: getDayOfWeek(post.scheduled_time),
-        creator_name: selectedUser.name // We'll enhance this later with proper user lookup
-      }));
+      const transformedPosts = uniquePosts.map(post => {
+        let day_of_week;
+        if (post.scheduled_time) {
+          day_of_week = getDayOfWeek(post.scheduled_time);
+        } else if (post.status === 'pending_approval') {
+          // For pending approval posts, assign to their scheduled day if they have one, otherwise current day
+          day_of_week = post.scheduled_time ? getDayOfWeek(post.scheduled_time) : getCurrentDay();
+        } else {
+          day_of_week = 'Unassigned';
+        }
+        
+        return {
+          ...post,
+          day_of_week,
+          creator_name: selectedUser.name // We'll enhance this later with proper user lookup
+        };
+      });
       
       setPosts(transformedPosts);
     } catch (error) {
@@ -464,6 +511,13 @@ export default function KanbanBoard() {
           <span className="font-medium">
             {isNextWeek ? 'Next Week' : 'This Week'}: {getWeekLabel()}
           </span>
+          {posts.filter(post => post.status === 'pending_approval').length > 0 && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                ⚠️ {posts.filter(post => post.status === 'pending_approval').length} posts pending approval
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
