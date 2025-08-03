@@ -136,7 +136,7 @@ export default function PostCard({
   return (
     <Card 
       className={`
-        cursor-pointer transition-all duration-200 hover:shadow-md border-l-4 
+        cursor-pointer transition-all duration-200 hover:shadow-md border-l-4 max-h-80
         ${isDragging ? 'opacity-50 rotate-2 scale-95' : 'hover:scale-102'}
         border-l-${statusConfig.color}-400
       `}
@@ -172,8 +172,8 @@ export default function PostCard({
         </div>
 
         {/* Post content preview */}
-        <div className="min-h-[60px]">
-          <p className="text-sm text-gray-800 line-clamp-3 leading-tight">
+        <div className="py-2 max-h-32 overflow-y-auto">
+          <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
             {post.content || 'No content...'}
           </p>
         </div>

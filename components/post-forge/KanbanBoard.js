@@ -113,12 +113,14 @@ export default function KanbanBoard() {
       console.log('Debug - Scheduled posts found:', scheduledPosts?.length || 0);
       console.log('Debug - Scheduled posts:', scheduledPosts);
       
-      // Second, get posts that are pending approval for this user (regardless of date)
+      // Second, get posts that are pending approval for this user and within the current week
       const { data: pendingPosts, error: pendingError } = await supabase
         .from('posts')
         .select('*')
         .or(`user_id.eq."${selectedUser.id}",approver_id.eq."${selectedUser.id}",ghostwriter_id.eq."${selectedUser.id}"`)
         .eq('status', 'pending_approval')
+        .gte('scheduled_time', startOfWeek.toISOString())
+        .lte('scheduled_time', endOfWeek.toISOString())
         .order('created_at');
       
       if (pendingError) throw pendingError;

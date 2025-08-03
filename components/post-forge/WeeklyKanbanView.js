@@ -153,7 +153,7 @@ export default function WeeklyKanbanView({
                     <div
                       {...provided.droppableProps}
                       ref={provided.innerRef}
-                      className={`flex-1 p-2 rounded-md ${isMobile ? 'min-h-[60vh]' : 'min-h-[70vh]'} overflow-y-auto transition-colors ${
+                      className={`flex-1 p-2 rounded-md ${isMobile ? 'min-h-[50vh]' : 'min-h-[60vh]'} max-h-[80vh] overflow-y-auto transition-colors ${
                         snapshot.isDraggingOver ? 'bg-blue-50' : 'bg-gray-50'
                       }`}
                     >
