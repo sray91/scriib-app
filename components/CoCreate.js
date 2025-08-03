@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import PostEditorDialog from '@/components/post-forge/PostEditorDialog';
 
 // AI Thinking Process Display Component  
@@ -1169,6 +1169,9 @@ const CoCreate = () => {
               <BarChart3 className="mr-2 h-5 w-5" />
               Voice & Trending Analysis
             </DialogTitle>
+            <DialogDescription>
+              View insights about your writing voice and trending content patterns.
+            </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-6">

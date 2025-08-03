@@ -11,6 +11,7 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
+  DialogDescription,
   DialogFooter 
 } from '@/components/ui/dialog'
 import { 
@@ -367,6 +368,9 @@ export default function ApproversTab() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Invite Approver</DialogTitle>
+            <DialogDescription>
+              Send an invitation to add a new approver to review your posts.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleInviteApprover} className="space-y-4">
             <div>

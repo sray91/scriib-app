@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 
 export default function TagsManager({ isOpen, setIsOpen, tags, onAddTag, onDeleteTag }) {
@@ -28,6 +29,9 @@ export default function TagsManager({ isOpen, setIsOpen, tags, onAddTag, onDelet
           <DialogTitle className="text-[#FF4400] font-bebas-neue text-3xl">
             MANAGE TAGS
           </DialogTitle>
+          <DialogDescription>
+            Create and manage tags to organize your viral posts collection.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 pt-4">
           <div className="flex items-center gap-2">

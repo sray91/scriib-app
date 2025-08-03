@@ -10,7 +10,7 @@ import Image from 'next/image';
 import { Input } from "@/components/ui/input";
 
 import { Alert, AlertDescription } from '@/components/ui/alert.js';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 const supabase = createClientComponentClient();
 
@@ -281,7 +281,11 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
         });
         
         if (!response.ok) {
-          throw new Error(`Failed to upload ${file.name}`);
+          if (response.status === 413) {
+            throw new Error(`File "${file.name}" is too large. Maximum size is 50MB.`);
+          }
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Failed to upload ${file.name}`);
         }
         
         const data = await response.json();
@@ -945,6 +949,9 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
             <DialogHeader className="flex-shrink-0">
               <DialogTitle>Send for Approval</DialogTitle>
+              <DialogDescription>
+                Review your post and select an approver to send it for approval.
+              </DialogDescription>
             </DialogHeader>
 
             <div className="flex-1 overflow-y-auto space-y-4 my-4">

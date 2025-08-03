@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
@@ -38,6 +39,9 @@ export default function AddPostDialog({ isOpen, setIsOpen, onAddPost, tags }) {
           <DialogTitle className="text-[#FF4400] font-bebas-neue text-3xl">
             ADD NEW X POST
           </DialogTitle>
+          <DialogDescription>
+            Add a new X (Twitter) post to your viral posts collection.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 pt-4">
           <Label htmlFor="url">X POST URL</Label>

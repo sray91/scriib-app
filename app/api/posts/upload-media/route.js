@@ -3,6 +3,10 @@ import { createClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 
+// Configure route segment for larger file uploads
+export const runtime = 'nodejs';
+export const maxDuration = 60; // 60 seconds timeout
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -10,13 +14,28 @@ const supabase = createClient(
 
 export async function POST(request) {
   try {
+    // Add timeout handling for large files
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    
     const formData = await request.formData();
     const file = formData.get('file');
+    
+    clearTimeout(timeoutId);
     
     if (!file) {
       return NextResponse.json(
         { error: 'No file uploaded' },
         { status: 400 }
+      );
+    }
+
+    // Check file size (50MB limit)
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: `File size too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB` },
+        { status: 413 }
       );
     }
 

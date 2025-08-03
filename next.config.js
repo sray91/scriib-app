@@ -15,6 +15,7 @@ const nextConfig = {
     // For app directory API routes
     serverComponentsExternalPackages: ['pdf-parse', 'mammoth'],
   },
+
 }
 
 module.exports = nextConfig 

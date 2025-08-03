@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -191,7 +191,11 @@ const ApprovalWorkflow = ({
         });
         
         if (!response.ok) {
-          throw new Error(`Failed to upload ${file.name}`);
+          if (response.status === 413) {
+            throw new Error(`File "${file.name}" is too large. Maximum size is 50MB.`);
+          }
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Failed to upload ${file.name}`);
         }
         
         const data = await response.json();
