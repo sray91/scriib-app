@@ -16,7 +16,7 @@ const supabase = createClientComponentClient();
 
 // Media preview component
 function MediaPreview({ file, index, onRemove }) {
-  // For blob URLs, we need to use regular img tag
+  // For blob URLs, we need to use regular img tag/video tag
   const isBlobUrl = file.url?.startsWith('blob:');
   
   if (file.type?.startsWith('image/')) {
@@ -40,6 +40,29 @@ function MediaPreview({ file, index, onRemove }) {
             unoptimized={isBlobUrl}
           />
         )}
+        <button
+          onClick={() => onRemove(index)}
+          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 z-10"
+          aria-label="Remove media"
+          type="button"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  }
+  
+  if (file.type?.startsWith('video/')) {
+    return (
+      <div className="relative h-[200px] w-full">
+        <video
+          src={file.url}
+          className="rounded-lg object-cover w-full h-full"
+          controls
+          preload="metadata"
+        >
+          Your browser does not support the video tag.
+        </video>
         <button
           onClick={() => onRemove(index)}
           className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 z-10"
@@ -190,6 +213,11 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
                 url.toLowerCase().endsWith('.png') ? 'image/png' :
                 url.toLowerCase().endsWith('.gif') ? 'image/gif' :
                 url.toLowerCase().endsWith('.webp') ? 'image/webp' :
+                url.toLowerCase().endsWith('.mp4') ? 'video/mp4' :
+                url.toLowerCase().endsWith('.webm') ? 'video/webm' :
+                url.toLowerCase().endsWith('.ogg') ? 'video/ogg' :
+                url.toLowerCase().endsWith('.mov') ? 'video/quicktime' :
+                url.toLowerCase().endsWith('.avi') ? 'video/x-msvideo' :
                 'application/octet-stream',
           path: url.split('/').pop()
         }));
@@ -827,6 +855,7 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
             id="media-upload-input"
             type="file"
             multiple
+            accept="image/*,video/*"
             className="hidden"
             onChange={handleMediaUpload}
           />
@@ -931,12 +960,23 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
                   <div className="grid grid-cols-2 gap-3 mt-4">
                     {postData.mediaFiles.map((file, index) => (
                       <div key={index} className="relative h-[200px] w-full">
-                        <Image
-                          src={file.url}
-                          alt="Post media"
-                          fill
-                          className="rounded-lg object-cover"
-                        />
+                        {file.type?.startsWith('video/') ? (
+                          <video
+                            src={file.url}
+                            className="rounded-lg object-cover w-full h-full"
+                            controls
+                            preload="metadata"
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        ) : (
+                          <Image
+                            src={file.url}
+                            alt="Post media"
+                            fill
+                            className="rounded-lg object-cover"
+                          />
+                        )}
                       </div>
                     ))}
                   </div>
