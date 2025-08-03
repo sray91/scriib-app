@@ -100,15 +100,22 @@ export default function WeeklyKanbanView({
             const getDateForDay = () => {
               const today = new Date();
               const dayIndex = DAYS_OF_WEEK.indexOf(day);
-              const targetDate = new Date(today);
-              // Convert today's day to our Monday-first system (0=Monday, 6=Sunday)
+              
+              // Get the start of the current week (Monday)
+              const startOfWeek = new Date(today);
               const todayDayIndex = today.getDay();
               const adjustedTodayIndex = todayDayIndex === 0 ? 6 : todayDayIndex - 1;
-              const diff = dayIndex - adjustedTodayIndex + (dayIndex < adjustedTodayIndex ? 7 : 0);
-              targetDate.setDate(today.getDate() + diff);
+              const daysToMonday = -adjustedTodayIndex;
+              startOfWeek.setDate(today.getDate() + daysToMonday);
+              
+              // Calculate target date from start of week
+              const targetDate = new Date(startOfWeek);
+              targetDate.setDate(startOfWeek.getDate() + dayIndex);
+              
               if (isNextWeek) {
                 targetDate.setDate(targetDate.getDate() + 7);
               }
+              
               return targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             };
 

@@ -72,11 +72,12 @@ export default function KanbanBoard() {
       // Get the date range for the current week or next week
       const today = new Date();
       
-      // Calculate the start of the week (Monday) - simpler approach
+      // Calculate the start of the week (Monday) - use consistent logic with getDateForDay
       const startOfWeek = new Date(today);
       const dayOfWeek = today.getDay();
-      const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Adjust when day is Sunday
-      startOfWeek.setDate(diff);
+      const adjustedTodayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Convert to Monday-first system
+      const diff = 0 - adjustedTodayIndex; // Days to go back to Monday
+      startOfWeek.setDate(today.getDate() + diff);
       startOfWeek.setHours(0, 0, 0, 0);
       
       // If planning for next week, add 7 days
@@ -87,10 +88,6 @@ export default function KanbanBoard() {
       // Calculate the end of the week (Sunday)
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
-      endOfWeek.setHours(23, 59, 59, 999);
-      
-      // Extend to cover the full day to avoid timezone issues
-      endOfWeek.setDate(endOfWeek.getDate() + 1);
       endOfWeek.setHours(23, 59, 59, 999);
 
       console.log('Debug - Date range:', {
@@ -427,12 +424,17 @@ export default function KanbanBoard() {
   const getDateForDay = (dayName) => {
     const today = new Date();
     const dayIndex = DAYS_OF_WEEK.indexOf(dayName);
-    const targetDate = new Date(today);
-    // Convert today's day to our Monday-first system (0=Monday, 6=Sunday)
+    
+    // Get the start of the current week (Monday)
+    const startOfWeek = new Date(today);
     const todayDayIndex = today.getDay();
     const adjustedTodayIndex = todayDayIndex === 0 ? 6 : todayDayIndex - 1;
-    const diff = dayIndex - adjustedTodayIndex + (dayIndex < adjustedTodayIndex ? 7 : 0);
-    targetDate.setDate(today.getDate() + diff);
+    const daysToMonday = -adjustedTodayIndex;
+    startOfWeek.setDate(today.getDate() + daysToMonday);
+    
+    // Calculate target date from start of week
+    const targetDate = new Date(startOfWeek);
+    targetDate.setDate(startOfWeek.getDate() + dayIndex);
     
     if (isNextWeek) {
       targetDate.setDate(targetDate.getDate() + 7);

@@ -791,9 +791,15 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
           <Input
             id="scheduled-time"
             type="datetime-local"
-            value={postData.scheduledTime ? new Date(postData.scheduledTime).toISOString().slice(0, 16) : ''}
+            value={postData.scheduledTime ? (() => {
+              const date = new Date(postData.scheduledTime);
+              const offset = date.getTimezoneOffset();
+              const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+              return localDate.toISOString().slice(0, 16);
+            })() : ''}
             onChange={(e) => {
               try {
+                if (!e.target.value) return;
                 const selectedDate = new Date(e.target.value);
                 if (isNaN(selectedDate.getTime())) return;
                 setPostData(prev => ({
