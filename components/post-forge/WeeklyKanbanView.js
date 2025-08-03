@@ -101,7 +101,10 @@ export default function WeeklyKanbanView({
               const today = new Date();
               const dayIndex = DAYS_OF_WEEK.indexOf(day);
               const targetDate = new Date(today);
-              const diff = dayIndex - today.getDay() + (dayIndex < today.getDay() ? 7 : 0);
+              // Convert today's day to our Monday-first system (0=Monday, 6=Sunday)
+              const todayDayIndex = today.getDay();
+              const adjustedTodayIndex = todayDayIndex === 0 ? 6 : todayDayIndex - 1;
+              const diff = dayIndex - adjustedTodayIndex + (dayIndex < adjustedTodayIndex ? 7 : 0);
               targetDate.setDate(today.getDate() + diff);
               if (isNextWeek) {
                 targetDate.setDate(targetDate.getDate() + 7);

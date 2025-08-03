@@ -170,8 +170,11 @@ export default function KanbanBoard() {
   // Helper function to get day of week from date
   const getDayOfWeek = (dateString) => {
     const date = new Date(dateString);
-    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    return days[date.getDay()];
+    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    // Convert JavaScript's 0-6 (Sunday-Saturday) to our 0-6 (Monday-Sunday) format
+    const dayIndex = date.getDay();
+    const adjustedIndex = dayIndex === 0 ? 6 : dayIndex - 1; // Sunday becomes 6, Monday becomes 0, etc.
+    return days[adjustedIndex];
   };
 
   // Handle user selection change
@@ -415,15 +418,20 @@ export default function KanbanBoard() {
 
   // Helper functions
   const getCurrentDay = () => {
-    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    return days[new Date().getDay()];
+    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const dayIndex = new Date().getDay();
+    const adjustedIndex = dayIndex === 0 ? 6 : dayIndex - 1; // Sunday becomes 6, Monday becomes 0, etc.
+    return days[adjustedIndex];
   };
 
   const getDateForDay = (dayName) => {
     const today = new Date();
     const dayIndex = DAYS_OF_WEEK.indexOf(dayName);
     const targetDate = new Date(today);
-    const diff = dayIndex - today.getDay() + (dayIndex < today.getDay() ? 7 : 0);
+    // Convert today's day to our Monday-first system (0=Monday, 6=Sunday)
+    const todayDayIndex = today.getDay();
+    const adjustedTodayIndex = todayDayIndex === 0 ? 6 : todayDayIndex - 1;
+    const diff = dayIndex - adjustedTodayIndex + (dayIndex < adjustedTodayIndex ? 7 : 0);
     targetDate.setDate(today.getDate() + diff);
     
     if (isNextWeek) {

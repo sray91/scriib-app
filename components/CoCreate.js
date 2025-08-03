@@ -665,9 +665,11 @@ const CoCreate = () => {
 
   // Helper function to get current day of week
   const getCurrentDayOfWeek = () => {
-    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
     const today = new Date();
-    return days[today.getDay()];
+    const dayIndex = today.getDay();
+    const adjustedIndex = dayIndex === 0 ? 6 : dayIndex - 1; // Sunday becomes 6, Monday becomes 0, etc.
+    return days[adjustedIndex];
   };
 
   // Handle post save from editor
