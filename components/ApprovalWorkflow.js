@@ -192,7 +192,8 @@ const ApprovalWorkflow = ({
         
         if (!response.ok) {
           if (response.status === 413) {
-            throw new Error(`File "${file.name}" is too large. Maximum size is 50MB.`);
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `File "${file.name}" is too large.`);
           }
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.error || `Failed to upload ${file.name}`);

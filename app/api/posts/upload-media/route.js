@@ -30,11 +30,14 @@ export async function POST(request) {
       );
     }
 
-    // Check file size (50MB limit)
-    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    // Check file size (100MB limit for videos, 10MB for images)
+    const isVideo = file.type?.startsWith('video/');
+    const MAX_FILE_SIZE = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024; // 100MB for videos, 10MB for images
     if (file.size > MAX_FILE_SIZE) {
+      const maxSizeMB = MAX_FILE_SIZE / 1024 / 1024;
+      const fileType = isVideo ? 'video' : 'image';
       return NextResponse.json(
-        { error: `File size too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB` },
+        { error: `${fileType} file size too large. Maximum size is ${maxSizeMB}MB` },
         { status: 413 }
       );
     }
