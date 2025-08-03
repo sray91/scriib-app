@@ -52,6 +52,32 @@ function MediaPreview({ file, index, onRemove, onImageClick }) {
     );
   }
   
+  if (file.type?.startsWith('video/')) {
+    return (
+      <div className="relative h-[200px] w-full">
+        <video
+          src={file.url}
+          className="rounded-lg object-cover w-full h-full"
+          controls
+          preload="metadata"
+        >
+          Your browser does not support the video tag.
+        </video>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove(index);
+          }}
+          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 z-10 hover:bg-red-600"
+          aria-label="Remove media"
+          type="button"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  }
+  
   return (
     <div className="relative p-4 border rounded-lg">
       <div className="flex items-center gap-2">
@@ -111,6 +137,11 @@ const ApprovalWorkflow = ({
                 url.toLowerCase().endsWith('.png') ? 'image/png' :
                 url.toLowerCase().endsWith('.gif') ? 'image/gif' :
                 url.toLowerCase().endsWith('.webp') ? 'image/webp' :
+                url.toLowerCase().endsWith('.mp4') ? 'video/mp4' :
+                url.toLowerCase().endsWith('.webm') ? 'video/webm' :
+                url.toLowerCase().endsWith('.ogg') ? 'video/ogg' :
+                url.toLowerCase().endsWith('.mov') ? 'video/quicktime' :
+                url.toLowerCase().endsWith('.avi') ? 'video/x-msvideo' :
                 'application/octet-stream',
           path: url.split('/').pop()
         }));
@@ -410,13 +441,13 @@ const ApprovalWorkflow = ({
                     id="approval-media-upload"
                     type="file"
                     multiple
-                    accept="image/*"
+                    accept="image/*,video/*"
                     className="hidden"
                     onChange={handleMediaUpload}
                   />
                   <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
                   <p className="text-sm text-gray-600">
-                    Drag & drop images or click to upload
+                    Drag & drop images/videos or click to upload
                   </p>
                 </div>
               </div>

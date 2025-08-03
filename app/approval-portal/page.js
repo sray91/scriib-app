@@ -15,6 +15,7 @@ export default function ApprovalPortal() {
   const [selectedPost, setSelectedPost] = useState(null)
   const [isApprovalDialogOpen, setIsApprovalDialogOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [postMedia, setPostMedia] = useState({})
   const supabase = createClientComponentClient()
 
   useEffect(() => {
@@ -86,10 +87,52 @@ export default function ApprovalPortal() {
       })
 
       setPosts(formattedPosts || [])
+      
+      // Fetch media for all posts
+      if (postsData.length > 0) {
+        await loadPostsMedia(postsData.map(p => p.id))
+      }
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadPostsMedia = async (postIds) => {
+    try {
+      const { data: mediaData, error } = await supabase
+        .from('post_media')
+        .select('post_id, media_urls')
+        .in('post_id', postIds)
+
+      if (error) {
+        console.error('Error fetching post media:', error)
+        return
+      }
+
+      const mediaMap = {}
+      mediaData?.forEach(media => {
+        if (media.media_urls && media.media_urls.length > 0) {
+          mediaMap[media.post_id] = media.media_urls.map(url => ({
+            url,
+            type: url.toLowerCase().endsWith('.jpg') || url.toLowerCase().endsWith('.jpeg') ? 'image/jpeg' :
+                  url.toLowerCase().endsWith('.png') ? 'image/png' :
+                  url.toLowerCase().endsWith('.gif') ? 'image/gif' :
+                  url.toLowerCase().endsWith('.webp') ? 'image/webp' :
+                  url.toLowerCase().endsWith('.mp4') ? 'video/mp4' :
+                  url.toLowerCase().endsWith('.webm') ? 'video/webm' :
+                  url.toLowerCase().endsWith('.ogg') ? 'video/ogg' :
+                  url.toLowerCase().endsWith('.mov') ? 'video/quicktime' :
+                  url.toLowerCase().endsWith('.avi') ? 'video/x-msvideo' :
+                  'application/octet-stream'
+          }))
+        }
+      })
+      
+      setPostMedia(mediaMap)
+    } catch (error) {
+      console.error('Error loading posts media:', error)
     }
   }
 
@@ -212,6 +255,40 @@ export default function ApprovalPortal() {
                           {post.content}
                         </p>
                       </div>
+                      
+                      {/* Media preview */}
+                      {postMedia[post.id] && postMedia[post.id].length > 0 && (
+                        <div className="grid grid-cols-3 gap-2 mt-3">
+                          {postMedia[post.id].slice(0, 3).map((media, index) => (
+                            <div key={index} className="relative h-24 w-full rounded-lg overflow-hidden">
+                              {media.type?.startsWith('video/') ? (
+                                <video
+                                  src={media.url}
+                                  className="object-cover w-full h-full"
+                                  preload="metadata"
+                                  muted
+                                >
+                                  Your browser does not support the video tag.
+                                </video>
+                              ) : (
+                                <Image
+                                  src={media.url}
+                                  alt="Post media"
+                                  fill
+                                  className="object-cover"
+                                />
+                              )}
+                              {postMedia[post.id].length > 3 && index === 2 && (
+                                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                                  <span className="text-white text-sm font-medium">
+                                    +{postMedia[post.id].length - 3} more
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       
                       {/* Author info */}
                       <div className="flex items-center gap-2 text-sm text-gray-500">
