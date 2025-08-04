@@ -41,10 +41,14 @@ WITH CHECK (
   ghostwriter_id = auth.uid()
 );
 
--- Allow users to delete only their own posts
+-- Allow users to delete posts they own or are assigned to
 DROP POLICY IF EXISTS "Users can delete their own posts" ON public.posts;
 CREATE POLICY "Users can delete their own posts" 
 ON public.posts
 FOR DELETE
 TO authenticated
-USING (user_id = auth.uid()); 
+USING (
+  user_id = auth.uid() OR 
+  approver_id = auth.uid() OR 
+  ghostwriter_id = auth.uid()
+); 

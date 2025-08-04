@@ -35,12 +35,16 @@ TO authenticated
 USING (auth.uid() = user_id)
 WITH CHECK (auth.uid() = user_id);
 
--- Policy for owners to delete their own posts
+-- Policy for users to delete posts they own or are assigned to
 CREATE POLICY "Users can delete their own posts"
 ON public.posts
 FOR DELETE
 TO authenticated
-USING (auth.uid() = user_id);
+USING (
+  auth.uid() = user_id OR 
+  auth.uid() = approver_id OR 
+  auth.uid() = ghostwriter_id
+);
 
 -- Policy for approvers to view posts they are assigned to
 CREATE POLICY "Approvers can view assigned posts"
