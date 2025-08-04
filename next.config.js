@@ -16,6 +16,13 @@ const nextConfig = {
     serverComponentsExternalPackages: ['pdf-parse', 'mammoth'],
   },
 
+  // Configure API routes to handle larger request bodies
+  api: {
+    bodyParser: {
+      sizeLimit: '60mb',
+    },
+  },
+
 }
 
 module.exports = nextConfig 

@@ -9,6 +9,14 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Allow up to 60 seconds for processing
 
+// Configure body parser for larger files (60MB)
+export const bodyParser = {
+  sizeLimit: '60mb',
+};
+
+// Alternative Next.js 14+ configuration
+export const maxRequestBodySize = 60 * 1024 * 1024; // 60MB in bytes
+
 export async function POST(request) {
   try {
     const supabase = createRouteHandlerClient({ cookies });
