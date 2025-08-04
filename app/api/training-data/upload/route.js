@@ -30,7 +30,7 @@ export async function POST(request) {
       console.error('FormData parsing error:', formDataError);
       if (formDataError.message?.includes('413') || formDataError.message?.includes('too large')) {
         return NextResponse.json(
-          { error: 'File too large. Please try a smaller file (max 50MB).' },
+          { error: 'File too large. Please try a smaller file (max 60MB).' },
           { status: 413 }
         );
       }
@@ -60,11 +60,11 @@ export async function POST(request) {
       );
     }
 
-    // Validate file size (max 50MB)
-    const maxSize = 50 * 1024 * 1024; // 50MB
+    // Validate file size (max 60MB)
+    const maxSize = 60 * 1024 * 1024; // 60MB
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: 'File too large. Maximum size is 50MB.' },
+        { error: 'File too large. Maximum size is 60MB.' },
         { status: 400 }
       );
     }

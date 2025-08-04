@@ -32,10 +32,10 @@ const DirectUpload = ({ onUploadComplete }) => {
         throw new Error('Unsupported file type. Allowed: PDF, DOC, DOCX, TXT, MD, CSV');
       }
 
-      // Validate file size (50MB)
-      const maxSize = 50 * 1024 * 1024;
+      // Validate file size (60MB)
+      const maxSize = 60 * 1024 * 1024;
       if (file.size > maxSize) {
-        throw new Error('File too large. Maximum size is 50MB.');
+        throw new Error('File too large. Maximum size is 60MB.');
       }
 
       setUploadStatus('Uploading to storage...');
@@ -196,7 +196,7 @@ const DirectUpload = ({ onUploadComplete }) => {
         </div>
         <h3 className="text-lg font-semibold mb-2">Upload Files</h3>
         <p className="text-sm text-muted-foreground mb-4">
-          Drag & drop or click to upload. Supports files up to 50MB.
+          Drag & drop or click to upload. Supports files up to 60MB.
         </p>
         
         <input

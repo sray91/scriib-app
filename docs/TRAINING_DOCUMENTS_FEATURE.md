@@ -8,7 +8,7 @@ The Training Documents feature allows users to upload context documents (emails,
 
 ### 📄 Document Upload System
 - **Supported Formats**: PDF, DOC, DOCX, TXT, MD
-- **File Size Limit**: 10MB per file
+- **File Size Limit**: 60MB per file
 - **Storage**: Supabase blob storage with organized folder structure
 - **Text Extraction**: Automatic content extraction for supported formats
 - **Status Tracking**: Processing status monitoring (pending → processing → completed/failed)
