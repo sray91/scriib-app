@@ -307,13 +307,28 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
               resolve({
                 ok: true,
                 status: xhr.status,
-                json: () => Promise.resolve(JSON.parse(xhr.responseText))
+                json: () => {
+                  try {
+                    return Promise.resolve(JSON.parse(xhr.responseText));
+                  } catch (e) {
+                    return Promise.resolve({ error: 'Invalid JSON response' });
+                  }
+                }
               });
             } else {
               resolve({
                 ok: false,
                 status: xhr.status,
-                json: () => Promise.resolve(JSON.parse(xhr.responseText || '{}'))
+                json: () => {
+                  try {
+                    return Promise.resolve(JSON.parse(xhr.responseText || '{}'));
+                  } catch (e) {
+                    // Handle non-JSON error responses (like HTML error pages)
+                    return Promise.resolve({ 
+                      error: xhr.status === 413 ? 'File too large' : `Server error: ${xhr.status}` 
+                    });
+                  }
+                }
               });
             }
           });
