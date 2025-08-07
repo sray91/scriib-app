@@ -14,12 +14,8 @@ const nextConfig = {
   experimental: {
     // For app directory API routes
     serverComponentsExternalPackages: ['pdf-parse', 'mammoth'],
-  },
-
-  // Configure API routes to handle larger request bodies
-  api: {
-    bodyParser: {
-      sizeLimit: '100mb',
+    serverActions: {
+      bodySizeLimit: '100mb',
     },
   },
 

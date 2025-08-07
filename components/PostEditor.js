@@ -117,6 +117,8 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
   const [error, setError] = useState(null);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [approvalComment, setApprovalComment] = useState('');
+  const [uploadProgress, setUploadProgress] = useState({});
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -257,6 +259,9 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
     }
     
     try {
+      setIsUploading(true);
+      setUploadProgress({});
+      
       // Show loading toast
       toast({
         title: "Uploading",
@@ -266,18 +271,57 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
       const uploadedFiles = [];
       
       // Upload each file to Supabase storage
-      for (const file of files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
         const uniqueId = Math.random().toString(36).substring(2);
         const fileName = `${uniqueId}-${file.name}`;
+        const fileId = `${i}-${file.name}`;
+        
+        // Initialize progress for this file
+        setUploadProgress(prev => ({
+          ...prev,
+          [fileId]: { loaded: 0, total: file.size, percent: 0 }
+        }));
         
         // Create a FormData object to send the file
         const formData = new FormData();
         formData.append('file', file);
         
-        // Upload the file to storage via API
-        const response = await fetch('/api/posts/upload-media', {
-          method: 'POST',
-          body: formData
+        // Upload the file to storage via API with progress tracking
+        const response = await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          
+          // Track upload progress
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+              const percent = Math.round((e.loaded / e.total) * 100);
+              setUploadProgress(prev => ({
+                ...prev,
+                [fileId]: { loaded: e.loaded, total: e.total, percent }
+              }));
+            }
+          });
+          
+          xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve({
+                ok: true,
+                status: xhr.status,
+                json: () => Promise.resolve(JSON.parse(xhr.responseText))
+              });
+            } else {
+              resolve({
+                ok: false,
+                status: xhr.status,
+                json: () => Promise.resolve(JSON.parse(xhr.responseText || '{}'))
+              });
+            }
+          });
+          
+          xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+          
+          xhr.open('POST', '/api/posts/upload-media');
+          xhr.send(formData);
         });
         
         if (!response.ok) {
@@ -290,6 +334,12 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
         }
         
         const data = await response.json();
+        
+        // Mark file as completed
+        setUploadProgress(prev => ({
+          ...prev,
+          [fileId]: { ...prev[fileId], percent: 100, completed: true }
+        }));
         
         // Add the file to our local state with the storage URL
         uploadedFiles.push({
@@ -319,6 +369,10 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
         description: error.message || "Failed to upload media files",
         variant: "destructive",
       });
+    } finally {
+      setIsUploading(false);
+      // Clear progress after a delay
+      setTimeout(() => setUploadProgress({}), 2000);
     }
   }, [toast]);
 
@@ -848,13 +902,17 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
         </div>
 
         <div 
-          className="mt-4 border-2 border-dashed rounded-lg p-4 text-center cursor-pointer"
+          className={`mt-4 border-2 border-dashed rounded-lg p-4 text-center ${isUploading ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-gray-50'}`}
           onDrop={(e) => {
+            if (isUploading) return;
             e.preventDefault();
             handleMediaUpload(e);
           }}
           onDragOver={(e) => e.preventDefault()}
-          onClick={() => document.getElementById('media-upload-input').click()}
+          onClick={() => {
+            if (isUploading) return;
+            document.getElementById('media-upload-input').click();
+          }}
         >
           <input
             id="media-upload-input"
@@ -863,8 +921,34 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
             accept="image/*,video/*"
             className="hidden"
             onChange={handleMediaUpload}
+            disabled={isUploading}
           />
-          <p>Drag & drop or click to upload media</p>
+          {isUploading ? (
+            <div className="space-y-3">
+              <p className="text-blue-600 font-medium">Uploading files...</p>
+              {Object.entries(uploadProgress).map(([fileId, progress]) => {
+                const fileName = fileId.split('-').slice(1).join('-');
+                return (
+                  <div key={fileId} className="text-left">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm text-gray-700 truncate">{fileName}</span>
+                      <span className="text-sm text-blue-600 font-medium">{progress.percent}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          progress.completed ? 'bg-green-500' : 'bg-blue-500'
+                        }`}
+                        style={{ width: `${progress.percent}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p>Drag & drop or click to upload media</p>
+          )}
         </div>
 
         <div className="flex justify-between items-center mt-6">
