@@ -11,6 +11,8 @@ BEGIN
       bio text,
       website text,
       avatar_url text,
+      phone_number text,
+      sms_opt_in boolean NOT NULL DEFAULT false,
       created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
       updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
     );

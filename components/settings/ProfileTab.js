@@ -17,7 +17,9 @@ export default function ProfileTab() {
     username: '',
     bio: '',
     website: '',
-    avatar_url: ''
+    avatar_url: '',
+    phone_number: '',
+    sms_opt_in: false
   })
   const [userEmail, setUserEmail] = useState('')
   
@@ -49,7 +51,9 @@ export default function ProfileTab() {
           username: data.username || '',
           bio: data.bio || '',
           website: data.website || '',
-          avatar_url: data.avatar_url || ''
+          avatar_url: data.avatar_url || '',
+          phone_number: data.phone_number || '',
+          sms_opt_in: !!data.sms_opt_in
         })
       }
     } catch (error) {
@@ -88,6 +92,8 @@ export default function ProfileTab() {
       if (profile.bio !== undefined) updates.bio = profile.bio;
       if (profile.website !== undefined) updates.website = profile.website;
       if (profile.avatar_url !== undefined) updates.avatar_url = profile.avatar_url;
+      if (profile.phone_number !== undefined) updates.phone_number = profile.phone_number || null;
+      if (profile.sms_opt_in !== undefined) updates.sms_opt_in = !!profile.sms_opt_in;
       
       // Handle username separately to check for uniqueness
       if (profile.username !== currentProfile?.username) {
@@ -195,6 +201,29 @@ export default function ProfileTab() {
               placeholder="Enter your username"
               className="h-10 text-sm"
             />
+          </div>
+
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label htmlFor="phone_number" className="text-sm font-medium">Mobile Number</Label>
+            <Input
+              id="phone_number"
+              value={profile.phone_number}
+              onChange={(e) => setProfile({ ...profile, phone_number: e.target.value })}
+              placeholder="e.g. +14155550123"
+              className="h-10 text-sm"
+            />
+            <p className="text-xs text-gray-500 mt-1">Include country code (e.g., +1)</p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <input
+              id="sms_opt_in"
+              type="checkbox"
+              checked={!!profile.sms_opt_in}
+              onChange={(e) => setProfile({ ...profile, sms_opt_in: e.target.checked })}
+              className="h-4 w-4"
+            />
+            <Label htmlFor="sms_opt_in" className="text-sm">I agree to receive SMS notifications about pending approvals</Label>
           </div>
 
           <div className="space-y-1.5 sm:space-y-2">

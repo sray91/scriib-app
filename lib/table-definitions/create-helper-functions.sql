@@ -22,3 +22,19 @@ RETURNS TABLE (
     ORDER BY 
         ordinal_position;
 $$; 
+
+-- Helper view for users with email and basic metadata (safe to re-create)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.views 
+    WHERE table_schema = 'public' AND table_name = 'users_view'
+  ) THEN
+    CREATE VIEW public.users_view AS
+      SELECT 
+        u.id,
+        u.email,
+        u.raw_user_meta_data
+      FROM auth.users u;
+  END IF;
+END $$;

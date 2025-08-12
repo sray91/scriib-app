@@ -34,6 +34,11 @@ This document lists all environment variables used in the Scriib App and explain
   - Example: `http://localhost:3000/api/auth/linkedin/callback` (development)
   - Example: `https://app.scriib.ai/api/auth/linkedin/callback` (production)
 
+### SMS (Twilio)
+- `TWILIO_ACCOUNT_SID` - Twilio Account SID
+- `TWILIO_AUTH_TOKEN` - Twilio Auth Token
+- `TWILIO_FROM_NUMBER` - Your Twilio phone number in E.164 format (e.g., +14155550123)
+
 ## Setting Up Environment Variables
 
 1. Create a `.env.local` file in the root of your project for development

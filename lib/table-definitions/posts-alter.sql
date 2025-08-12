@@ -40,6 +40,27 @@ BEGIN
   END IF;
 END $$;
 
+-- Add phone_number and sms_opt_in to profiles if missing
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'profiles') THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'phone_number'
+    ) THEN
+      ALTER TABLE public.profiles ADD COLUMN phone_number text;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'sms_opt_in'
+    ) THEN
+      ALTER TABLE public.profiles ADD COLUMN sms_opt_in boolean NOT NULL DEFAULT false;
+    END IF;
+  END IF;
+END $$;
+
+
 -- Create indexes if they don't exist
 CREATE INDEX IF NOT EXISTS posts_user_id_idx ON public.posts USING btree (user_id) tablespace pg_default;
 CREATE INDEX IF NOT EXISTS posts_approver_id_idx ON public.posts USING btree (approver_id) tablespace pg_default;

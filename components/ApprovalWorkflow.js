@@ -491,6 +491,12 @@ const ApprovalWorkflow = ({
                 <span>Created by: {post.creator_name || 'Unknown'}</span>
               </div>
             )}
+
+            {isApprover && post.status === 'pending_approval' && (
+              <div className="mt-2 text-xs text-gray-500">
+                Tip: You can enable SMS reminders in Settings > Profile.
+              </div>
+            )}
           </div>
 
           {/* Previous Approval Comments */}
