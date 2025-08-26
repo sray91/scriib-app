@@ -494,7 +494,7 @@ const ApprovalWorkflow = ({
 
             {isApprover && post.status === 'pending_approval' && (
               <div className="mt-2 text-xs text-gray-500">
-                Tip: You can enable SMS reminders in Settings > Profile.
+                Tip: You can enable SMS reminders in Settings &gt; Profile.
               </div>
             )}
           </div>
