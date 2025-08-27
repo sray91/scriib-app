@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { ApifyService } from '@/lib/services/apifyService';
 import { getSupabase } from '@/lib/supabase';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Set max duration to 60 seconds for Vercel Pro, or 10 for Hobby
+
 export async function POST(request) {
   const supabase = getSupabase();
   
@@ -22,8 +25,17 @@ export async function POST(request) {
     
     console.log('Starting LinkedIn scraping with input:', input);
 
-    // Fetch posts from Apify
-    const posts = await apifyService.fetchLinkedInPosts(input);
+    // Add timeout wrapper for the Apify operation
+    const TIMEOUT_MS = 45000; // 45 seconds to leave buffer for response
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Scraping operation timed out. This usually means LinkedIn is rate-limiting or the operation is taking too long. Please try again later.')), TIMEOUT_MS);
+    });
+
+    // Fetch posts from Apify with timeout
+    const posts = await Promise.race([
+      apifyService.fetchLinkedInPosts(input),
+      timeoutPromise
+    ]);
     
     if (!posts || posts.length === 0) {
       return NextResponse.json({
@@ -170,14 +182,14 @@ export async function GET(request) {
     // This is likely a cron job trigger, use default input
     return POST(new Request(request.url, {
       method: 'POST',
-      body: JSON.stringify({
-        input: {
-          keyword: "AI, machine learning, data science, generative AI, startup, product management, leadership, technology",
-          sort_type: "date_posted",
-          date_filter: "past-6h",
-          total_posts: 300
-        }
-      }),
+              body: JSON.stringify({
+          input: {
+            keyword: "AI, machine learning, data science, generative AI, startup, product management, leadership, technology",
+            sort_type: "date_posted",
+            date_filter: "past-24h",
+            total_posts: 100
+          }
+        }),
       headers: { 'Content-Type': 'application/json' }
     }));
   }

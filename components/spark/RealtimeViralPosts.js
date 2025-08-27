@@ -54,57 +54,79 @@ export default function RealtimeViralPosts({
   // Set up real-time subscription
   useEffect(() => {
     let channel;
+    let retryTimeout;
 
     const setupRealtimeSubscription = () => {
-      channel = supabase
-        .channel('viral-posts-channel')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'viral_posts'
-          },
-          (payload) => {
-            console.log('Real-time update received:', payload);
-            
-            // Handle different types of changes
-            switch (payload.eventType) {
-              case 'INSERT':
-                setPosts(prev => {
-                  const newPost = payload.new;
-                  // Add new post if it meets our current filters
-                  if (shouldIncludePost(newPost)) {
-                    return [newPost, ...prev].slice(0, 20); // Keep only top 20
-                  }
-                  return prev;
-                });
-                break;
-                
-              case 'UPDATE':
-                setPosts(prev => 
-                  prev.map(post => 
-                    post.id === payload.new.id ? payload.new : post
-                  )
-                );
-                break;
-                
-              case 'DELETE':
-                setPosts(prev => 
-                  prev.filter(post => post.id !== payload.old.id)
-                );
-                break;
-                
-              default:
-                // For any other changes, refresh the data
-                fetchPosts();
+      try {
+        channel = supabase
+          .channel('viral-posts-channel')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'viral_posts'
+            },
+            (payload) => {
+              try {
+                // Handle different types of changes
+                switch (payload.eventType) {
+                  case 'INSERT':
+                    setPosts(prev => {
+                      const newPost = payload.new;
+                      // Add new post if it meets our current filters
+                      if (shouldIncludePost(newPost)) {
+                        return [newPost, ...prev].slice(0, 20); // Keep only top 20
+                      }
+                      return prev;
+                    });
+                    break;
+                    
+                  case 'UPDATE':
+                    setPosts(prev => 
+                      prev.map(post => 
+                        post.id === payload.new.id ? payload.new : post
+                      )
+                    );
+                    break;
+                    
+                  case 'DELETE':
+                    setPosts(prev => 
+                      prev.filter(post => post.id !== payload.old.id)
+                    );
+                    break;
+                    
+                  default:
+                    // For any other changes, refresh the data
+                    fetchPosts();
+                }
+              } catch (err) {
+                console.error('Error handling realtime update:', err);
+              }
             }
-          }
-        )
-        .subscribe((status) => {
-          setConnectionStatus(status);
-          console.log('Subscription status:', status);
-        });
+          )
+          .subscribe((status) => {
+            setConnectionStatus(status);
+            
+            // Handle connection status changes
+            if (status === 'SUBSCRIBED') {
+              console.log('✅ Real-time subscription active');
+            } else if (status === 'CLOSED') {
+              console.log('🔌 Real-time subscription closed');
+              // Retry connection after a delay
+              retryTimeout = setTimeout(() => {
+                console.log('🔄 Retrying real-time connection...');
+                setupRealtimeSubscription();
+              }, 5000);
+            } else if (status === 'CHANNEL_ERROR') {
+              console.error('❌ Real-time subscription error');
+              setError('Real-time connection failed. Posts may not update automatically.');
+            }
+          });
+      } catch (err) {
+        console.error('Error setting up realtime subscription:', err);
+        setError('Could not establish real-time connection.');
+      }
     };
 
     setupRealtimeSubscription();
@@ -114,8 +136,11 @@ export default function RealtimeViralPosts({
       if (channel) {
         supabase.removeChannel(channel);
       }
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
     };
-  }, [supabase, fetchPosts]);
+  }, [supabase, fetchPosts, shouldIncludePost]);
 
   // Helper function to determine if a post should be included based on current filters
   const shouldIncludePost = (post) => {

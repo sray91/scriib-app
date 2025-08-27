@@ -189,14 +189,21 @@ export default function SparkPage() {
             keyword: "AI, machine learning, startup, leadership, marketing, technology, data science",
             sort_type: "date_posted",
             date_filter: "past-24h",
-            total_posts: 200
+            total_posts: 100 // Reduced from 200 to avoid timeouts
           }
         })
       });
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseError) {
+        // Handle non-JSON responses (like 504 timeouts)
+        const textResponse = await response.text();
+        throw new Error(`Server error (${response.status}): ${response.statusText}. This usually means the scraping operation timed out. Try again or contact support.`);
+      }
       
-      if (result.success) {
+      if (response.ok && result.success) {
         toast({
           title: "Scraping Complete",
           description: `Successfully scraped ${result.processed} new posts`,
