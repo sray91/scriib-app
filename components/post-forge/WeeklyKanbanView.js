@@ -15,6 +15,7 @@ export default function WeeklyKanbanView({
   onEditPost,
   onMovePost,
   onDeletePost,
+  onArchive,
   currentUser
 }) {
   // For mobile view, we'll show only a subset of days
@@ -174,6 +175,7 @@ export default function WeeklyKanbanView({
                                 post={post}
                                 onEdit={onEditPost}
                                 onDelete={onDeletePost}
+                                onArchive={onArchive}
                                 onDuplicate={(post) => onCreatePost(day, post.id)}
                                 isDragging={snapshot.isDragging}
                                 currentUser={currentUser}

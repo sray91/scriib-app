@@ -14,6 +14,7 @@ create table
     scheduled boolean not null default false,
     approval_comment text null,
     edited_at timestamp with time zone null,
+    archived boolean not null default false,
     constraint posts_pkey primary key (id),
     constraint posts_approver_id_fkey foreign key (approver_id) references auth.users (id),
     constraint posts_user_id_fkey foreign key (user_id) references auth.users (id),

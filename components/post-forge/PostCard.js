@@ -13,7 +13,8 @@ import {
   Image,
   Video,
   FileText,
-  Trash2
+  Trash2,
+  Archive
 } from 'lucide-react';
 
 export default function PostCard({ 
@@ -22,6 +23,7 @@ export default function PostCard({
   onStatusChange, 
   onDelete,
   onDuplicate,
+  onArchive,
   isDragging = false,
   currentUser
 }) {
@@ -69,6 +71,12 @@ export default function PostCard({
         className: 'bg-green-100 text-green-800 hover:bg-green-200',
         icon: CheckCircle,
         color: 'green'
+      },
+      archived: {
+        label: 'Archived',
+        className: 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+        icon: Archive,
+        color: 'gray'
       }
     };
     return statusConfig[status] || statusConfig.draft;
@@ -103,7 +111,9 @@ export default function PostCard({
     return post.mediaFiles && post.mediaFiles.length > 0;
   };
 
-  const statusConfig = getStatusConfig(post.status);
+  // Use archived status if post is archived, otherwise use the actual status
+  const displayStatus = post.archived ? 'archived' : post.status;
+  const statusConfig = getStatusConfig(displayStatus);
   const StatusIcon = statusConfig.icon;
   const platformIcons = getPlatformIcons(post.platforms);
   const userRole = getUserRole();
@@ -130,6 +140,15 @@ export default function PostCard({
     e.stopPropagation();
     if (onDelete) {
       onDelete(post.id);
+    }
+  };
+
+  // Handle archive
+  const handleArchiveClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onArchive) {
+      onArchive(post.id, !post.archived);
     }
   };
 
@@ -234,14 +253,25 @@ export default function PostCard({
             Copy
           </Button>
           {(userRole === 'owner' || userRole === 'approver') && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
-              onClick={handleDeleteClick}
-            >
-              <Trash2 size={12} />
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700"
+                onClick={handleArchiveClick}
+                title={post.archived ? 'Unarchive post' : 'Archive post'}
+              >
+                <Archive size={12} />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
+                onClick={handleDeleteClick}
+              >
+                <Trash2 size={12} />
+              </Button>
+            </>
           )}
         </div>
       </CardContent>

@@ -161,10 +161,12 @@ export default function PostsDashboard() {
       console.log('Fetching posts for user ID:', currentUser.id);
       
       // Fetch posts related to the current user in any capacity (creator, approver, or ghostwriter)
+      // Always exclude archived posts from the dashboard
       const { data, error } = await supabase
         .from('posts')
         .select('*')
         .or(`user_id.eq.${currentUser.id},approver_id.eq.${currentUser.id},ghostwriter_id.eq.${currentUser.id}`)
+        .eq('archived', false)
         .order('created_at', { ascending: false })
         .limit(100);
         
@@ -305,6 +307,51 @@ export default function PostsDashboard() {
       toast({
         title: 'Error',
         description: 'Failed to delete post: ' + error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleArchivePost = async (postId, archived = true) => {
+    if (!postId) return;
+    
+    try {
+      toast({
+        title: archived ? 'Archiving post...' : 'Unarchiving post...',
+        description: 'Please wait while we update the post.',
+      });
+      
+      const response = await fetch('/api/posts/archive', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: postId, archived }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to archive post');
+      }
+
+      const result = await response.json();
+      
+      // Update local state - remove archived posts from the current list
+      if (archived) {
+        setPosts(prev => prev.filter(post => post.id !== postId));
+      }
+      
+      toast({
+        title: 'Success',
+        description: result.message,
+      });
+      
+      setIsPostEditorOpen(false);
+    } catch (error) {
+      console.error('Error archiving post:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to archive post',
         variant: 'destructive',
       });
     }
@@ -524,6 +571,7 @@ export default function PostsDashboard() {
             >
               Rejected
             </TabsTrigger>
+
           </TabsList>
         </div>
 
@@ -660,6 +708,7 @@ export default function PostsDashboard() {
           onSave={handlePostSave}
           onClose={handleCloseEditor}
           onDelete={handleDeletePost}
+          onArchive={handleArchivePost}
         />
       )}
       

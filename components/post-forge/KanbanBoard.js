@@ -99,11 +99,12 @@ export default function KanbanBoard() {
       });
 
       // Fetch posts for the selected user and date range
-      // First, get posts with scheduled_time in the current week
+      // First, get posts with scheduled_time in the current week (excluding archived posts)
       const { data: scheduledPosts, error: scheduledError } = await supabase
         .from('posts')
         .select('*')
         .or(`user_id.eq."${selectedUser.id}",approver_id.eq."${selectedUser.id}",ghostwriter_id.eq."${selectedUser.id}"`)
+        .eq('archived', false)
         .gte('scheduled_time', startOfWeek.toISOString())
         .lte('scheduled_time', endOfWeek.toISOString())
         .order('scheduled_time');
@@ -113,12 +114,13 @@ export default function KanbanBoard() {
       console.log('Debug - Scheduled posts found:', scheduledPosts?.length || 0);
       console.log('Debug - Scheduled posts:', scheduledPosts);
       
-      // Second, get posts that are pending approval for this user and within the current week
+      // Second, get posts that are pending approval for this user and within the current week (excluding archived posts)
       const { data: pendingPosts, error: pendingError } = await supabase
         .from('posts')
         .select('*')
         .or(`user_id.eq."${selectedUser.id}",approver_id.eq."${selectedUser.id}",ghostwriter_id.eq."${selectedUser.id}"`)
         .eq('status', 'pending_approval')
+        .eq('archived', false)
         .gte('scheduled_time', startOfWeek.toISOString())
         .lte('scheduled_time', endOfWeek.toISOString())
         .order('created_at');
@@ -241,6 +243,40 @@ export default function KanbanBoard() {
       toast({
         title: "Error",
         description: "Failed to delete post",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle post archiving
+  const handleArchivePost = async (postId, archived = true) => {
+    try {
+      const response = await fetch('/api/posts/archive', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: postId, archived }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to archive post');
+      }
+
+      const result = await response.json();
+
+      toast({
+        title: "Success",
+        description: result.message,
+      });
+      
+      fetchPosts(); // Refresh posts
+    } catch (error) {
+      console.error('Error archiving post:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to archive post",
         variant: "destructive",
       });
     }
@@ -552,13 +588,14 @@ export default function KanbanBoard() {
 
         {/* Main Board */}
         <div className="flex-1 overflow-auto p-4">
-          <WeeklyKanbanView
+                    <WeeklyKanbanView 
             posts={posts}
             isNextWeek={isNextWeek}
             onCreatePost={handleCreatePost}
             onEditPost={handleEditPost}
             onMovePost={handleMovePost}
             onDeletePost={handleDeletePost}
+            onArchive={handleArchivePost}
             currentUser={currentUser}
           />
         </div>

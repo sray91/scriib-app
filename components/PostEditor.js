@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
-import { FileIcon, Trash2, AlertCircle, Users, Send } from 'lucide-react';
+import { FileIcon, Trash2, AlertCircle, Users, Send, Archive } from 'lucide-react';
 import Image from 'next/image';
 import { Input } from "@/components/ui/input";
 
@@ -96,7 +96,7 @@ function MediaPreview({ file, index, onRemove }) {
   );
 }
 
-export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
+export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onArchive }) {
   const { toast } = useToast();
   const [postData, setPostData] = useState({
     content: '',
@@ -798,6 +798,38 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
     }
   }, [onDelete, post?.id, toast]);
 
+  // Add a function to handle archiving
+  const handleArchive = useCallback((e) => {
+    e.preventDefault();
+    
+    const isArchived = post?.archived;
+    const action = isArchived ? 'unarchive' : 'archive';
+    const confirmMessage = isArchived 
+      ? 'Are you sure you want to unarchive this post?' 
+      : 'Are you sure you want to archive this post? It will be hidden from the dashboard.';
+    
+    if (window.confirm(confirmMessage)) {
+      if (onArchive && typeof onArchive === 'function') {
+        if (post?.id) {
+          onArchive(post.id, !isArchived);
+        } else {
+          toast({
+            title: "Error",
+            description: "Cannot archive a post that hasn't been saved yet",
+            variant: "destructive",
+          });
+        }
+      } else {
+        console.warn('Archive handler not provided');
+        toast({
+          title: "Error",
+          description: "Archive functionality is not available in this context",
+          variant: "destructive",
+        });
+      }
+    }
+  }, [onArchive, post?.id, post?.archived, toast]);
+
   // Handle sending for approval
   const handleSendForApproval = useCallback(async () => {
     try {
@@ -968,6 +1000,17 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete }) {
 
         <div className="flex justify-between items-center mt-6">
           <div className="flex gap-2">
+            {!isNew && onArchive && typeof onArchive === 'function' && (
+              <Button 
+                variant="outline" 
+                onClick={handleArchive}
+                disabled={isSaving}
+                className="border-blue-300 text-blue-600 hover:bg-blue-50"
+              >
+                <Archive className="h-4 w-4 mr-2" /> 
+                {post?.archived ? 'Unarchive' : 'Archive'} Post
+              </Button>
+            )}
             {!isNew && onDelete && typeof onDelete === 'function' && (
               <Button 
                 variant="destructive" 
