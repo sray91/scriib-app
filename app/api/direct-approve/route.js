@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import crypto from 'crypto';
 
+export const dynamic = 'force-dynamic';
+
 // Helper function to generate IDs in the same format as Supabase
 function generateUUID() {
   return crypto.randomUUID();

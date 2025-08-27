@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { TwitterApi } from 'twitter-api-v2';
 import crypto from 'crypto';
+
+export const dynamic = 'force-dynamic';
+
 function generatePKCE() {
   // Generate a random verifier
   const verifier = crypto.randomBytes(32).toString('hex');

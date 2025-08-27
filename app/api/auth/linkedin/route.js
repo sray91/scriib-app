@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getLinkedInConfig, LINKEDIN_MODES } from '@/lib/linkedin-config';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request) {
   try {
     const baseURL = new URL(request.url).origin;

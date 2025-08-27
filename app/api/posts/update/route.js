@@ -3,6 +3,8 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
+export const dynamic = 'force-dynamic';
+
 // Create a Supabase client with the service role key to bypass RLS
 // Initialize lazily to avoid build-time errors
 const getSupabaseAdmin = () => {

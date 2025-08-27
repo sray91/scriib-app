@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { ApifyClient } from 'apify-client';
 
+export const dynamic = 'force-dynamic';
+
 // Initialize the Apify client
 const apifyClient = new ApifyClient({
   token: process.env.APIFY_API_TOKEN,
