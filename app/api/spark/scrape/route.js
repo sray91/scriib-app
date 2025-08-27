@@ -35,31 +35,66 @@ export async function POST(request) {
 
     console.log(`Processing ${posts.length} posts from Apify...`);
 
+    // Debug: Log the structure of the first few posts
+    if (posts.length > 0) {
+      console.log('Sample post structure:', JSON.stringify(posts[0], null, 2));
+      console.log('Available keys in first post:', Object.keys(posts[0]));
+    }
+
     // Transform and prepare posts for database
     const transformedPosts = posts
-      .filter(post => post && post.id && post.text) // Filter out invalid posts
+      .filter(post => {
+        const hasId = post && (post.id || post.postId || post.linkedinPostId || post.activity_id);
+        const hasContent = post && (post.text || post.description);
+        const isValid = hasId && hasContent;
+        
+        if (!isValid && post) {
+          console.log('Filtered out post - hasId:', !!hasId, 'hasContent:', !!hasContent, 'keys:', Object.keys(post));
+        }
+        return isValid;
+      })
       .map((post) => {
-        // Extract hashtags and mentions from content
-        const content = post.text || '';
-        const hashtags = content.match(/#[a-zA-Z0-9_]+/g) || [];
-        const mentions = content.match(/@[a-zA-Z0-9_]+/g) || [];
+        // Handle different possible field names for content - ensure it's a string
+        const content = post.text || post.description || '';
+        const hashtags = typeof content === 'string' ? (content.match(/#[a-zA-Z0-9_]+/g) || []) : [];
+        const mentions = typeof content === 'string' ? (content.match(/@[a-zA-Z0-9_]+/g) || []) : [];
+        
+        // Handle different possible field names for ID
+        const postId = post.activity_id || post.id || post.postId || post.linkedinPostId || `apify_${Date.now()}_${Math.random()}`;
+        
+        // Handle different possible author structures
+        const author = post.author || post.profile || post.user || {};
+        
+        // Handle different possible reaction structures  
+        const stats = post.stats || post.reactions || post.engagement || {};
+        
+        // Extract likes from reactions array or direct count
+        let likesCount = 0;
+        if (stats.reactions && Array.isArray(stats.reactions)) {
+          const likeReaction = stats.reactions.find(r => r.type === 'LIKE');
+          likesCount = likeReaction ? likeReaction.count : 0;
+        } else {
+          likesCount = stats.likes || stats.likeCount || 0;
+        }
         
         return {
-          external_id: post.id,
+          external_id: postId,
           content: content,
-          author_name: post.author?.name || 'Unknown',
-          author_title: post.author?.title || null,
-          author_profile_url: post.author?.profileUrl || null,
-          author_image_url: post.author?.imageUrl || null,
-          post_url: post.postUrl || null,
-          published_at: post.publishedAt ? new Date(post.publishedAt).toISOString() : null,
-          likes_count: parseInt(post.reactions?.likes || 0),
-          comments_count: parseInt(post.reactions?.comments || 0),
-          shares_count: parseInt(post.reactions?.shares || 0),
-          reactions_count: parseInt(post.reactions?.total || 0),
-          post_type: post.postType || 'text',
-          media_urls: post.mediaUrls || [],
-          hashtags: hashtags,
+          author_name: author.name || author.fullName || author.title || 'Unknown',
+          author_title: author.headline || author.title || author.position || null,
+          author_profile_url: author.profile_url || author.profileUrl || author.url || author.link || null,
+          author_image_url: author.image_url || author.imageUrl || author.profilePicture || author.avatar || null,
+          post_url: post.post_url || post.postUrl || post.url || post.link || null,
+          published_at: post.posted_at?.date || post.publishedAt || post.createdAt || post.date ? 
+            new Date(post.posted_at?.date || post.publishedAt || post.createdAt || post.date).toISOString() : null,
+          likes_count: parseInt(likesCount),
+          comments_count: parseInt(stats.comments || stats.commentCount || 0),
+          shares_count: parseInt(stats.shares || stats.shareCount || stats.reposts || 0),
+          reactions_count: parseInt(stats.total_reactions || stats.total || stats.totalEngagement || 
+            likesCount + (stats.comments || 0) + (stats.shares || 0)),
+          post_type: post.content?.type || post.postType || post.type || 'text',
+          media_urls: post.mediaUrls || post.media || post.images || [],
+          hashtags: post.hashtags || hashtags,
           mentions: mentions,
           keywords: input.keyword ? input.keyword.split(',').map(k => k.trim()) : []
         };
