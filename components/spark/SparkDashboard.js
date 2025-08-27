@@ -33,11 +33,13 @@ export default function SparkDashboard({
   filters = {},
   onFiltersChange,
   onTopicSelect,
-  onPostsUpdate
+  onPostsUpdate,
+  onTriggerScrape
 }) {
   const [quickFilters, setQuickFilters] = useState({
     timeRange: 'week',
-    contentType: 'all'
+    contentType: 'all',
+    searchKeywords: ''
   });
 
   // Calculate dashboard metrics
@@ -137,13 +139,78 @@ export default function SparkDashboard({
 
   return (
     <div className="space-y-6">
+      {/* Search & Action Bar */}
+      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Search className="w-5 h-5 text-blue-600" />
+              <span>Find Viral Content</span>
+            </div>
+            <Button 
+              onClick={onTriggerScrape}
+              disabled={isLoading}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <TrendingUp className="w-4 h-4 mr-2" />
+              {isLoading ? 'Scraping...' : 'Scrape New Posts'}
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Keyword Search */}
+            <div className="md:col-span-2 space-y-2">
+              <label className="text-sm font-medium text-gray-700">Search Keywords</label>
+              <Input
+                placeholder="AI, startup, leadership, marketing..."
+                value={quickFilters.searchKeywords || ''}
+                onChange={(e) => handleQuickFilterChange('searchKeywords', e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    onFiltersChange({
+                      ...filters,
+                      keywords: e.target.value
+                    });
+                  }
+                }}
+                className="border-blue-200 focus:border-blue-400"
+              />
+            </div>
+            {/* Quick Actions */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">Quick Actions</label>
+              <Button
+                variant="outline"
+                onClick={() => onFiltersChange({ ...filters, onlyViral: true, timeframe: 'day' })}
+                className="w-full text-sm"
+              >
+                <Flame className="w-4 h-4 mr-1" />
+                Today&apos;s Viral
+              </Button>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">&nbsp;</label>
+              <Button
+                variant="outline"
+                onClick={() => onFiltersChange({ ...filters, timeframe: 'all', sortBy: 'viral_score' })}
+                className="w-full text-sm"
+              >
+                <Star className="w-4 h-4 mr-1" />
+                Show All Posts
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Quick Filters */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center space-x-2">
               <Filter className="w-5 h-5" />
-              <span>Quick Filters</span>
+              <span>Filters</span>
             </CardTitle>
           </div>
         </CardHeader>

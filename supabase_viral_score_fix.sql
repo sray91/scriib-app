@@ -1,3 +1,6 @@
+-- Fix for viral score calculation function
+-- Run this in your Supabase SQL Editor to fix the ambiguous column reference issue
+
 -- Function to calculate viral score for a post
 CREATE OR REPLACE FUNCTION calculate_viral_score(post_id UUID)
 RETURNS DECIMAL AS $$
@@ -32,16 +35,19 @@ BEGIN
     calculated_engagement_rate DECIMAL;
   BEGIN
     IF post_age_hours > 0 THEN
-      calculated_engagement_rate := (total_engagement / post_age_hours) * 100;
+      calculated_engagement_rate := (total_engagement / post_age_hours);
     ELSE
-      calculated_engagement_rate := total_engagement * 100;
+      calculated_engagement_rate := total_engagement;
     END IF;
+
+    -- Cap engagement rate to fit in DECIMAL(5,2) - max 999.99
+    calculated_engagement_rate := LEAST(calculated_engagement_rate, 999.99);
 
     -- Update the post with calculated scores
     UPDATE viral_posts 
     SET 
       viral_score = calculated_viral_score,
-      engagement_rate = LEAST(calculated_engagement_rate, 9999.99), -- Cap at 9999.99%
+      engagement_rate = calculated_engagement_rate,
       is_viral = CASE 
         WHEN calculated_viral_score > 50 OR calculated_engagement_rate > 100 THEN true 
         ELSE false 
@@ -66,62 +72,5 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to get trending posts within a time period
-CREATE OR REPLACE FUNCTION get_trending_posts(
-  hours_back INTEGER DEFAULT 24,
-  limit_count INTEGER DEFAULT 50
-)
-RETURNS TABLE (
-  id UUID,
-  content TEXT,
-  author_name TEXT,
-  post_url TEXT,
-  viral_score DECIMAL,
-  engagement_rate DECIMAL,
-  likes_count INTEGER,
-  comments_count INTEGER,
-  shares_count INTEGER,
-  published_at TIMESTAMP WITH TIME ZONE
-) AS $$
-BEGIN
-  RETURN QUERY
-  SELECT 
-    vp.id,
-    vp.content,
-    vp.author_name,
-    vp.post_url,
-    vp.viral_score,
-    vp.engagement_rate,
-    vp.likes_count,
-    vp.comments_count,
-    vp.shares_count,
-    vp.published_at
-  FROM viral_posts vp
-  WHERE vp.published_at >= NOW() - INTERVAL '1 hour' * hours_back
-  ORDER BY vp.viral_score DESC, vp.engagement_rate DESC
-  LIMIT limit_count;
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger to automatically update viral score when engagement metrics change
-CREATE OR REPLACE FUNCTION trigger_update_viral_score()
-RETURNS TRIGGER AS $$
-BEGIN
-  -- Only recalculate if engagement metrics changed
-  IF (OLD.likes_count IS DISTINCT FROM NEW.likes_count) OR
-     (OLD.comments_count IS DISTINCT FROM NEW.comments_count) OR
-     (OLD.shares_count IS DISTINCT FROM NEW.shares_count) OR
-     (OLD.reactions_count IS DISTINCT FROM NEW.reactions_count) THEN
-    PERFORM calculate_viral_score(NEW.id);
-  END IF;
-  
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Create trigger
-DROP TRIGGER IF EXISTS update_viral_score_trigger ON viral_posts;
-CREATE TRIGGER update_viral_score_trigger
-  AFTER UPDATE ON viral_posts
-  FOR EACH ROW
-  EXECUTE FUNCTION trigger_update_viral_score();
+-- Run the function to calculate scores for existing posts
+SELECT update_all_viral_scores();

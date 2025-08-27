@@ -203,10 +203,26 @@ export default function RealtimeViralPosts({
       {/* Posts List */}
       <div className="space-y-4">
         {posts.length === 0 && !isLoading ? (
-          <div className="text-center py-8 text-gray-500">
-            <TrendingUp className="w-12 h-12 mx-auto mb-2 opacity-50" />
-            <p>No viral posts found</p>
-            <p className="text-sm">Try adjusting your filters or check back later</p>
+          <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+            <TrendingUp className="w-16 h-16 mx-auto mb-4 opacity-50" />
+            <h3 className="text-lg font-semibold text-gray-700 mb-2">No Viral Posts Found</h3>
+            <p className="text-sm mb-4 max-w-md mx-auto">
+              It looks like there are no viral posts yet. Get started by scraping some fresh content from LinkedIn!
+            </p>
+            <div className="space-y-2">
+              <p className="text-xs text-gray-600">
+                💡 <strong>Getting Started:</strong> Click &quot;Scrape New Posts&quot; to fetch viral LinkedIn content
+              </p>
+              <p className="text-xs text-gray-600">
+                🔧 <strong>Setup Required:</strong> You may need to rent the LinkedIn scraper on Apify first
+              </p>
+              <p className="text-xs text-gray-600">
+                🔍 <strong>Search:</strong> Try keywords like AI, startup, leadership, marketing
+              </p>
+              <p className="text-xs text-gray-600">
+                ⚡ <strong>Filters:</strong> Adjust time range and engagement levels to refine results
+              </p>
+            </div>
           </div>
         ) : (
           posts.map((post) => (

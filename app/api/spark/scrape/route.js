@@ -137,11 +137,24 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('Error in scrape API:', error);
+    
+    // Provide specific error message for Apify issues
+    let errorMessage = error.message || 'Unknown error occurred';
+    let helpMessage = '';
+    
+    if (error.type === 'invalid-input' && error.statusCode === 400) {
+      errorMessage = 'LinkedIn scraper input validation error';
+      helpMessage = 'Please check the input parameters. The apimaestro/linkedin-posts-search-scraper-no-cookies actor may have specific requirements for keywords, date filters, or post counts.';
+    }
+    
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Unknown error occurred',
-        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        error: errorMessage,
+        help: helpMessage,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+        apify_error: error.type || undefined,
+        statusCode: error.statusCode || undefined
       },
       { status: 500 }
     );
@@ -161,7 +174,7 @@ export async function GET(request) {
         input: {
           keyword: "AI, machine learning, data science, generative AI, startup, product management, leadership, technology",
           sort_type: "date_posted",
-          date_filter: "past-6h", // Every 6 hours, get last 6 hours of posts
+          date_filter: "past-6h",
           total_posts: 300
         }
       }),

@@ -26,8 +26,8 @@ export default function SparkPage() {
   const [topics, setTopics] = useState([]);
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [filters, setFilters] = useState({
-    sortBy: 'viral_score',
-    timeframe: 'week',
+    sortBy: 'scraped_at',
+    timeframe: 'all',
     minViralScore: '0',
     keywords: '',
     onlyViral: false
@@ -41,7 +41,7 @@ export default function SparkPage() {
   // Load initial data
   useEffect(() => {
     loadData();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load data from API
   const loadData = async (newFilters = {}) => {
@@ -55,15 +55,48 @@ export default function SparkPage() {
         ...newFilters
       });
 
+      console.log('Loading posts with params:', params.toString());
+
       // Load posts
       const postsResponse = await fetch(`/api/spark/posts?${params}`);
       const postsResult = await postsResponse.json();
+
+      console.log('Posts API response:', postsResult);
 
       if (!postsResult.success) {
         throw new Error(postsResult.error || 'Failed to load posts');
       }
 
+      console.log(`Loaded ${postsResult.data?.length || 0} posts from API`);
       setPosts(postsResult.data || []);
+
+      // If no posts found and we're filtering by time, try loading all time
+      if ((!postsResult.data || postsResult.data.length === 0) && filters.timeframe !== 'all') {
+        console.log('No posts found with current timeframe, trying all time...');
+        const allTimeParams = new URLSearchParams({
+          limit: '50',
+          ...filters,
+          ...newFilters,
+          timeframe: 'all'
+        });
+        
+        console.log('All time params:', allTimeParams.toString());
+        
+        const allTimeResponse = await fetch(`/api/spark/posts?${allTimeParams}`);
+        const allTimeResult = await allTimeResponse.json();
+        
+        console.log('All time API response:', allTimeResult);
+        
+        if (allTimeResult.success && allTimeResult.data?.length > 0) {
+          console.log(`✅ Found ${allTimeResult.data.length} posts when searching all time`);
+          setPosts(allTimeResult.data);
+          // Update filters to show all time
+          setFilters(prev => ({ ...prev, timeframe: 'all' }));
+        } else {
+          console.log('❌ No posts found even with all time filter');
+          console.log('API response details:', allTimeResult);
+        }
+      }
 
       // Generate trending topics from posts data
       const topicsData = generateTopicsFromPosts(postsResult.data || []);
@@ -142,6 +175,56 @@ export default function SparkPage() {
     setActiveView('topic-explorer');
   };
 
+  // Handle scraping trigger
+  const handleTriggerScrape = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/spark/scrape', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          input: {
+            keyword: "AI, machine learning, startup, leadership, marketing, technology, data science",
+            sort_type: "date_posted",
+            date_filter: "past-24h",
+            total_posts: 200
+          }
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: "Scraping Complete",
+          description: `Successfully scraped ${result.processed} new posts`,
+        });
+        // Reload data to show new posts
+        loadData();
+      } else {
+        // If scraping fails, offer to load sample data
+        if (result.help) {
+          throw new Error(`${result.error}: ${result.help}`);
+        } else {
+          throw new Error(result.error || 'Scraping failed');
+        }
+      }
+    } catch (err) {
+      console.error('Error triggering scrape:', err);
+      toast({
+        title: "Scraping Failed",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-6 space-y-6 max-w-7xl">
@@ -168,6 +251,16 @@ export default function SparkPage() {
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
               {error}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Getting Started Alert for Empty State */}
+        {!isLoading && posts.length === 0 && !error && (
+          <Alert className="border-blue-200 bg-blue-50">
+            <Info className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              <strong>Welcome to Spark!</strong> No viral posts found yet. Click the &quot;Scrape New Posts&quot; button below to start discovering trending content from LinkedIn.
             </AlertDescription>
           </Alert>
         )}
@@ -209,6 +302,7 @@ export default function SparkPage() {
                 onFiltersChange={handleFiltersChange}
                 onTopicSelect={handleTopicSelect}
                 onPostsUpdate={handlePostsUpdate}
+                onTriggerScrape={handleTriggerScrape}
               />
             </TabsContent>
 
