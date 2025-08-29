@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
-import { FileIcon, Trash2, AlertCircle, Users, Send, Archive } from 'lucide-react';
+import { FileIcon, Trash2, AlertCircle, Users, Send, Archive, Sparkles } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Input } from "@/components/ui/input";
 
 import { Alert, AlertDescription } from '@/components/ui/alert.js';
@@ -913,12 +914,27 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
           </div>
         )}
 
-        <Textarea
-          value={postData.content}
-          onChange={(e) => setPostData(prev => ({ ...prev, content: e.target.value }))}
-          className="w-full h-80 p-4 border rounded-lg resize-none text-base"
-          placeholder="What would you like to share?"
-        />
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex-1" />
+            <Link href="/cocreate">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2 text-sm border-purple-200 text-purple-600 hover:bg-purple-50"
+              >
+                <Sparkles className="h-4 w-4" />
+                Use co-create
+              </Button>
+            </Link>
+          </div>
+          <Textarea
+            value={postData.content}
+            onChange={(e) => setPostData(prev => ({ ...prev, content: e.target.value }))}
+            className="w-full h-80 p-4 border rounded-lg resize-none text-base"
+            placeholder="What would you like to share?"
+          />
+        </div>
 
         <div className="mt-3">
           <Label htmlFor="scheduled-time" className="text-sm font-medium">Schedule for</Label>
