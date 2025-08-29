@@ -19,7 +19,7 @@ export default function PostEditorDialog({
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="max-w-6xl h-[80vh] p-0 overflow-hidden" 
+        className="max-w-[95vw] w-[95vw] h-[90vh] p-0 overflow-hidden" 
         aria-describedby="post-editor-description"
       >
         <DialogHeader className="p-4 border-b bg-white sticky top-0 z-10">

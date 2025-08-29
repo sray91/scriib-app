@@ -916,12 +916,12 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
         <Textarea
           value={postData.content}
           onChange={(e) => setPostData(prev => ({ ...prev, content: e.target.value }))}
-          className="w-full h-32 p-3 border rounded-lg resize-none"
+          className="w-full h-80 p-4 border rounded-lg resize-none text-base"
           placeholder="What would you like to share?"
         />
 
-        <div className="mt-4">
-          <Label htmlFor="scheduled-time">Schedule for</Label>
+        <div className="mt-3">
+          <Label htmlFor="scheduled-time" className="text-sm font-medium">Schedule for</Label>
           <Input
             id="scheduled-time"
             type="datetime-local"
@@ -944,12 +944,12 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
                 console.error('Error handling date:', error);
               }
             }}
-            className="w-full p-2 border rounded-lg mt-1"
+            className="w-full p-2 border rounded-lg mt-1 text-sm"
           />
         </div>
 
         <div 
-          className={`mt-4 border-2 border-dashed rounded-lg p-4 text-center ${isUploading ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-gray-50'}`}
+          className={`mt-3 border-2 border-dashed rounded-lg p-3 text-center ${isUploading ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-gray-50'}`}
           onDrop={(e) => {
             if (isUploading) return;
             e.preventDefault();
@@ -971,19 +971,19 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
             disabled={isUploading}
           />
           {isUploading ? (
-            <div className="space-y-3">
-              <p className="text-blue-600 font-medium">Uploading files...</p>
+            <div className="space-y-2">
+              <p className="text-blue-600 font-medium text-sm">Uploading files...</p>
               {Object.entries(uploadProgress).map(([fileId, progress]) => {
                 const fileName = fileId.split('-').slice(1).join('-');
                 return (
                   <div key={fileId} className="text-left">
                     <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm text-gray-700 truncate">{fileName}</span>
-                      <span className="text-sm text-blue-600 font-medium">{progress.percent}%</span>
+                      <span className="text-xs text-gray-700 truncate">{fileName}</span>
+                      <span className="text-xs text-blue-600 font-medium">{progress.percent}%</span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
                       <div 
-                        className={`h-2 rounded-full transition-all duration-300 ${
+                        className={`h-1.5 rounded-full transition-all duration-300 ${
                           progress.completed ? 'bg-green-500' : 'bg-blue-500'
                         }`}
                         style={{ width: `${progress.percent}%` }}
@@ -994,21 +994,22 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
               })}
             </div>
           ) : (
-            <p>Drag & drop or click to upload media</p>
+            <p className="text-sm">Drag & drop or click to upload media</p>
           )}
         </div>
 
-        <div className="flex justify-between items-center mt-6">
-          <div className="flex gap-2">
+        <div className="flex justify-between items-center mt-4">
+          <div className="flex gap-1.5">
             {!isNew && onArchive && typeof onArchive === 'function' && (
               <Button 
                 variant="outline" 
                 onClick={handleArchive}
                 disabled={isSaving}
-                className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                size="sm"
+                className="border-blue-300 text-blue-600 hover:bg-blue-50 text-xs"
               >
-                <Archive className="h-4 w-4 mr-2" /> 
-                {post?.archived ? 'Unarchive' : 'Archive'} Post
+                <Archive className="h-3 w-3 mr-1" /> 
+                {post?.archived ? 'Unarchive' : 'Archive'}
               </Button>
             )}
             {!isNew && onDelete && typeof onDelete === 'function' && (
@@ -1016,29 +1017,32 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
                 variant="destructive" 
                 onClick={handleDelete}
                 disabled={isSaving}
-                className="bg-red-600 hover:bg-red-700"
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-xs"
               >
-                <Trash2 className="h-4 w-4 mr-2" /> Delete Post
+                <Trash2 className="h-3 w-3 mr-1" /> Delete
               </Button>
             )}
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             {hasApprovers && (
               <Button 
                 variant="outline"
                 onClick={() => setShowApprovalDialog(true)}
                 disabled={isSaving}
-                className="flex items-center gap-2"
+                size="sm"
+                className="flex items-center gap-1 text-xs"
               >
-                <Send className="h-4 w-4" />
+                <Send className="h-3 w-3" />
                 Send for Approval
               </Button>
             )}
             <Button 
               onClick={(e) => handleSavePost(e, 'schedule')}
               disabled={isSaving}
-              className="bg-[#fb2e01] hover:bg-[#fb2e01]/90"
+              size="sm"
+              className="bg-[#fb2e01] hover:bg-[#fb2e01]/90 text-xs"
             >
               Save Post
             </Button>
