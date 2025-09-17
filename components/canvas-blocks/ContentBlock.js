@@ -21,10 +21,41 @@ const ContentBlock = ({ data, id }) => {
     if (!session?.dynamicContext) return;
     
     const { ideas, hooks } = session.dynamicContext;
-    const latestIdea = ideas?.[ideas.length - 1]?.content || '';
+    let ideaContent = ideas?.[ideas.length - 1]?.content || '';
     const latestHook = hooks?.[hooks.length - 1]?.content || '';
     
-    const compiledContent = `${latestHook}\n\n${latestIdea}`;
+    // Remove existing hooks from the idea content to prevent duplication
+    // Look for common hook patterns at the beginning of content
+    if (ideaContent && latestHook) {
+      // Split content into lines and remove potential hook lines from the beginning
+      const lines = ideaContent.split('\n');
+      let contentStartIndex = 0;
+      
+      // Skip lines that might be hooks (first few lines that look like hooks)
+      for (let i = 0; i < Math.min(3, lines.length); i++) {
+        const line = lines[i].trim();
+        // If line looks like a hook (sentence that ends with punctuation and is standalone)
+        if (line && 
+            (line.length > 20 && line.length < 200) && // Reasonable hook length
+            /[.!?]$/.test(line) && // Ends with punctuation
+            !/^(But |However |Additionally |Furthermore |Moreover |Also |And |So |Then )/i.test(line) // Not a continuation
+        ) {
+          contentStartIndex = i + 1;
+          // Skip empty lines after potential hook
+          while (contentStartIndex < lines.length && !lines[contentStartIndex].trim()) {
+            contentStartIndex++;
+          }
+        } else if (line) {
+          // Found content that doesn't look like a hook, stop
+          break;
+        }
+      }
+      
+      // Reconstruct content without the hook-like beginning
+      ideaContent = lines.slice(contentStartIndex).join('\n').trim();
+    }
+    
+    const compiledContent = latestHook ? `${latestHook}\n\n${ideaContent}`.trim() : ideaContent;
     setContent(compiledContent);
     
     // Update session context
