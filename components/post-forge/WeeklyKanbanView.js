@@ -94,7 +94,11 @@ export default function WeeklyKanbanView({
       )}
 
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-7'} gap-4`}>
+        <div className={`grid gap-3 min-h-0 ${
+          isMobile 
+            ? 'grid-cols-1' 
+            : 'grid-cols-3 md:grid-cols-5 lg:grid-cols-7'
+        }`}>
           {visibleDays.map((day) => {
             const dayPosts = posts.filter(post => post.day_of_week === day);
             const pendingApprovalPosts = dayPosts.filter(post => post.status === 'pending_approval');
@@ -121,11 +125,11 @@ export default function WeeklyKanbanView({
             };
 
             return (
-              <div key={day} className="flex flex-col h-full">
+              <div key={day} className="flex flex-col h-full min-w-0">
                 {/* Day Header */}
-                <div className="flex justify-between items-center mb-3 px-3 py-2 bg-white rounded-lg border">
-                  <div className="flex flex-col">
-                    <h3 className="font-semibold text-gray-900">{day}</h3>
+                <div className="flex justify-between items-center mb-2 px-2 py-2 bg-white rounded-lg border">
+                  <div className="flex flex-col min-w-0">
+                    <h3 className="font-semibold text-gray-900 text-sm truncate">{day}</h3>
                     <span className="text-xs text-gray-500">{getDateForDay()}</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -154,7 +158,7 @@ export default function WeeklyKanbanView({
                     <div
                       {...provided.droppableProps}
                       ref={provided.innerRef}
-                      className={`flex-1 p-2 rounded-md ${isMobile ? 'min-h-[50vh]' : 'min-h-[60vh]'} max-h-[80vh] overflow-y-auto transition-colors ${
+                      className={`flex-1 p-2 rounded-md ${isMobile ? 'min-h-[50vh]' : 'min-h-[65vh]'} max-h-[75vh] overflow-y-auto transition-colors ${
                         snapshot.isDraggingOver ? 'bg-blue-50' : 'bg-gray-50'
                       }`}
                     >
@@ -169,7 +173,7 @@ export default function WeeklyKanbanView({
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
-                              className="mb-3"
+                              className="mb-2"
                             >
                               <PostCard
                                 post={post}

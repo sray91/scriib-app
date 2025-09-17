@@ -155,13 +155,13 @@ export default function PostCard({
   return (
     <Card 
       className={`
-        cursor-pointer transition-all duration-200 hover:shadow-md border-l-4 max-h-80
+        cursor-pointer transition-all duration-200 hover:shadow-md border-l-4 min-h-[200px] max-h-[320px]
         ${isDragging ? 'opacity-50 rotate-2 scale-95' : 'hover:scale-102'}
         border-l-${statusConfig.color}-400
       `}
       onClick={handleCardClick}
     >
-      <CardContent className="p-3 space-y-2">
+      <CardContent className="p-4 space-y-3 h-full flex flex-col">
         {/* Header with status and actions */}
         <div className="flex items-center justify-between">
           <Badge 
@@ -191,8 +191,8 @@ export default function PostCard({
         </div>
 
         {/* Post content preview */}
-        <div className="py-2 max-h-32 overflow-y-auto">
-          <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+        <div className="flex-1 py-2 overflow-y-auto">
+          <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap line-clamp-6">
             {post.content || 'No content...'}
           </p>
         </div>
