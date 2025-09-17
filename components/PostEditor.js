@@ -288,57 +288,129 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
         const formData = new FormData();
         formData.append('file', file);
         
-        // Upload the file to storage via API with progress tracking
-        const response = await new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
+        // Choose upload method based on file size to bypass Vercel 4.5MB limit
+        const VERCEL_LIMIT = 4 * 1024 * 1024; // 4MB to be safe
+        let response, data;
+        
+        if (file.size > VERCEL_LIMIT) {
+          // Use direct upload to Supabase for large files
+          console.log(`Using direct upload for large file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
           
-          // Track upload progress
-          xhr.upload.addEventListener('progress', (e) => {
-            if (e.lengthComputable) {
-              const percent = Math.round((e.loaded / e.total) * 100);
-              setUploadProgress(prev => ({
-                ...prev,
-                [fileId]: { loaded: e.loaded, total: e.total, percent }
-              }));
-            }
+          // Step 1: Get signed upload URL
+          const urlResponse = await fetch('/api/posts/generate-upload-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileName: file.name,
+              fileType: file.type,
+              fileSize: file.size
+            })
           });
           
-          xhr.addEventListener('load', () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve({
-                ok: true,
-                status: xhr.status,
-                json: () => {
-                  try {
-                    return Promise.resolve(JSON.parse(xhr.responseText));
-                  } catch (e) {
-                    return Promise.resolve({ error: 'Invalid JSON response' });
-                  }
-                }
-              });
-            } else {
-              resolve({
-                ok: false,
-                status: xhr.status,
-                json: () => {
-                  try {
-                    return Promise.resolve(JSON.parse(xhr.responseText || '{}'));
-                  } catch (e) {
-                    // Handle non-JSON error responses (like HTML error pages)
-                    return Promise.resolve({ 
-                      error: xhr.status === 413 ? 'File too large' : `Server error: ${xhr.status}` 
-                    });
-                  }
-                }
-              });
-            }
+          if (!urlResponse.ok) {
+            const urlError = await urlResponse.json().catch(() => ({}));
+            throw new Error(urlError.error || 'Failed to get upload URL');
+          }
+          
+          const urlData = await urlResponse.json();
+          
+          // Step 2: Upload directly to Supabase
+          response = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            
+            // Track upload progress
+            xhr.upload.addEventListener('progress', (e) => {
+              if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                setUploadProgress(prev => ({
+                  ...prev,
+                  [fileId]: { loaded: e.loaded, total: e.total, percent }
+                }));
+              }
+            });
+            
+            xhr.addEventListener('load', () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                resolve({
+                  ok: true,
+                  status: xhr.status,
+                  json: () => Promise.resolve({
+                    success: true,
+                    fileName: urlData.fileName,
+                    filePath: urlData.publicUrl
+                  })
+                });
+              } else {
+                resolve({
+                  ok: false,
+                  status: xhr.status,
+                  json: () => Promise.resolve({ error: `Upload failed: ${xhr.status}` })
+                });
+              }
+            });
+            
+            xhr.addEventListener('error', () => reject(new Error('Direct upload failed')));
+            
+            xhr.open('PUT', urlData.uploadUrl);
+            xhr.setRequestHeader('Content-Type', file.type);
+            xhr.send(file);
           });
           
-          xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+        } else {
+          // Use existing server upload for smaller files
+          console.log(`Using server upload for small file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
           
-          xhr.open('POST', '/api/posts/upload-media');
-          xhr.send(formData);
-        });
+          response = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            
+            // Track upload progress
+            xhr.upload.addEventListener('progress', (e) => {
+              if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                setUploadProgress(prev => ({
+                  ...prev,
+                  [fileId]: { loaded: e.loaded, total: e.total, percent }
+                }));
+              }
+            });
+            
+            xhr.addEventListener('load', () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                resolve({
+                  ok: true,
+                  status: xhr.status,
+                  json: () => {
+                    try {
+                      return Promise.resolve(JSON.parse(xhr.responseText));
+                    } catch (e) {
+                      return Promise.resolve({ error: 'Invalid JSON response' });
+                    }
+                  }
+                });
+              } else {
+                resolve({
+                  ok: false,
+                  status: xhr.status,
+                  json: () => {
+                    try {
+                      return Promise.resolve(JSON.parse(xhr.responseText || '{}'));
+                    } catch (e) {
+                      // Handle non-JSON error responses (like HTML error pages)
+                      return Promise.resolve({ 
+                        error: xhr.status === 413 ? 'File too large' : `Server error: ${xhr.status}` 
+                      });
+                    }
+                  }
+                });
+              }
+            });
+            
+            xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+            
+            xhr.open('POST', '/api/posts/upload-media');
+            xhr.send(formData);
+          });
+        }
         
         if (!response.ok) {
           if (response.status === 413) {

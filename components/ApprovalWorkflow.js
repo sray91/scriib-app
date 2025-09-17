@@ -182,24 +182,72 @@ const ApprovalWorkflow = ({
       const uploadedFiles = [];
       
       for (const file of files) {
-        const formData = new FormData();
-        formData.append('file', file);
+        // Choose upload method based on file size to bypass Vercel 4.5MB limit
+        const VERCEL_LIMIT = 4 * 1024 * 1024; // 4MB to be safe
+        let response, data;
         
-        const response = await fetch('/api/posts/upload-media', {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (!response.ok) {
-          if (response.status === 413) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `File "${file.name}" is too large.`);
+        if (file.size > VERCEL_LIMIT) {
+          // Use direct upload to Supabase for large files
+          console.log(`Using direct upload for large file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+          
+          // Step 1: Get signed upload URL
+          const urlResponse = await fetch('/api/posts/generate-upload-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileName: file.name,
+              fileType: file.type,
+              fileSize: file.size
+            })
+          });
+          
+          if (!urlResponse.ok) {
+            const urlError = await urlResponse.json().catch(() => ({}));
+            throw new Error(urlError.error || 'Failed to get upload URL');
           }
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `Failed to upload ${file.name}`);
+          
+          const urlData = await urlResponse.json();
+          
+          // Step 2: Upload directly to Supabase
+          response = await fetch(urlData.uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': file.type },
+            body: file
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Direct upload failed: ${response.status}`);
+          }
+          
+          data = {
+            success: true,
+            fileName: urlData.fileName,
+            filePath: urlData.publicUrl
+          };
+          
+        } else {
+          // Use existing server upload for smaller files
+          console.log(`Using server upload for small file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+          
+          const formData = new FormData();
+          formData.append('file', file);
+          
+          response = await fetch('/api/posts/upload-media', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (!response.ok) {
+            if (response.status === 413) {
+              const errorData = await response.json().catch(() => ({}));
+              throw new Error(errorData.error || `File "${file.name}" is too large.`);
+            }
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Failed to upload ${file.name}`);
+          }
+          
+          data = await response.json();
         }
-        
-        const data = await response.json();
         
         uploadedFiles.push({
           path: data.fileName,
