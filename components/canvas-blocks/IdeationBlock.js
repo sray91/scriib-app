@@ -54,8 +54,8 @@ const IdeationBlock = ({ data, id }) => {
         const postContent = result.post || 'Post generated successfully!';
         
         const contextInfo = result.contextUsed 
-          ? `Used your personal context guide` 
-          : `No context guide found - create one in Settings > Training Data > Context Guide`;
+          ? `✅ Used your personal context guide to match your voice and expertise` 
+          : `⚠️ No personal context guide found - create one in Settings > Context Guide to get personalized posts that match your voice`;
         
         const assistantMessage = `${contextInfo}\n\n${postContent}`;
         
@@ -101,8 +101,8 @@ const IdeationBlock = ({ data, id }) => {
         toast({
           title: "Post generated!",
           description: result.contextUsed 
-            ? "Using your personal context guide" 
-            : "Generated with best practices"
+            ? "Personalized using your context guide" 
+            : "Generic post - add a context guide in Settings for personalization"
         });
       } else {
         throw new Error(result.error || 'Failed to generate ideas');
@@ -229,7 +229,7 @@ const IdeationBlock = ({ data, id }) => {
           ))}
           {messages.length === 0 && (
             <div className="text-center text-gray-500 text-sm py-8">
-              Ask for a LinkedIn post and I&apos;ll create it using your context guide...
+              Let&apos;s create some content...
             </div>
           )}
         </div>
