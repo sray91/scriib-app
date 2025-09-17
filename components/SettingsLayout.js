@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 const tabs = [
   { name: 'Social Accounts', href: '/settings' },
   { name: 'Profile', href: '/settings/profile' },
+  { name: 'Context Guide', href: '/settings/context-guide' },
   { name: 'Preferences', href: '/settings/preferences' },
 ]
 

@@ -843,29 +843,73 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
         console.error('Error processing media:', mediaError);
       }
       
-      // Set appropriate success message
-      let successMessage;
-      switch(actionType) {
-        case 'draft':
-          successMessage = "Post saved as draft";
-          break;
-        case 'send_for_approval':
-          successMessage = "Post sent for approval";
-          break;
-        case 'send_to_ghostwriter':
-          successMessage = "Post sent to ghostwriter for editing";
-          break;
-        case 'schedule':
-          successMessage = "Post scheduled successfully";
-          break;
-        default:
-          successMessage = "Post saved successfully";
+      // Send email notification if post was sent for approval
+      if (actionType === 'send_for_approval' && approver_id) {
+        try {
+          const emailResponse = await fetch('/api/notifications/email', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              postId: result.id,
+              approverId: approver_id,
+              authorId: currentUser.id,
+              postContent: postData.content
+            }),
+          });
+
+          if (!emailResponse.ok) {
+            const emailError = await emailResponse.json();
+            console.error('Failed to send approval notification email:', emailError);
+            // Don't fail the post save, just log the email error
+            toast({
+              title: "Post Sent for Approval",
+              description: "Post saved successfully, but we couldn't send the email notification. The approver can still see it in their approval portal.",
+              variant: "default",
+            });
+          } else {
+            const emailResult = await emailResponse.json();
+            console.log('Approval notification email sent:', emailResult);
+            toast({
+              title: "Success",
+              description: "Post sent for approval and approver has been notified via email",
+            });
+          }
+        } catch (emailError) {
+          console.error('Error sending approval notification:', emailError);
+          // Don't fail the post save, just show a warning
+          toast({
+            title: "Post Sent for Approval",
+            description: "Post saved successfully, but we couldn't send the email notification. The approver can still see it in their approval portal.",
+            variant: "default",
+          });
+        }
+      } else {
+        // Set appropriate success message for other actions
+        let successMessage;
+        switch(actionType) {
+          case 'draft':
+            successMessage = "Post saved as draft";
+            break;
+          case 'send_for_approval':
+            successMessage = "Post sent for approval";
+            break;
+          case 'send_to_ghostwriter':
+            successMessage = "Post sent to ghostwriter for editing";
+            break;
+          case 'schedule':
+            successMessage = "Post scheduled successfully";
+            break;
+          default:
+            successMessage = "Post saved successfully";
+        }
+        
+        toast({
+          title: "Success",
+          description: successMessage,
+        });
       }
-      
-      toast({
-        title: "Success",
-        description: successMessage,
-      });
       
       // Call the onSave callback to update the parent component
       if (onSave) onSave(result);

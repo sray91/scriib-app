@@ -37,33 +37,55 @@ const IdeationBlock = ({ data, id }) => {
     setMessages(newMessages);
     
     try {
-      // Call the CoCreate API
-      const response = await fetch(API_ENDPOINTS.COCREATE, {
+      // Call the dedicated Ideation API (Claude + Context Docs)
+      const response = await fetch('/api/cocreate/ideation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userMessage,
-          action: 'create'
+          contextType: 'guide'
         }),
       });
       
       const result = await response.json();
       
       if (response.ok) {
+        // Format ideas for display
+        const ideasText = result.ideas.map((idea, index) => 
+          `💡 **Idea ${index + 1}: ${idea.format || 'Post'}**\n` +
+          `Hook: "${idea.hook}"\n` +
+          `Angle: ${idea.contentAngle}\n` +
+          `CTA: ${idea.cta}\n` +
+          (idea.keyPoints ? `Key Points: ${idea.keyPoints.join(', ')}\n` : '') +
+          `---`
+        ).join('\n\n');
+        
+        const contextInfo = result.contextUsed 
+          ? `✅ Used your personal context guide` 
+          : `⚠️ No context guide found - create one in Settings > Context Guide`;
+        
+        const assistantMessage = `${result.message}\n\n${contextInfo}\n\n${ideasText}`;
+        
         // Add AI response to block
         setMessages(prev => [...prev, { 
           role: 'assistant', 
-          content: result.message 
+          content: assistantMessage
         }]);
         
-        // Update session context
+        // Update session context with individual ideas
+        const newIdeas = result.ideas.map((idea, index) => ({
+          id: `idea-${Date.now()}-${index}`,
+          content: `${idea.hook}\n\n${idea.contentAngle}`,
+          format: idea.format,
+          cta: idea.cta,
+          keyPoints: idea.keyPoints,
+          source: 'ideation',
+          blockId: id,
+          contextUsed: result.contextUsed
+        }));
+        
         updateDynamicContext({
-          ideas: [...(session?.dynamicContext?.ideas || []), {
-            id: `idea-${Date.now()}`,
-            content: result.updatedPost,
-            source: 'ideation',
-            blockId: id
-          }]
+          ideas: [...(session?.dynamicContext?.ideas || []), ...newIdeas]
         });
         
         // Add to history
@@ -71,25 +93,30 @@ const IdeationBlock = ({ data, id }) => {
           blockId: id,
           blockType: 'ideation',
           input: userMessage,
-          output: result.updatedPost,
-          context: session?.intrinsicContext
+          output: assistantMessage,
+          context: session?.intrinsicContext,
+          ideasGenerated: result.ideas.length
         });
         
         // Update block data
         data.onUpdate?.({ 
-          content: result.updatedPost,
-          lastGenerated: new Date().toISOString()
+          content: assistantMessage,
+          lastGenerated: new Date().toISOString(),
+          ideasCount: result.ideas.length,
+          contextUsed: result.contextUsed
         });
         
         toast({
-          title: "Idea generated!",
-          description: "Content has been added to session context"
+          title: `${result.ideas.length} ideas generated!`,
+          description: result.contextUsed 
+            ? "Using your personal context guide" 
+            : "Generated with best practices"
         });
       } else {
-        throw new Error(result.error || 'Failed to generate content');
+        throw new Error(result.error || 'Failed to generate ideas');
       }
     } catch (error) {
-      console.error('Error generating content:', error);
+      console.error('Error generating ideas:', error);
       toast({
         title: "Error",
         description: error.message,

@@ -39,6 +39,23 @@ This document lists all environment variables used in the Scriib App and explain
 - `TWILIO_AUTH_TOKEN` - Twilio Auth Token
 - `TWILIO_FROM_NUMBER` - Your Twilio phone number in E.164 format (e.g., +14155550123)
 
+### Email Notifications
+Choose one of the following email service options:
+
+#### Option 1: Resend (Recommended)
+- `RESEND_API_KEY` - Your Resend API key for sending emails
+
+#### Option 2: Custom SMTP (Nodemailer)
+- `SMTP_HOST` - SMTP server hostname (e.g., smtp.gmail.com)
+- `SMTP_PORT` - SMTP server port (usually 587 for TLS)
+- `SMTP_SECURE` - Whether to use SSL/TLS (true/false)
+- `SMTP_USER` - SMTP username
+- `SMTP_PASS` - SMTP password
+- `SMTP_FROM` - From email address (e.g., "Scriib <notifications@yourdomain.com>")
+
+#### Option 3: Supabase SMTP
+Configure SMTP settings in `supabase/config.toml` instead of environment variables.
+
 ## Setting Up Environment Variables
 
 1. Create a `.env.local` file in the root of your project for development
