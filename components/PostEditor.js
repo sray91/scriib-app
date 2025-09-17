@@ -871,9 +871,16 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
           } else {
             const emailResult = await emailResponse.json();
             console.log('Approval notification email sent:', emailResult);
+            
+            // Show different message based on email method used
+            let description = "Post sent for approval and approver has been notified via email";
+            if (emailResult.method === 'development-log') {
+              description = "Post sent for approval. Email notification logged to console (development mode). The approver can see it in their approval portal.";
+            }
+            
             toast({
               title: "Success",
-              description: "Post sent for approval and approver has been notified via email",
+              description,
             });
           }
         } catch (emailError) {
