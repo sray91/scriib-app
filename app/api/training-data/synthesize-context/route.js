@@ -229,7 +229,7 @@ Return only the markdown content guide, no additional commentary.`;
     console.log('🤖 Calling Claude for context guide synthesis...');
     
     const response = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-opus-4-1-20250805",
       max_tokens: 4000,
       temperature: 0.3,
       messages: [

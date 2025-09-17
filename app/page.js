@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import PostsDashboard from '@/components/post-forge/PostsDashboard'
-import PostsStats from '@/components/Dashboard/PostsStats'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BookOpen, FileText, BarChart3 } from 'lucide-react'
 import { getAvailableDocs } from '@/app/utils/docUtils'
@@ -100,8 +99,6 @@ export default function HomePage() {
       {/* Dashboard section */}
       <h2 className="text-2xl font-bold mb-6">Content Dashboard</h2>
       
-      {/* Post stats component */}
-      <PostsStats />
       
       <PostsDashboard />
     </div>
