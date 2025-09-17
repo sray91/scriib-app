@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, CheckCircle2, XCircle, Users, Edit, ExternalLink, FileIcon, Trash2, Upload } from 'lucide-react';
+import { AlertCircle, CheckCircle2, XCircle, Users, Edit, ExternalLink, FileIcon, Trash2, Upload, FileText } from 'lucide-react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useToast } from "@/components/ui/use-toast";
 import Image from 'next/image';
@@ -70,6 +70,45 @@ function MediaPreview({ file, index, onRemove, onImageClick }) {
           }}
           className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 z-10 hover:bg-red-600"
           aria-label="Remove media"
+          type="button"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  }
+  
+  // PDF file preview
+  if (file.type === 'application/pdf' || file.path?.toLowerCase().endsWith('.pdf')) {
+    return (
+      <div className="relative p-4 border rounded-lg bg-red-50 border-red-200">
+        <div className="flex items-center gap-3">
+          <FileText className="h-8 w-8 text-red-600" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-red-900 truncate">
+              {file.file?.name || file.path || 'PDF Document'}
+            </p>
+            <p className="text-xs text-red-600">
+              PDF Document
+            </p>
+          </div>
+        </div>
+        {file.url && (
+          <div className="mt-2">
+            <a
+              href={file.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-red-700 hover:text-red-800 underline"
+            >
+              View PDF
+            </a>
+          </div>
+        )}
+        <button
+          onClick={() => onRemove(index)}
+          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+          aria-label="Remove PDF"
           type="button"
         >
           <Trash2 className="h-4 w-4" />
@@ -494,13 +533,13 @@ const ApprovalWorkflow = ({
                     id="approval-media-upload"
                     type="file"
                     multiple
-                    accept="image/*,video/*"
+                    accept="image/*,video/*,.pdf"
                     className="hidden"
                     onChange={handleMediaUpload}
                   />
                   <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
                   <p className="text-sm text-gray-600">
-                    Drag & drop images/videos or click to upload
+                    Drag & drop media files (Images, Videos, PDFs) or click to upload
                   </p>
                 </div>
               </div>

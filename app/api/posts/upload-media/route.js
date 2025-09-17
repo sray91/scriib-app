@@ -36,8 +36,29 @@ export async function POST(request) {
 
     console.log(`Uploading file: ${file.name}, size: ${file.size} bytes (${(file.size / 1024 / 1024).toFixed(2)} MB), type: ${file.type}`);
 
+    // Validate file type - Allow images, videos, and PDFs
+    const fileExtension = path.extname(file.name).toLowerCase();
+    const allowedExtensions = [
+      // Images
+      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg',
+      // Videos  
+      '.mp4', '.webm', '.ogg', '.mov', '.avi',
+      // Documents
+      '.pdf'
+    ];
+    
+    if (!allowedExtensions.includes(fileExtension)) {
+      return NextResponse.json(
+        { 
+          error: `Unsupported file type "${fileExtension}". Allowed types: Images (JPG, PNG, GIF, WebP, SVG), Videos (MP4, WebM, OGG, MOV, AVI), and PDFs.` 
+        },
+        { status: 400 }
+      );
+    }
+
     // Check file size - Allow up to 5GB for standard/resumable uploads
     const isVideo = file.type?.startsWith('video/');
+    const isPdf = fileExtension === '.pdf';
     const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5GB limit for all files
     if (file.size > MAX_FILE_SIZE) {
       const maxSizeMB = MAX_FILE_SIZE / 1024 / 1024;
@@ -51,7 +72,6 @@ export async function POST(request) {
 
     // Generate a unique filename
     const uniqueId = uuidv4();
-    const fileExtension = path.extname(file.name);
     const fileName = `${uniqueId}${fileExtension}`;
     
     // Use different upload methods based on file size

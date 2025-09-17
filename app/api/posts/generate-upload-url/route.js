@@ -20,6 +20,26 @@ export async function POST(request) {
       );
     }
 
+    // Validate file type - Allow images, videos, and PDFs
+    const fileExtension = path.extname(fileName).toLowerCase();
+    const allowedExtensions = [
+      // Images
+      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg',
+      // Videos  
+      '.mp4', '.webm', '.ogg', '.mov', '.avi',
+      // Documents
+      '.pdf'
+    ];
+    
+    if (!allowedExtensions.includes(fileExtension)) {
+      return NextResponse.json(
+        { 
+          error: `Unsupported file type "${fileExtension}". Allowed types: Images (JPG, PNG, GIF, WebP, SVG), Videos (MP4, WebM, OGG, MOV, AVI), and PDFs.` 
+        },
+        { status: 400 }
+      );
+    }
+
     // Validate file size (5GB limit)
     const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5GB
     if (fileSize && fileSize > MAX_FILE_SIZE) {
@@ -34,7 +54,6 @@ export async function POST(request) {
 
     // Generate unique filename
     const uniqueId = uuidv4();
-    const fileExtension = path.extname(fileName);
     const uniqueFileName = `${uniqueId}${fileExtension}`;
 
     console.log(`Generating signed URL for: ${fileName}, size: ${fileSize} bytes, type: ${fileType}`);

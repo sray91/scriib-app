@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
-import { FileIcon, Trash2, AlertCircle, Users, Send, Archive, Sparkles } from 'lucide-react';
+import { FileIcon, Trash2, AlertCircle, Users, Send, Archive, Sparkles, FileText } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Input } from "@/components/ui/input";
@@ -68,6 +68,45 @@ function MediaPreview({ file, index, onRemove }) {
           onClick={() => onRemove(index)}
           className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 z-10"
           aria-label="Remove media"
+          type="button"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  }
+  
+  // PDF file preview
+  if (file.type === 'application/pdf' || file.path?.toLowerCase().endsWith('.pdf')) {
+    return (
+      <div className="relative p-4 border rounded-lg bg-red-50 border-red-200">
+        <div className="flex items-center gap-3">
+          <FileText className="h-8 w-8 text-red-600" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-red-900 truncate">
+              {file.file?.name || file.path || 'PDF Document'}
+            </p>
+            <p className="text-xs text-red-600">
+              PDF Document
+            </p>
+          </div>
+        </div>
+        {file.url && (
+          <div className="mt-2">
+            <a
+              href={file.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-red-700 hover:text-red-800 underline"
+            >
+              View PDF
+            </a>
+          </div>
+        )}
+        <button
+          onClick={() => onRemove(index)}
+          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
+          aria-label="Remove PDF"
           type="button"
         >
           <Trash2 className="h-4 w-4" />
@@ -216,11 +255,13 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
                 url.toLowerCase().endsWith('.png') ? 'image/png' :
                 url.toLowerCase().endsWith('.gif') ? 'image/gif' :
                 url.toLowerCase().endsWith('.webp') ? 'image/webp' :
+                url.toLowerCase().endsWith('.svg') ? 'image/svg+xml' :
                 url.toLowerCase().endsWith('.mp4') ? 'video/mp4' :
                 url.toLowerCase().endsWith('.webm') ? 'video/webm' :
                 url.toLowerCase().endsWith('.ogg') ? 'video/ogg' :
                 url.toLowerCase().endsWith('.mov') ? 'video/quicktime' :
                 url.toLowerCase().endsWith('.avi') ? 'video/x-msvideo' :
+                url.toLowerCase().endsWith('.pdf') ? 'application/pdf' :
                 'application/octet-stream',
           path: url.split('/').pop()
         }));
@@ -1053,7 +1094,7 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
             id="media-upload-input"
             type="file"
             multiple
-            accept="image/*,video/*"
+            accept="image/*,video/*,.pdf"
             className="hidden"
             onChange={handleMediaUpload}
             disabled={isUploading}
@@ -1082,7 +1123,7 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
               })}
             </div>
           ) : (
-            <p className="text-sm">Drag & drop or click to upload media</p>
+            <p className="text-sm">Drag & drop or click to upload media (Images, Videos, PDFs)</p>
           )}
         </div>
 
