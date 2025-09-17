@@ -290,7 +290,7 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
         
         // Choose upload method based on file size to bypass Vercel 4.5MB limit
         const VERCEL_LIMIT = 4 * 1024 * 1024; // 4MB to be safe
-        let response, data;
+        let response;
         
         if (file.size > VERCEL_LIMIT) {
           // Use direct upload to Supabase for large files
