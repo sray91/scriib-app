@@ -12,6 +12,12 @@ import PostEditorDialog from './PostEditorDialog'
 import { Badge } from '@/components/ui/badge'
 import ApprovalWorkflow from '@/components/ApprovalWorkflow'
 
+// Helper function to normalize status values
+const normalizeStatus = (status) => {
+  if (!status) return '';
+  return String(status).trim().toLowerCase();
+};
+
 export default function PostsDashboard() {
   const [activeTab, setActiveTab] = useState('all')
   const [posts, setPosts] = useState([])
@@ -89,12 +95,6 @@ export default function PostsDashboard() {
     return 'draft';
   };
 
-  // Helper function to normalize status values
-  const normalizeStatus = (status) => {
-    if (!status) return '';
-    return String(status).trim().toLowerCase();
-  };
-
   // Filter posts when tab or posts change
   useEffect(() => {
     if (!posts || !posts.length) {
@@ -102,16 +102,6 @@ export default function PostsDashboard() {
       return
     }
     
-    // DIAGNOSTIC: Direct detailed logging of all posts 
-    console.log('🔍 ALL POSTS AVAILABLE IN STATE:');
-    posts.forEach(post => {
-      console.log(`ID: ${post.id.substring(0, 8)}, Status: "${post.status}", Raw Status Type: ${typeof post.status}`);
-    });
-    
-    // Try to find draft posts by various methods
-    console.log('🔍 LOOKING FOR DRAFT POSTS:');
-    const draftPosts = posts.filter(post => normalizeStatus(post.status) === 'draft');
-    console.log(`Found ${draftPosts.length} draft posts:`, draftPosts.map(p => ({ id: p.id.substring(0,8), status: p.status })));
 
     let filtered = [];
     
@@ -119,7 +109,6 @@ export default function PostsDashboard() {
       case 'drafts':
         // Simple filter for drafts
         filtered = posts.filter(post => normalizeStatus(post.status) === 'draft');
-        console.log(`DRAFTS tab should show ${filtered.length} posts`);
         break;
       case 'pending':
         filtered = posts.filter(post => normalizeStatus(post.status) === 'pending_approval');
@@ -139,10 +128,6 @@ export default function PostsDashboard() {
       default: // 'all'
         filtered = posts;
     }
-    
-    // DIAGNOSTIC: Log the filtered posts for the current tab 
-    console.log(`DIAGNOSTIC - ${activeTab} tab should have ${filtered.length} posts`);
-    console.log('DIAGNOSTIC - Filtered posts:', filtered.map(p => ({ id: p.id.substring(0,8), status: p.status })));
     
     // Set filtered posts
     setFilteredPosts(filtered);
@@ -222,16 +207,7 @@ export default function PostsDashboard() {
         };
       });
 
-      // DIAGNOSTIC: Log all post statuses directly from the database
-      console.log('DIAGNOSTIC - Raw post statuses from database:');
-      data.forEach(post => {
-        console.log(`Post ID: ${post.id}, Raw Status: "${post.status}"`);
-      });
 
-      console.log('Formatted posts:');
-      formattedPosts.forEach(post => {
-        console.log(`Post ID: ${post.id}, Status: "${post.status}", Creator: ${post.creator_name}`);
-      });
 
       setPosts(formattedPosts)
     } catch (error) {
