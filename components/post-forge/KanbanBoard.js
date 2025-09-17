@@ -499,28 +499,43 @@ export default function KanbanBoard() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       {/* Header */}
-      <div className="bg-white border-b px-6 py-4">
+      <div className="bg-white/80 backdrop-blur-xl border-b border-gray-100/50 px-8 py-6 shadow-sm">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold">Post Forge</h1>
+          <div className="flex items-center gap-6">
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                Post Forge
+              </h1>
+              <p className="text-sm text-gray-500 mt-1">Content planning made simple</p>
+            </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             {/* Week Navigation */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center bg-gray-100/70 rounded-2xl p-1">
               <Button
-                variant={!isNextWeek ? 'default' : 'outline'}
+                variant="ghost"
                 size="sm"
                 onClick={() => setIsNextWeek(false)}
+                className={`rounded-xl px-4 py-2 text-sm font-medium transition-all ${
+                  !isNextWeek 
+                    ? 'bg-white shadow-sm text-gray-900' 
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
+                }`}
               >
                 This Week
               </Button>
               <Button
-                variant={isNextWeek ? 'default' : 'outline'}
+                variant="ghost"
                 size="sm"
                 onClick={() => setIsNextWeek(true)}
+                className={`rounded-xl px-4 py-2 text-sm font-medium transition-all ${
+                  isNextWeek 
+                    ? 'bg-white shadow-sm text-gray-900' 
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
+                }`}
               >
                 Next Week
               </Button>
@@ -529,7 +544,7 @@ export default function KanbanBoard() {
             {/* Action Buttons */}
             <Button
               onClick={() => handleCreatePost()}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm border-0 rounded-xl px-4 py-2"
               size="sm"
             >
               <Plus className="mr-2 h-4 w-4" />
@@ -539,14 +554,18 @@ export default function KanbanBoard() {
             <Button
               onClick={generateWeeklyContent}
               disabled={isGeneratingContent}
-              className="bg-[#fb2e01] hover:bg-[#fb2e01]/90 text-white"
+              className="bg-[#fb2e01] hover:bg-[#fb2e01]/90 text-white shadow-sm border-0 rounded-xl px-4 py-2"
               size="sm"
             >
               {isGeneratingContent ? "Generating..." : "Generate Weekly Content"}
             </Button>
             
             <Link href="/post-forge/builder">
-              <Button variant="outline" size="sm">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                className="border border-gray-200 bg-white/60 hover:bg-white rounded-xl px-4 py-2"
+              >
                 <Settings className="h-4 w-4 mr-2" />
                 Manage Templates
               </Button>
@@ -555,15 +574,22 @@ export default function KanbanBoard() {
         </div>
         
         {/* Week indicator */}
-        <div className="mt-3 text-sm text-gray-600">
-          <span className="font-medium">
-            {isNextWeek ? 'Next Week' : 'This Week'}: {getWeekLabel()}
-          </span>
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            <span className="font-semibold text-gray-900">
+              {isNextWeek ? 'Next Week' : 'This Week'}
+            </span>
+            <span className="ml-2 text-gray-500">{getWeekLabel()}</span>
+          </div>
+          
           {posts.filter(post => post.status === 'pending_approval').length > 0 && (
-            <div className="mt-2 flex items-center gap-2">
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                ⚠️ {posts.filter(post => post.status === 'pending_approval').length} posts pending approval
-              </span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200">
+                <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                <span className="text-sm font-medium text-amber-700">
+                  {posts.filter(post => post.status === 'pending_approval').length} pending approval
+                </span>
+              </div>
             </div>
           )}
         </div>
@@ -587,8 +613,8 @@ export default function KanbanBoard() {
         />
 
         {/* Main Board */}
-        <div className="flex-1 overflow-auto p-4">
-                    <WeeklyKanbanView 
+        <div className="flex-1 overflow-auto px-6 py-4">
+          <WeeklyKanbanView 
             posts={posts}
             isNextWeek={isNextWeek}
             onCreatePost={handleCreatePost}

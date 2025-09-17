@@ -69,24 +69,29 @@ export default function WeeklyKanbanView({
     : DAYS_OF_WEEK;
 
   return (
-    <div className="mt-6">
+    <div className="mt-8">
       {/* Mobile navigation controls */}
       {isMobile && (
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-center mb-6 p-4 bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100">
           <Button 
-            variant="outline" 
+            variant="ghost" 
             size="sm" 
             onClick={showPrevDay}
             disabled={visibleDayIndex === 0}
+            className="h-10 w-10 p-0 rounded-full bg-gray-50 hover:bg-gray-100 disabled:opacity-30"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <h3 className="font-medium">{DAYS_OF_WEEK[visibleDayIndex]}</h3>
+          <div className="text-center">
+            <h3 className="font-semibold text-gray-900 text-lg">{DAYS_OF_WEEK[visibleDayIndex]}</h3>
+            <p className="text-sm text-gray-500 mt-1">Swipe or use arrows to navigate</p>
+          </div>
           <Button 
-            variant="outline" 
+            variant="ghost" 
             size="sm" 
             onClick={showNextDay}
             disabled={visibleDayIndex === DAYS_OF_WEEK.length - 1}
+            className="h-10 w-10 p-0 rounded-full bg-gray-50 hover:bg-gray-100 disabled:opacity-30"
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -94,7 +99,7 @@ export default function WeeklyKanbanView({
       )}
 
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className={`grid gap-3 min-h-0 ${
+        <div className={`grid gap-4 min-h-0 ${
           isMobile 
             ? 'grid-cols-1' 
             : 'grid-cols-3 md:grid-cols-5 lg:grid-cols-7'
@@ -127,28 +132,40 @@ export default function WeeklyKanbanView({
             return (
               <div key={day} className="flex flex-col h-full min-w-0">
                 {/* Day Header */}
-                <div className="flex justify-between items-center mb-2 px-2 py-2 bg-white rounded-lg border">
-                  <div className="flex flex-col min-w-0">
-                    <h3 className="font-semibold text-gray-900 text-sm truncate">{day}</h3>
-                    <span className="text-xs text-gray-500">{getDateForDay()}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="text-xs">
-                      {dayPosts.length}
-                    </Badge>
-                    {pendingApprovalPosts.length > 0 && (
-                      <Badge variant="destructive" className="text-xs">
-                        {pendingApprovalPosts.length} pending
-                      </Badge>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 w-7 p-0"
-                      onClick={() => onCreatePost(day)}
-                    >
-                      <Plus size={14} />
-                    </Button>
+                <div className="mb-4 p-4 bg-white/60 backdrop-blur-sm rounded-2xl border border-gray-100/50 shadow-sm">
+                  <div className="flex justify-between items-center">
+                    <div className="flex flex-col min-w-0">
+                      <h3 className="font-semibold text-gray-900 text-base truncate">{day}</h3>
+                      <span className="text-sm text-gray-500 font-medium">{getDateForDay()}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {/* Post count */}
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center">
+                          <span className="text-xs font-semibold text-gray-700">{dayPosts.length}</span>
+                        </div>
+                      </div>
+                      
+                      {/* Pending approval indicator */}
+                      {pendingApprovalPosts.length > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                          <span className="text-xs font-medium text-amber-700">
+                            {pendingApprovalPosts.length} pending
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Add post button */}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 rounded-full bg-gray-50 hover:bg-gray-100 border-0"
+                        onClick={() => onCreatePost(day)}
+                      >
+                        <Plus size={16} className="text-gray-600" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
                 
@@ -158,8 +175,10 @@ export default function WeeklyKanbanView({
                     <div
                       {...provided.droppableProps}
                       ref={provided.innerRef}
-                      className={`flex-1 p-2 rounded-md ${isMobile ? 'min-h-[50vh]' : 'min-h-[65vh]'} max-h-[75vh] overflow-y-auto transition-colors ${
-                        snapshot.isDraggingOver ? 'bg-blue-50' : 'bg-gray-50'
+                      className={`flex-1 p-3 rounded-2xl transition-all duration-300 ${isMobile ? 'min-h-[50vh]' : 'min-h-[65vh]'} max-h-[75vh] overflow-y-auto ${
+                        snapshot.isDraggingOver 
+                          ? 'bg-blue-50/70 backdrop-blur-sm border-2 border-blue-200 border-dashed' 
+                          : 'bg-gray-50/30'
                       }`}
                     >
                       {dayPosts.map((post, index) => (
@@ -173,7 +192,7 @@ export default function WeeklyKanbanView({
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
-                              className="mb-2"
+                              className="mb-4"
                             >
                               <PostCard
                                 post={post}
@@ -192,14 +211,19 @@ export default function WeeklyKanbanView({
                       
                       {/* Add Post Button for empty columns */}
                       {dayPosts.length === 0 && (
-                        <div className="flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-lg">
+                        <div className="flex items-center justify-center h-48 rounded-2xl border-2 border-dashed border-gray-200 bg-white/30 hover:bg-white/50 transition-all duration-200">
                           <Button
                             variant="ghost"
-                            className="flex flex-col items-center gap-2 text-gray-500 hover:text-gray-700"
+                            className="flex flex-col items-center gap-3 text-gray-400 hover:text-gray-600 p-6 rounded-xl hover:bg-white/70 transition-all duration-200"
                             onClick={() => onCreatePost(day)}
                           >
-                            <Plus size={24} />
-                            <span className="text-sm">Add Post</span>
+                            <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+                              <Plus size={20} />
+                            </div>
+                            <div className="text-center">
+                              <div className="font-medium">Add Post</div>
+                              <div className="text-xs text-gray-400 mt-1">Create content for {day}</div>
+                            </div>
                           </Button>
                         </div>
                       )}
