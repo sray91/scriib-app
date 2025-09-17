@@ -22,7 +22,27 @@ const HookBlock = ({ data, id }) => {
   };
   
   const generateHooks = async () => {
-    if (!session?.dynamicContext?.ideas?.length) {
+    // Check for connected ideation blocks using actual edge connections
+    const connectedIdeationBlocks = data.edges?.filter(edge => 
+      edge.target === id && 
+      data.nodes?.find(node => node.id === edge.source && node.type === 'ideationBlock')
+    ) || [];
+    
+    // Debug logging
+    console.log('HookBlock Debug:', {
+      blockId: id,
+      edges: data.edges,
+      nodes: data.nodes?.map(n => ({ id: n.id, type: n.type })),
+      connectedIdeationBlocks,
+      sessionIdeas: session?.dynamicContext?.ideas?.length,
+      sessionGeneratedContent: session?.dynamicContext?.generatedContent?.length
+    });
+    
+    // Also check session context as fallback
+    const hasIdeasInSession = session?.dynamicContext?.ideas?.length > 0;
+    const hasGeneratedContent = session?.dynamicContext?.generatedContent?.length > 0;
+    
+    if (connectedIdeationBlocks.length === 0 && !hasIdeasInSession && !hasGeneratedContent) {
       toast({
         title: "No ideas found",
         description: "Connect to an ideation block first",
@@ -34,14 +54,37 @@ const HookBlock = ({ data, id }) => {
     setIsGenerating(true);
     
     try {
-      // Use the latest idea from connected ideation blocks
-      const latestIdea = session.dynamicContext.ideas[session.dynamicContext.ideas.length - 1];
+      // Get content from connected ideation blocks or session context
+      let contentToUse = '';
+      
+      if (connectedIdeationBlocks.length > 0) {
+        // Get content from the connected ideation block
+        const sourceBlockId = connectedIdeationBlocks[0].source;
+        const sourceBlock = data.nodes?.find(node => node.id === sourceBlockId);
+        
+        // Try to get content from the block's data or session context
+        if (session?.dynamicContext?.generatedContent?.length) {
+          const sourceContent = session.dynamicContext.generatedContent.find(content => 
+            content.blockId === sourceBlockId
+          );
+          contentToUse = sourceContent?.content || '';
+        }
+      }
+      
+      // Fallback to latest idea from session
+      if (!contentToUse && hasIdeasInSession) {
+        const latestIdea = session.dynamicContext.ideas[session.dynamicContext.ideas.length - 1];
+        contentToUse = latestIdea.content;
+      } else if (!contentToUse && hasGeneratedContent) {
+        const latestContent = session.dynamicContext.generatedContent[session.dynamicContext.generatedContent.length - 1];
+        contentToUse = latestContent.content;
+      }
       
       const response = await fetch(API_ENDPOINTS.COCREATE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userMessage: `Create 3 compelling hooks for this content: ${latestIdea.content}`,
+          userMessage: `Create 3 compelling hooks for this content: ${contentToUse}`,
           action: 'create'
         }),
       });

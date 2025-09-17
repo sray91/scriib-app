@@ -93,6 +93,18 @@ const CoCreateCanvas = () => {
     setNodes([defaultIdeationBlock]);
   }, [initializeSession, setNodes]);
   
+  // Update all nodes with current edges data when edges change
+  useEffect(() => {
+    setNodes(nds => nds.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        edges: edges,
+        nodes: nds
+      }
+    })));
+  }, [edges, setNodes]);
+  
   // Setup event listeners and keyboard shortcuts
   useCanvasKeyboardShortcuts(addNode, handleCompilePost, selectedNodes, setSelectedNodes, setNodes, isLoading);
   useCanvasEvents(addConnectedBlock, removeNode);

@@ -74,8 +74,10 @@ const IdeationBlock = ({ data, id }) => {
           contextUsed: result.contextUsed
         };
         
+        // Store in both generatedContent and ideas for backward compatibility
         updateDynamicContext({
-          generatedContent: [...(session?.dynamicContext?.generatedContent || []), newPost]
+          generatedContent: [...(session?.dynamicContext?.generatedContent || []), newPost],
+          ideas: [...(session?.dynamicContext?.ideas || []), newPost]
         });
         
         // Add to history
