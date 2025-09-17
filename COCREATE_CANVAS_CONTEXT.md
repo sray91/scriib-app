@@ -263,7 +263,9 @@ Body: { userMessage, action: 'create' }
 - **Keyboard Shortcuts**:
   - `Ctrl/Cmd + 1-4`: Quick add blocks
   - `Ctrl/Cmd + Enter`: Compile post
-  - `Delete/Backspace`: Remove selected nodes
+  - `Delete/Backspace`: Remove selected nodes (smart input detection prevents conflicts)
+  - **Input Protection**: Keyboard shortcuts disabled when typing in input fields
+  - **Default Block Protection**: Initial ideation block cannot be deleted
 - **Visual Flow**: React Flow with minimap, controls, background
 - **Multi-selection**: Control+click for multiple node selection
 

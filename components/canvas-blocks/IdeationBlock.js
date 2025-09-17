@@ -140,6 +140,11 @@ const IdeationBlock = ({ data, id }) => {
       <div className="flex items-center gap-2 p-3 bg-blue-50 border-b">
         <Brain className="h-5 w-5 text-blue-600" />
         <span className="font-medium text-blue-800">Ideation</span>
+        {id === 'ideation-default' && (
+          <span className="ml-auto text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+            Default
+          </span>
+        )}
       </div>
       
       {/* Plus Button */}
@@ -207,6 +212,10 @@ const IdeationBlock = ({ data, id }) => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+            onKeyDown={(e) => {
+              // Prevent global keyboard shortcuts when typing in this input
+              e.stopPropagation();
+            }}
             placeholder="What do you want to create?"
             className="flex-1 px-3 py-2 border rounded-md text-sm"
             disabled={isLoading}

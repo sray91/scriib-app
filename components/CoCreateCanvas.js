@@ -121,6 +121,20 @@ const CoCreateCanvas = () => {
           </div>
         </Panel>
         
+        {/* Quick Add Panel */}
+        <Panel position="top-left">
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => addNode('ideation')} 
+              variant="outline"
+              size="sm"
+              className="bg-white/80 hover:bg-white border-blue-200 text-blue-700 hover:text-blue-800"
+            >
+              + Ideation
+            </Button>
+          </div>
+        </Panel>
+        
 
         
 
