@@ -7,6 +7,9 @@ import path from 'path';
 export const runtime = 'nodejs';
 export const maxDuration = 60; // 60 seconds timeout
 
+// Configure request body size limit for video uploads (100MB)
+export const maxRequestBodySize = 100 * 1024 * 1024; // 100MB in bytes
+
 // Use service role key for uploads to bypass RLS and size limits
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
