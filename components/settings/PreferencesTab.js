@@ -124,17 +124,42 @@ export default function PreferencesTab() {
 
       console.log('Updating preference:', key, value, 'for user:', user.id)
       
-      // Try to upsert the record
-      const { error: upsertError } = await supabase
+      // Get existing preferences with id
+      const { data: existingPrefs, error: selectError } = await supabase
         .from('user_preferences')
-        .upsert({
-          user_id: user.id,
-          settings: newPreferences
-        })
+        .select('id, settings')
+        .eq('user_id', user.id)
+        .single()
 
-      if (upsertError) {
-        console.error('Error upserting preferences:', upsertError)
-        throw upsertError
+      if (selectError && selectError.code !== 'PGRST116') {
+        console.error('Error fetching existing preferences:', selectError)
+        throw selectError
+      }
+
+      let result
+      if (existingPrefs) {
+        // Update existing record
+        result = await supabase
+          .from('user_preferences')
+          .update({
+            settings: newPreferences,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingPrefs.id)
+      } else {
+        // Insert new record
+        result = await supabase
+          .from('user_preferences')
+          .insert({
+            user_id: user.id,
+            settings: newPreferences,
+            updated_at: new Date().toISOString()
+          })
+      }
+
+      if (result.error) {
+        console.error('Database operation error:', result.error)
+        throw result.error
       }
 
       console.log('Preference updated successfully')

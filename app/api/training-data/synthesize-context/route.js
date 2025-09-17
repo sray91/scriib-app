@@ -256,12 +256,17 @@ Return only the markdown content guide, no additional commentary.`;
  */
 async function saveContextGuide(supabase, userId, contextGuide) {
   try {
-    // Get existing preferences
-    const { data: existingPrefs } = await supabase
+    // Get existing preferences with id
+    const { data: existingPrefs, error: selectError } = await supabase
       .from('user_preferences')
-      .select('settings')
+      .select('id, settings')
       .eq('user_id', userId)
       .single();
+
+    if (selectError && selectError.code !== 'PGRST116') {
+      console.error('Error fetching existing preferences:', selectError);
+      throw selectError;
+    }
 
     const updatedSettings = {
       ...(existingPrefs?.settings || {}),
@@ -269,16 +274,31 @@ async function saveContextGuide(supabase, userId, contextGuide) {
       lastTrainingDate: new Date().toISOString()
     };
 
-    // Upsert the preferences
-    const { error } = await supabase
-      .from('user_preferences')
-      .upsert({
-        user_id: userId,
-        settings: updatedSettings,
-        updated_at: new Date().toISOString()
-      });
+    let result;
+    if (existingPrefs) {
+      // Update existing record
+      result = await supabase
+        .from('user_preferences')
+        .update({
+          settings: updatedSettings,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingPrefs.id);
+    } else {
+      // Insert new record
+      result = await supabase
+        .from('user_preferences')
+        .insert({
+          user_id: userId,
+          settings: updatedSettings,
+          updated_at: new Date().toISOString()
+        });
+    }
 
-    if (error) throw error;
+    if (result.error) {
+      console.error('Database operation error:', result.error);
+      throw result.error;
+    }
 
     console.log('💾 Context guide saved to user preferences');
     
