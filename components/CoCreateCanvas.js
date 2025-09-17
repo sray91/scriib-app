@@ -72,7 +72,7 @@ const CoCreateCanvas = () => {
               ? { ...node, data: { ...node.data, ...updates } }
               : node
           ));
-        }
+        },
         // No onClose function for the default ideation block
       },
     };
