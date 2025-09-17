@@ -9,7 +9,9 @@ import ReactFlow, {
   useEdgesState, 
   addEdge,
   ReactFlowProvider,
-  Panel
+  Panel,
+  ConnectionLineType,
+  MarkerType
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Button } from "@/components/ui/button";
@@ -45,7 +47,18 @@ const CoCreateCanvas = () => {
   }, []);
   
   const onConnect = useCallback((params) => {
-    setEdges((eds) => addEdge(params, eds));
+    setEdges((eds) => addEdge({
+      ...params,
+      type: 'smoothstep',
+      animated: true,
+      style: { stroke: '#3b82f6', strokeWidth: 2 },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: '#3b82f6',
+        width: 20,
+        height: 20,
+      },
+    }, eds));
   }, [setEdges]);
   
   // Wrapper for post compilation with loading state
@@ -98,6 +111,17 @@ const CoCreateCanvas = () => {
         multiSelectionKeyCode="Control"
         deleteKeyCode="Delete"
         selectNodesOnDrag={false}
+        connectionLineType={ConnectionLineType.SmoothStep}
+        connectionLineStyle={{ stroke: '#3b82f6', strokeWidth: 2, strokeDasharray: '5,5' }}
+        defaultEdgeOptions={{
+          type: 'smoothstep',
+          animated: true,
+          style: { stroke: '#3b82f6', strokeWidth: 2 },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: '#3b82f6',
+          },
+        }}
       >
         <MiniMap />
         <Background />
@@ -123,7 +147,7 @@ const CoCreateCanvas = () => {
         
         {/* Quick Add Panel */}
         <Panel position="top-left">
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2">
             <Button 
               onClick={() => addNode('ideation')} 
               variant="outline"
@@ -132,6 +156,11 @@ const CoCreateCanvas = () => {
             >
               + Ideation
             </Button>
+            {nodes.length > 1 && (
+              <div className="text-xs text-gray-600 bg-white/90 p-2 rounded border max-w-48">
+                💡 <strong>Tip:</strong> Drag from the blue dots on block edges to connect them visually!
+              </div>
+            )}
           </div>
         </Panel>
         

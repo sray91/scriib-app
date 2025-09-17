@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Target, X } from 'lucide-react';
-import { NodeResizer } from 'reactflow';
+import { NodeResizer, Handle, Position } from 'reactflow';
 import { useCanvasStore } from '@/lib/stores/canvasStore';
 import { DEFAULT_CTA_TEMPLATES, API_ENDPOINTS, CANVAS_SETTINGS } from '@/lib/constants/canvasConfig';
 
@@ -91,7 +91,24 @@ const CTABlock = ({ data, id }) => {
         lineClassName="border-red-500/30"
         handleClassName="w-3 h-3 bg-red-500/80 hover:bg-red-600 transition-all rounded-sm border border-white/50"
       />
-            <div className={`bg-white shadow-lg border-2 border-red-200 w-full h-full overflow-auto flex flex-col`}>
+      
+      {/* Connection Handles */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="input"
+        className="w-3 h-3 bg-red-500 border-2 border-white shadow-md hover:bg-red-600 transition-colors"
+        style={{ left: -6 }}
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="output"
+        className="w-3 h-3 bg-red-500 border-2 border-white shadow-md hover:bg-red-600 transition-colors"
+        style={{ right: -6 }}
+      />
+      
+      <div className={`bg-white shadow-lg border-2 border-red-200 w-full h-full overflow-auto flex flex-col`}>
       <div className="flex items-center gap-2 p-3 bg-red-50 border-b">
         <Target className="h-5 w-5 text-red-600" />
         <span className="font-medium text-red-800">Call-to-Action</span>

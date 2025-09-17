@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Image as ImageIcon, X, FileImage, Grid3X3, Upload } from 'lucide-react';
 import Image from 'next/image';
-import { NodeResizer } from 'reactflow';
+import { NodeResizer, Handle, Position } from 'reactflow';
 import { useCanvasStore } from '@/lib/stores/canvasStore';
 import { VISUAL_TEMPLATES, API_ENDPOINTS, CANVAS_SETTINGS } from '@/lib/constants/canvasConfig';
 
@@ -192,6 +192,23 @@ const VisualBlock = ({ data, id }) => {
         lineClassName="border-purple-500/30"
         handleClassName="w-3 h-3 bg-purple-500/80 hover:bg-purple-600 transition-all rounded-sm border border-white/50"
       />
+      
+      {/* Connection Handles */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="input"
+        className="w-3 h-3 bg-purple-500 border-2 border-white shadow-md hover:bg-purple-600 transition-colors"
+        style={{ left: -6 }}
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="output"
+        className="w-3 h-3 bg-purple-500 border-2 border-white shadow-md hover:bg-purple-600 transition-colors"
+        style={{ right: -6 }}
+      />
+      
       <div className={`bg-white shadow-lg border-2 border-purple-200 w-full h-full overflow-auto flex flex-col`}>
         <div className="flex items-center gap-2 p-3 bg-purple-50 border-b">
           <ImageIcon className="h-5 w-5 text-purple-600" />

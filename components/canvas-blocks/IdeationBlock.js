@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Play, Plus, Brain, Fish, Image as ImageIcon, Target } from 'lucide-react';
-import { NodeResizer } from 'reactflow';
+import { NodeResizer, Handle, Position } from 'reactflow';
 import { useCanvasStore } from '@/lib/stores/canvasStore';
 import { API_ENDPOINTS, CANVAS_SETTINGS } from '@/lib/constants/canvasConfig';
 
@@ -126,6 +126,23 @@ const IdeationBlock = ({ data, id }) => {
         lineClassName="border-blue-500/30"
         handleClassName="w-3 h-3 bg-blue-500/80 hover:bg-blue-600 transition-all rounded-sm border border-white/50"
       />
+      
+      {/* Connection Handles */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="input"
+        className="w-3 h-3 bg-blue-500 border-2 border-white shadow-md hover:bg-blue-600 transition-colors"
+        style={{ left: -6 }}
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="output"
+        className="w-3 h-3 bg-blue-500 border-2 border-white shadow-md hover:bg-blue-600 transition-colors"
+        style={{ right: -6 }}
+      />
+      
       <div className="bg-white shadow-lg border-2 border-blue-200 w-full h-full relative flex flex-col">
       <div className="flex items-center gap-2 p-3 bg-blue-50 border-b">
         <Brain className="h-5 w-5 text-blue-600" />

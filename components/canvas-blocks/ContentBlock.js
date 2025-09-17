@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Type, X } from 'lucide-react';
-import { NodeResizer } from 'reactflow';
+import { NodeResizer, Handle, Position } from 'reactflow';
 import { useCanvasStore } from '@/lib/stores/canvasStore';
 import { CANVAS_SETTINGS } from '@/lib/constants/canvasConfig';
 
@@ -47,7 +47,24 @@ const ContentBlock = ({ data, id }) => {
         lineClassName="border-orange-500/30"
         handleClassName="w-3 h-3 bg-orange-500/80 hover:bg-orange-600 transition-all rounded-sm border border-white/50"
       />
-            <div className={`bg-white shadow-lg border-2 border-orange-200 w-full h-full overflow-auto flex flex-col`}>
+      
+      {/* Connection Handles */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="input"
+        className="w-3 h-3 bg-orange-500 border-2 border-white shadow-md hover:bg-orange-600 transition-colors"
+        style={{ left: -6 }}
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="output"
+        className="w-3 h-3 bg-orange-500 border-2 border-white shadow-md hover:bg-orange-600 transition-colors"
+        style={{ right: -6 }}
+      />
+      
+      <div className={`bg-white shadow-lg border-2 border-orange-200 w-full h-full overflow-auto flex flex-col`}>
       <div className="flex items-center gap-2 p-3 bg-orange-50 border-b">
         <Type className="h-5 w-5 text-orange-600" />
         <span className="font-medium text-orange-800">Content Editor</span>
