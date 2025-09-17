@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { Play, Plus, Brain, Fish, Image, Target } from 'lucide-react';
+import { Play, Plus, Brain, Fish, Image as ImageIcon, Target } from 'lucide-react';
 import { NodeResizer } from 'reactflow';
 import { useCanvasStore } from '@/lib/stores/canvasStore';
 import { API_ENDPOINTS, CANVAS_SETTINGS } from '@/lib/constants/canvasConfig';
@@ -50,21 +50,14 @@ const IdeationBlock = ({ data, id }) => {
       const result = await response.json();
       
       if (response.ok) {
-        // Format ideas for display
-        const ideasText = result.ideas.map((idea, index) => 
-          `💡 **Idea ${index + 1}: ${idea.format || 'Post'}**\n` +
-          `Hook: "${idea.hook}"\n` +
-          `Angle: ${idea.contentAngle}\n` +
-          `CTA: ${idea.cta}\n` +
-          (idea.keyPoints ? `Key Points: ${idea.keyPoints.join(', ')}\n` : '') +
-          `---`
-        ).join('\n\n');
+        // Display the post content directly
+        const postContent = result.post || 'Post generated successfully!';
         
         const contextInfo = result.contextUsed 
-          ? `✅ Used your personal context guide` 
-          : `⚠️ No context guide found - create one in Settings > Training Data > Context Guide`;
+          ? `Used your personal context guide` 
+          : `No context guide found - create one in Settings > Training Data > Context Guide`;
         
-        const assistantMessage = `${result.message}\n\n${contextInfo}\n\n${ideasText}`;
+        const assistantMessage = `${contextInfo}\n\n${postContent}`;
         
         // Add AI response to block
         setMessages(prev => [...prev, { 
@@ -72,20 +65,17 @@ const IdeationBlock = ({ data, id }) => {
           content: assistantMessage
         }]);
         
-        // Update session context with individual ideas
-        const newIdeas = result.ideas.map((idea, index) => ({
-          id: `idea-${Date.now()}-${index}`,
-          content: `${idea.hook}\n\n${idea.contentAngle}`,
-          format: idea.format,
-          cta: idea.cta,
-          keyPoints: idea.keyPoints,
+        // Update session context with the generated post
+        const newPost = {
+          id: `post-${Date.now()}`,
+          content: postContent,
           source: 'ideation',
           blockId: id,
           contextUsed: result.contextUsed
-        }));
+        };
         
         updateDynamicContext({
-          ideas: [...(session?.dynamicContext?.ideas || []), ...newIdeas]
+          generatedContent: [...(session?.dynamicContext?.generatedContent || []), newPost]
         });
         
         // Add to history
@@ -95,21 +85,21 @@ const IdeationBlock = ({ data, id }) => {
           input: userMessage,
           output: assistantMessage,
           context: session?.intrinsicContext,
-          ideasGenerated: result.ideas.length
+          postGenerated: true
         });
         
         // Update block data
         data.onUpdate?.({ 
           content: assistantMessage,
           lastGenerated: new Date().toISOString(),
-          ideasCount: result.ideas.length,
+          postGenerated: true,
           contextUsed: result.contextUsed
         });
         
         toast({
-          title: `${result.ideas.length} ideas generated!`,
+          title: "Post generated!",
           description: result.contextUsed 
-            ? "Using your personal context guide from Training Data" 
+            ? "Using your personal context guide" 
             : "Generated with best practices"
         });
       } else {
@@ -164,7 +154,7 @@ const IdeationBlock = ({ data, id }) => {
                 onClick={() => addConnectedBlock('visual')}
                 className="w-full px-3 py-2 text-left hover:bg-gray-100 flex items-center gap-2 text-sm"
               >
-                <Image className="h-4 w-4 text-purple-600" />
+                <ImageIcon className="h-4 w-4 text-purple-600" />
                 Visual
               </button>
               <button
@@ -190,17 +180,37 @@ const IdeationBlock = ({ data, id }) => {
         {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto mb-4 space-y-2 min-h-0">
           {messages.map((message, index) => (
-            <div key={index} className={`p-2 rounded text-sm ${
+            <div key={index} className={`p-3 rounded text-sm ${
               message.role === 'user' 
-                ? 'bg-blue-100 text-blue-800 ml-4' 
-                : 'bg-gray-100 text-gray-800 mr-4'
+                ? 'bg-blue-100 text-blue-800 ml-4 font-sans' 
+                : 'bg-gray-100 text-gray-800 mr-4 font-serif'
             }`}>
-              {message.content}
+              {message.role === 'assistant' ? (
+                <div className="space-y-3">
+                  {message.content.split('\n').map((line, lineIndex) => {
+                    if (line.trim() === '') return <div key={lineIndex} className="h-2"></div>;
+                    if (line.includes('Used your personal context guide') || line.includes('No context guide found')) {
+                      return (
+                        <div key={lineIndex} className="text-xs bg-white p-2 rounded border-l-4 border-blue-400 mb-3">
+                          {line}
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={lineIndex} className="leading-relaxed">
+                        {line}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                message.content
+              )}
             </div>
           ))}
           {messages.length === 0 && (
             <div className="text-center text-gray-500 text-sm py-8">
-              Start brainstorming ideas...
+              Ask for a LinkedIn post and I&apos;ll create it using your context guide...
             </div>
           )}
         </div>
@@ -216,7 +226,7 @@ const IdeationBlock = ({ data, id }) => {
               // Prevent global keyboard shortcuts when typing in this input
               e.stopPropagation();
             }}
-            placeholder="What do you want to create?"
+            placeholder="Write me a post about..."
             className="flex-1 px-3 py-2 border rounded-md text-sm"
             disabled={isLoading}
           />

@@ -51,9 +51,8 @@ export async function POST(req) {
     
     return NextResponse.json({
       success: true,
-      ideas: result.ideas,
-      message: result.message,
-      contextUsed: !!contextDoc,
+      post: result.post,
+      contextUsed: result.contextUsed,
       viralPostsCount: viralPosts.length,
       processingDetails: result.processingDetails
     });
@@ -196,22 +195,15 @@ Here are some high-performing LinkedIn posts for inspiration on format and engag
   }
   
   prompt += `TASK:
-Generate 3-5 specific, actionable LinkedIn post ideas that:
+Create a complete LinkedIn post that directly addresses the user's request. Use the context guide to match their voice, expertise, and content style.
 
-1. **ALIGN WITH CONTEXT**: Use the context guide to match the user's voice, expertise, and content style
+Requirements:
+1. **ALIGN WITH CONTEXT**: Match the user's voice and expertise from the context guide
 2. **ADDRESS THE REQUEST**: Directly respond to what the user is asking for
-3. **OPTIMIZE FOR LINKEDIN**: Include engaging hooks, clear value propositions, and call-to-actions
-4. **PROVIDE VARIETY**: Offer different content formats (story, tips, insight, question, etc.)
-5. **BE SPECIFIC**: Include specific angles, examples, or frameworks rather than generic concepts
+3. **OPTIMIZE FOR LINKEDIN**: Include engaging hook, clear value, and call-to-action
+4. **BE COMPLETE**: Provide a full, ready-to-post LinkedIn post
 
-For each idea, provide:
-- **Hook**: An attention-grabbing opening line
-- **Content Angle**: The main message or story
-- **Format**: Type of post (story, tips list, insight, question, etc.)
-- **CTA**: Suggested call-to-action
-- **Key Points**: 2-3 specific points to cover
-
-Return as a structured JSON object with an array of ideas.`;
+Return the complete post content as plain text. Do not include any JSON, formatting, or additional explanations - just the post content that can be copied and pasted directly to LinkedIn.`;
 
   try {
     // Call Claude with timeout
@@ -232,26 +224,12 @@ Return as a structured JSON object with an array of ideas.`;
     ]);
 
     const response = message.content[0].text;
+    console.log('Claude raw response:', response.substring(0, 200) + '...');
     
-    // Try to parse as JSON, fallback to structured text
-    let ideas;
-    try {
-      const parsed = JSON.parse(response);
-      ideas = parsed.ideas || parsed;
-    } catch (parseError) {
-      // If JSON parsing fails, create structured response from text
-      ideas = [{
-        hook: "Generated idea based on your request",
-        contentAngle: response.substring(0, 300) + "...",
-        format: "insight",
-        cta: "What are your thoughts?",
-        keyPoints: ["AI-generated content", "Based on context", "Optimized for LinkedIn"]
-      }];
-    }
-
+    // Return the post content directly
     return {
-      ideas: Array.isArray(ideas) ? ideas : [ideas],
-      message: "Ideas generated using Claude with your personal context guide",
+      post: response.trim(),
+      contextUsed: !!contextDoc,
       processingDetails: {
         model: "Claude 3.5 Sonnet",
         contextDocUsed: !!contextDoc,
