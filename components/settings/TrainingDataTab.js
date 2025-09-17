@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, ExternalLink, Database, AlertCircle, CheckCircle, Loader2, Linkedin, Search, Upload, FileText, File } from 'lucide-react';
+import { Plus, Trash2, ExternalLink, Database, AlertCircle, CheckCircle, Loader2, Linkedin, Search, Upload, FileText, File, Brain, Save, Lightbulb, Info, Sparkles, Zap } from 'lucide-react';
 import DirectUpload from './DirectUpload';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,7 @@ import PastPostsViewer from '@/components/PastPostsViewer';
 import LinkedInScraperComponent from '@/components/LinkedInScraperComponent';
 
 const TrainingDataTab = () => {
-  const [activeSubTab, setActiveSubTab] = useState('trending-training');
+  const [activeSubTab, setActiveSubTab] = useState('context-guide');
   const [urls, setUrls] = useState(['']);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState({});
@@ -27,6 +27,15 @@ const TrainingDataTab = () => {
   const [uploadedDocuments, setUploadedDocuments] = useState([]);
   const [documentStatus, setDocumentStatus] = useState({});
   
+  // Context guide states
+  const [contextGuide, setContextGuide] = useState('');
+  const [isSavingGuide, setIsSavingGuide] = useState(false);
+  const [guideWordCount, setGuideWordCount] = useState(0);
+  const [lastSaved, setLastSaved] = useState(null);
+  const [isTraining, setIsTraining] = useState(false);
+  const [trainingStatus, setTrainingStatus] = useState('');
+  const [lastTrainingDate, setLastTrainingDate] = useState(null);
+  
   const { toast } = useToast();
   const supabase = createClientComponentClient();
 
@@ -34,7 +43,14 @@ const TrainingDataTab = () => {
   useEffect(() => {
     fetchTrendingPosts();
     fetchUploadedDocuments();
+    loadContextGuide();
   }, []);
+
+  // Update word count when context guide changes
+  useEffect(() => {
+    const words = contextGuide.trim().split(/\s+/).filter(word => word.length > 0);
+    setGuideWordCount(words.length);
+  }, [contextGuide]);
 
   const fetchTrendingPosts = async () => {
     setIsLoading(true);
@@ -291,6 +307,216 @@ const TrainingDataTab = () => {
     }
   };
 
+  // Context Guide Functions
+  const loadContextGuide = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      console.log('Loading context guide for user:', user.id);
+
+      const { data, error } = await supabase
+        .from('user_preferences')
+        .select('settings, updated_at')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('Error loading context guide:', error);
+        throw error;
+      }
+
+      if (data?.settings?.contextGuide) {
+        console.log('Loaded existing context guide');
+        setContextGuide(data.settings.contextGuide);
+        setLastSaved(new Date(data.updated_at));
+        if (data.settings.lastTrainingDate) {
+          setLastTrainingDate(new Date(data.settings.lastTrainingDate));
+        }
+      } else {
+        console.log('No existing context guide found, setting default template');
+        // Set default template
+        setContextGuide(getDefaultTemplate());
+      }
+    } catch (error) {
+      console.error('Error loading context guide:', error);
+      toast({
+        title: "Error",
+        description: `Failed to load your context guide: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const saveContextGuide = async () => {
+    setIsSavingGuide(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      console.log('Saving context guide for user:', user.id);
+
+      // First, try to get existing preferences with id
+      const { data: existingPrefs, error: selectError } = await supabase
+        .from('user_preferences')
+        .select('id, settings')
+        .eq('user_id', user.id)
+        .single();
+
+      if (selectError && selectError.code !== 'PGRST116') {
+        console.error('Error fetching existing preferences:', selectError);
+        throw selectError;
+      }
+
+      const updatedSettings = {
+        ...(existingPrefs?.settings || {}),
+        contextGuide: contextGuide.trim(),
+        lastTrainingDate: lastTrainingDate?.toISOString()
+      };
+
+      console.log('Updated settings:', updatedSettings);
+
+      let result;
+      if (existingPrefs) {
+        // Update existing record
+        result = await supabase
+          .from('user_preferences')
+          .update({
+            settings: updatedSettings,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingPrefs.id);
+      } else {
+        // Insert new record
+        result = await supabase
+          .from('user_preferences')
+          .insert({
+            user_id: user.id,
+            settings: updatedSettings,
+            updated_at: new Date().toISOString()
+          });
+      }
+
+      if (result.error) {
+        console.error('Database operation error:', result.error);
+        throw result.error;
+      }
+
+      console.log('Context guide saved successfully');
+      setLastSaved(new Date());
+      toast({
+        title: "Success",
+        description: "Your context guide has been saved!",
+      });
+    } catch (error) {
+      console.error('Error saving context guide:', error);
+      toast({
+        title: "Error",
+        description: `Failed to save your context guide: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingGuide(false);
+    }
+  };
+
+  const getDefaultTemplate = () => {
+    return `# My Content Creation Guide
+
+## Voice & Tone
+- Professional yet approachable
+- Confident and knowledgeable
+- Authentic and personal
+
+## Content Themes
+- Industry insights and trends
+- Personal experiences and lessons learned
+- Practical tips and actionable advice
+- Behind-the-scenes stories
+
+## Writing Style
+- Start with engaging hooks
+- Use clear, concise language
+- Include specific examples
+- End with thought-provoking questions
+
+## Target Audience
+- Industry professionals
+- Aspiring entrepreneurs
+- People interested in [your expertise area]
+
+## Content Formats I Prefer
+- Personal stories with lessons
+- List-based tips and insights
+- Industry commentary
+- Question-based engagement posts
+
+## Topics I Cover
+- [Add your key topics here]
+- [Your areas of expertise]
+- [Industry insights you share]
+
+## Call-to-Action Preferences
+- Ask engaging questions
+- Encourage sharing experiences
+- Invite connections and conversations
+
+---
+Edit this guide to match your unique voice and content strategy. The AI will use this as context when generating ideas for your posts.`;
+  };
+
+  const resetToDefault = () => {
+    setContextGuide(getDefaultTemplate());
+  };
+
+  const trainContextGuide = async () => {
+    setIsTraining(true);
+    setTrainingStatus('Analyzing your training data...');
+    
+    try {
+      const response = await fetch('/api/training-data/synthesize-context', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to train context guide');
+      }
+
+      setTrainingStatus('Context guide generated successfully!');
+      setContextGuide(result.contextGuide);
+      setLastTrainingDate(new Date());
+      
+      // Also update lastSaved since the guide was automatically saved
+      setLastSaved(new Date());
+
+      toast({
+        title: 'Context Guide Trained!',
+        description: `Successfully analyzed ${result.dataAnalyzed.totalDataPoints} data points to create your personalized guide.`,
+      });
+
+      // Clear status after a delay
+      setTimeout(() => {
+        setTrainingStatus('');
+      }, 3000);
+
+    } catch (error) {
+      console.error('Error training context guide:', error);
+      setTrainingStatus('');
+      toast({
+        title: 'Training Failed',
+        description: error.message || 'Failed to train context guide. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsTraining(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -310,7 +536,11 @@ const TrainingDataTab = () => {
 
       {/* Sub-tabs for different training data methods */}
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="context-guide" className="flex items-center gap-2">
+            <Brain className="w-4 h-4" />
+            Context Guide
+          </TabsTrigger>
           <TabsTrigger value="trending-training" className="flex items-center gap-2">
             <Database className="w-4 h-4" />
             Trending Training Data
@@ -324,6 +554,174 @@ const TrainingDataTab = () => {
             My Posts
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="context-guide" className="mt-6">
+          <div className="space-y-6">
+            {/* Context Guide Header */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="h-5 w-5" />
+                  Context Guide
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Create a personalized guide that helps AI understand your voice, style, and content preferences.
+                  This guide is used by the ideation system to generate content that matches your unique style.
+                </p>
+              </CardHeader>
+            </Card>
+
+            {/* Info Card */}
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="p-4">
+                <div className="flex items-start space-x-3">
+                  <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium mb-1">How this works:</p>
+                    <ul className="space-y-1 text-blue-700">
+                      <li>• The AI uses this guide as context when generating post ideas</li>
+                      <li>• Include your voice, tone, preferred topics, and content style</li>
+                      <li>• The more specific you are, the better the AI can match your style</li>
+                      <li>• You can update this anytime as your content strategy evolves</li>
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* AI Training Section */}
+            <Card className="border-purple-200 bg-purple-50">
+              <CardContent className="p-4">
+                <div className="flex items-start space-x-3">
+                  <Sparkles className="h-5 w-5 text-purple-600 mt-0.5" />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-medium text-purple-900">AI-Powered Context Guide Training</h3>
+                      {lastTrainingDate && (
+                        <span className="text-sm text-purple-700">
+                          Last trained: {lastTrainingDate.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-purple-800 mb-3">
+                      Let AI analyze all your training data (trending posts, documents, your posts) to automatically 
+                      generate a personalized context guide that captures your unique voice and style.
+                    </p>
+                    
+                    {trainingStatus && (
+                      <div className="mb-3 p-2 bg-purple-100 rounded-md">
+                        <div className="flex items-center gap-2 text-sm text-purple-800">
+                          {isTraining && <Loader2 className="h-4 w-4 animate-spin" />}
+                          {trainingStatus}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <Button
+                      onClick={trainContextGuide}
+                      disabled={isTraining}
+                      className="bg-purple-600 hover:bg-purple-700 text-white"
+                    >
+                      {isTraining ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Training...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="h-4 w-4 mr-2" />
+                          Train Context Guide
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Editor */}
+            <Card>
+              <CardContent className="space-y-4 p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Brain className="h-5 w-5 text-gray-600" />
+                    <span className="font-medium">Your Context Guide</span>
+                  </div>
+                  <div className="flex items-center space-x-4 text-sm text-gray-500">
+                    <span>{guideWordCount} words</span>
+                    {lastSaved && (
+                      <span>Last saved: {lastSaved.toLocaleString()}</span>
+                    )}
+                    {lastTrainingDate && (
+                      <span>Last trained: {lastTrainingDate.toLocaleString()}</span>
+                    )}
+                  </div>
+                </div>
+
+                <Textarea
+                  value={contextGuide}
+                  onChange={(e) => setContextGuide(e.target.value)}
+                  placeholder="Describe your content style, voice, preferred topics, and any specific guidelines..."
+                  className="min-h-[400px] font-mono text-sm"
+                  disabled={isSavingGuide}
+                />
+
+                <div className="flex items-center justify-between">
+                  <Button
+                    variant="outline"
+                    onClick={resetToDefault}
+                    disabled={isSavingGuide}
+                  >
+                    <Lightbulb className="h-4 w-4 mr-2" />
+                    Use Template
+                  </Button>
+
+                  <Button
+                    onClick={saveContextGuide}
+                    disabled={isSavingGuide || !contextGuide.trim()}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {isSavingGuide ? 'Saving...' : 'Save Guide'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Usage Tips */}
+            <Card className="bg-gray-50">
+              <CardContent className="p-4">
+                <h3 className="font-medium text-gray-900 mb-2">Tips for a great context guide:</h3>
+                <ul className="text-sm text-gray-700 space-y-1">
+                  <li>• Be specific about your industry and expertise areas</li>
+                  <li>• Include examples of content formats you prefer</li>
+                  <li>• Describe your target audience in detail</li>
+                  <li>• Mention your unique perspective or approach</li>
+                  <li>• Include any topics you want to avoid</li>
+                  <li>• Specify your preferred call-to-action styles</li>
+                </ul>
+              </CardContent>
+            </Card>
+
+            {/* Integration Info */}
+            <Card className="border-green-200 bg-green-50">
+              <CardContent className="p-4">
+                <div className="flex items-start space-x-3">
+                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                  <div className="text-sm text-green-800">
+                    <p className="font-medium mb-1">How Training Works:</p>
+                    <ul className="space-y-1 text-green-700">
+                      <li>• <strong>Trending Posts:</strong> Analyzes high-performing content for successful patterns</li>
+                      <li>• <strong>Your Documents:</strong> Extracts your unique voice from uploaded files</li>
+                      <li>• <strong>Your Posts:</strong> Studies your personal writing style and preferences</li>
+                      <li>• <strong>AI Synthesis:</strong> Claude Sonnet 4 combines all data into a personalized guide</li>
+                      <li>• <strong>Auto-Integration:</strong> Guide is immediately available for CoCreate ideation</li>
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
         <TabsContent value="trending-training" className="mt-6">
           <div className="space-y-6">

@@ -62,7 +62,7 @@ const IdeationBlock = ({ data, id }) => {
         
         const contextInfo = result.contextUsed 
           ? `✅ Used your personal context guide` 
-          : `⚠️ No context guide found - create one in Settings > Context Guide`;
+          : `⚠️ No context guide found - create one in Settings > Training Data > Context Guide`;
         
         const assistantMessage = `${result.message}\n\n${contextInfo}\n\n${ideasText}`;
         
@@ -109,7 +109,7 @@ const IdeationBlock = ({ data, id }) => {
         toast({
           title: `${result.ideas.length} ideas generated!`,
           description: result.contextUsed 
-            ? "Using your personal context guide" 
+            ? "Using your personal context guide from Training Data" 
             : "Generated with best practices"
         });
       } else {
