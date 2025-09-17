@@ -22,14 +22,21 @@ export async function GET() {
 // Test endpoint to simulate email sending
 export async function POST(request) {
   try {
+    const body = await request.json()
+    const { testEmail } = body
+    
+    // Use provided test email or default
+    const approverEmail = testEmail || 'test@example.com'
+    
     const testData = {
-      postId: 'test-post-123',
-      approverId: 'test-approver-456', 
-      authorId: 'test-author-789',
-      postContent: 'This is a test post content for email notification testing. It should be long enough to test the preview truncation feature in the email template.'
+      postId: 'test-post-' + Date.now(),
+      approverEmail: approverEmail,
+      approverName: 'Test Approver',
+      authorName: 'Test Author',
+      postContent: 'This is a test post content for email notification testing. It should be long enough to test the preview truncation feature in the email template. This test will verify that Resend is working properly and emails are being sent to the specified recipient.'
     }
     
-    // Call the actual email API
+    // Call the actual email API directly with email details
     const emailResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/notifications/email`, {
       method: 'POST',
       headers: {
@@ -45,7 +52,9 @@ export async function POST(request) {
       message: 'Test email notification triggered',
       testData,
       emailResult,
-      note: 'Check server console logs to see the email content that would be sent'
+      note: emailResult.success ? 
+        `Email sent successfully via ${emailResult.method} to ${approverEmail}` :
+        'Email failed to send - check server logs for details'
     })
     
   } catch (error) {
