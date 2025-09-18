@@ -876,6 +876,10 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
             let description = "Post sent for approval and approver has been notified via email";
             if (emailResult.method === 'development-log') {
               description = "Post sent for approval. Email notification logged to console (development mode). The approver can see it in their approval portal.";
+            } else if (emailResult.method === 'nodemailer') {
+              description = "Post sent for approval and approver has been notified via email (SMTP)";
+            } else if (emailResult.method === 'resend') {
+              description = "Post sent for approval and approver has been notified via email (Resend)";
             }
             
             toast({
