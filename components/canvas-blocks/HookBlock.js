@@ -1,10 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Fish, X } from 'lucide-react';
 import { NodeResizer, Handle, Position } from 'reactflow';
 import { useCanvasStore } from '@/lib/stores/canvasStore';
 import { API_ENDPOINTS } from '@/lib/constants/canvasConfig';
+
+// iMessage-like typing indicator component for hook generation
+const HookTypingIndicator = () => {
+  return (
+    <div className="bg-green-100 border-2 border-green-200 p-4 rounded-2xl text-sm flex items-center justify-center max-w-[120px] shadow-sm mx-auto">
+      <div className="flex space-x-1">
+        <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce"></div>
+        <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }}></div>
+        <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }}></div>
+      </div>
+      <span className="ml-2 text-xs text-green-600">Generating hooks...</span>
+    </div>
+  );
+};
 
 const HookBlock = ({ data, id }) => {
   const [hooks, setHooks] = useState([]);
@@ -13,6 +27,12 @@ const HookBlock = ({ data, id }) => {
   const [hookCategories, setHookCategories] = useState([]);
   const { toast } = useToast();
   const { session, updateDynamicContext, addToHistory } = useCanvasStore();
+  const hooksEndRef = useRef(null);
+  
+  // Auto-scroll to bottom when hooks change or loading state changes
+  useEffect(() => {
+    hooksEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [hooks, isGenerating]);
   
   const handleClose = () => {
     if (data.onClose) {
@@ -283,12 +303,19 @@ Return ONLY the numbered hooks, nothing else.`,
               </div>
             </div>
           ))}
-          {hooks.length === 0 && (
+          
+          {/* Show typing indicator when generating */}
+          {isGenerating && <HookTypingIndicator />}
+          
+          {hooks.length === 0 && !isGenerating && (
             <div className="text-center text-gray-500 text-sm py-8">
               No hooks generated yet<br/>
               <span className="text-xs">Connect to an ideation block and click Generate</span>
             </div>
           )}
+          
+          {/* Auto-scroll target */}
+          <div ref={hooksEndRef} />
         </div>
         
         <div className="space-y-2">
@@ -298,7 +325,18 @@ Return ONLY the numbered hooks, nothing else.`,
             className="w-full"
             variant="outline"
           >
-            {isGenerating ? 'Generating 12 hooks...' : 'Generate Hooks'}
+            {isGenerating ? (
+              <div className="flex items-center gap-2">
+                <div className="flex space-x-1">
+                  <div className="w-1 h-1 bg-current rounded-full animate-bounce"></div>
+                  <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                </div>
+                <span>Generating 12 hooks...</span>
+              </div>
+            ) : (
+              'Generate Hooks'
+            )}
           </Button>
           {selectedHook && (
             <div className="text-xs text-center text-green-600">

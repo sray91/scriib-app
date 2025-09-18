@@ -1237,7 +1237,7 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
       <div className="w-[400px] p-6 bg-gray-50">
         <h3 className="text-lg font-semibold mb-4">Preview</h3>
         <div className="bg-white rounded-lg p-4 shadow">
-          <p className="whitespace-pre-wrap">{postData.content || 'Your post will appear here...'}</p>
+          <p className="whitespace-pre-wrap font-serif">{postData.content || 'Your post will appear here...'}</p>
           
           {postData.mediaFiles && postData.mediaFiles.length > 0 && (
             <div className="mt-4 grid grid-cols-2 gap-2">

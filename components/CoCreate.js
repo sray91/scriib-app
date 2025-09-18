@@ -1042,7 +1042,7 @@ const CoCreate = () => {
                       <>
                         <div className="flex-1 overflow-y-auto p-4">
                           <div className="prose max-w-none">
-                            <p className="whitespace-pre-wrap text-gray-800 leading-relaxed">
+                            <p className="whitespace-pre-wrap text-gray-800 leading-relaxed font-serif">
                               {currentPost}
                             </p>
                           </div>

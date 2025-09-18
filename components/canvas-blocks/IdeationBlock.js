@@ -1,10 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Play, Plus, Brain, Fish, Image as ImageIcon, Target } from 'lucide-react';
 import { NodeResizer, Handle, Position } from 'reactflow';
 import { useCanvasStore } from '@/lib/stores/canvasStore';
 import { API_ENDPOINTS, CANVAS_SETTINGS } from '@/lib/constants/canvasConfig';
+
+// iMessage-like typing indicator component
+const TypingIndicator = () => {
+  return (
+    <div className="bg-gray-200 text-gray-800 mr-4 p-4 rounded-2xl text-sm flex items-center justify-center max-w-[80px] shadow-sm">
+      <div className="flex space-x-1">
+        <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
+        <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }}></div>
+        <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }}></div>
+      </div>
+    </div>
+  );
+};
 
 const IdeationBlock = ({ data, id }) => {
   const [input, setInput] = useState('');
@@ -13,6 +26,12 @@ const IdeationBlock = ({ data, id }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const { toast } = useToast();
   const { session, updateDynamicContext, addToHistory } = useCanvasStore();
+  const messagesEndRef = useRef(null);
+  
+  // Auto-scroll to bottom when messages change or loading state changes
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isLoading]);
   
   // Function to add connected block
   const addConnectedBlock = (blockType) => {
@@ -227,11 +246,18 @@ const IdeationBlock = ({ data, id }) => {
               )}
             </div>
           ))}
-          {messages.length === 0 && (
+          
+          {/* Show typing indicator when loading */}
+          {isLoading && <TypingIndicator />}
+          
+          {messages.length === 0 && !isLoading && (
             <div className="text-center text-gray-500 text-sm py-8">
               Let&apos;s create some content...
             </div>
           )}
+          
+          {/* Auto-scroll target */}
+          <div ref={messagesEndRef} />
         </div>
         
         {/* Input */}
@@ -254,7 +280,15 @@ const IdeationBlock = ({ data, id }) => {
             disabled={isLoading || !input.trim()}
             size="sm"
           >
-            {isLoading ? '...' : 'Send'}
+            {isLoading ? (
+              <div className="flex items-center gap-1">
+                <div className="w-1 h-1 bg-white rounded-full animate-bounce"></div>
+                <div className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                <div className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+              </div>
+            ) : (
+              'Send'
+            )}
           </Button>
         </div>
       </div>

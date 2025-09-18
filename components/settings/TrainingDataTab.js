@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, ExternalLink, Database, AlertCircle, CheckCircle, Loader2, Linkedin, Search, Upload, FileText, File, Brain, Save, Lightbulb, Info, Sparkles, Zap } from 'lucide-react';
 import DirectUpload from './DirectUpload';
+import UserSelector from './UserSelector';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,11 +23,16 @@ const TrainingDataTab = () => {
   const [processingStatus, setProcessingStatus] = useState({});
   const [trendingPosts, setTrendingPosts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  
+
+  // User selection for accessing other users' training data
+  const [selectedUserId, setSelectedUserId] = useState(null);
+  const [selectedUserInfo, setSelectedUserInfo] = useState(null);
+  const [currentUserRole, setCurrentUserRole] = useState('ghostwriter');
+
   // Document upload states
   const [uploadedDocuments, setUploadedDocuments] = useState([]);
   const [documentStatus, setDocumentStatus] = useState({});
-  
+
   // Context guide states
   const [contextGuide, setContextGuide] = useState('');
   const [isSavingGuide, setIsSavingGuide] = useState(false);
@@ -41,10 +47,49 @@ const TrainingDataTab = () => {
 
   // Fetch existing trending posts on component mount
   useEffect(() => {
+    initializeComponent();
+  }, []);
+
+  // Refresh data when selected user changes
+  useEffect(() => {
+    if (selectedUserId) {
+      fetchTrendingPosts();
+      fetchUploadedDocuments();
+      loadContextGuide();
+    }
+  }, [selectedUserId]);
+
+  const initializeComponent = async () => {
+    await getCurrentUserRole();
     fetchTrendingPosts();
     fetchUploadedDocuments();
     loadContextGuide();
-  }, []);
+  };
+
+  const getCurrentUserRole = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      if (error) throw error;
+      setCurrentUserRole(data?.role || 'ghostwriter');
+    } catch (error) {
+      console.error('Error getting user role:', error);
+      // Default to ghostwriter if we can't determine role
+      setCurrentUserRole('ghostwriter');
+    }
+  };
+
+  const handleUserSelect = (userId, userInfo) => {
+    setSelectedUserId(userId);
+    setSelectedUserInfo(userInfo);
+  };
 
   // Update word count when context guide changes
   useEffect(() => {
@@ -55,12 +100,26 @@ const TrainingDataTab = () => {
   const fetchTrendingPosts = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('trending_posts')
-        .select('*')
-        .order('created_at', { ascending: false });
+      let data;
 
-      if (error) throw error;
+      if (selectedUserId) {
+        // Fetch data for selected user
+        const response = await fetch(`/api/training-data/user?userId=${selectedUserId}&type=trending_posts`);
+        const result = await response.json();
+
+        if (!response.ok) throw new Error(result.error);
+        data = result.data;
+      } else {
+        // Fetch data for current user
+        const { data: supabaseData, error } = await supabase
+          .from('trending_posts')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        data = supabaseData;
+      }
+
       setTrendingPosts(data || []);
     } catch (error) {
       console.error('Error fetching trending posts:', error);
@@ -77,12 +136,26 @@ const TrainingDataTab = () => {
   // Fetch uploaded documents
   const fetchUploadedDocuments = async () => {
     try {
-      const { data, error } = await supabase
-        .from('training_documents')
-        .select('*')
-        .order('created_at', { ascending: false });
+      let data;
 
-      if (error) throw error;
+      if (selectedUserId) {
+        // Fetch data for selected user
+        const response = await fetch(`/api/training-data/user?userId=${selectedUserId}&type=training_documents`);
+        const result = await response.json();
+
+        if (!response.ok) throw new Error(result.error);
+        data = result.data;
+      } else {
+        // Fetch data for current user
+        const { data: supabaseData, error } = await supabase
+          .from('training_documents')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        data = supabaseData;
+      }
+
       setUploadedDocuments(data || []);
     } catch (error) {
       console.error('Error fetching documents:', error);
@@ -310,39 +383,60 @@ const TrainingDataTab = () => {
   // Context Guide Functions
   const loadContextGuide = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      let data;
 
-      console.log('Loading context guide for user:', user.id);
+      if (selectedUserId) {
+        // Load context guide for selected user
+        const response = await fetch(`/api/training-data/user?userId=${selectedUserId}&type=context_guide`);
+        const result = await response.json();
 
-      const { data, error } = await supabase
-        .from('user_preferences')
-        .select('settings, updated_at')
-        .eq('user_id', user.id)
-        .single();
+        if (!response.ok) throw new Error(result.error);
+        data = result.data;
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-        console.error('Error loading context guide:', error);
-        throw error;
-      }
-
-      if (data?.settings?.contextGuide) {
-        console.log('Loaded existing context guide');
-        setContextGuide(data.settings.contextGuide);
-        setLastSaved(new Date(data.updated_at));
-        if (data.settings.lastTrainingDate) {
-          setLastTrainingDate(new Date(data.settings.lastTrainingDate));
+        if (data) {
+          console.log('Loaded existing context guide for selected user');
+          setContextGuide(data);
+          setLastSaved(new Date());
+        } else {
+          console.log('No existing context guide found for selected user, setting default template');
+          setContextGuide(getDefaultTemplate());
         }
       } else {
-        console.log('No existing context guide found, setting default template');
-        // Set default template
-        setContextGuide(getDefaultTemplate());
+        // Load context guide for current user
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        console.log('Loading context guide for user:', user.id);
+
+        const { data: supabaseData, error } = await supabase
+          .from('user_preferences')
+          .select('settings, updated_at')
+          .eq('user_id', user.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+          console.error('Error loading context guide:', error);
+          throw error;
+        }
+
+        if (supabaseData?.settings?.contextGuide) {
+          console.log('Loaded existing context guide');
+          setContextGuide(supabaseData.settings.contextGuide);
+          setLastSaved(new Date(supabaseData.updated_at));
+          if (supabaseData.settings.lastTrainingDate) {
+            setLastTrainingDate(new Date(supabaseData.settings.lastTrainingDate));
+          }
+        } else {
+          console.log('No existing context guide found, setting default template');
+          // Set default template
+          setContextGuide(getDefaultTemplate());
+        }
       }
     } catch (error) {
       console.error('Error loading context guide:', error);
       toast({
         title: "Error",
-        description: `Failed to load your context guide: ${error.message}`,
+        description: `Failed to load context guide: ${error.message}`,
         variant: "destructive",
       });
     }
@@ -351,68 +445,100 @@ const TrainingDataTab = () => {
   const saveContextGuide = async () => {
     setIsSavingGuide(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      if (selectedUserId) {
+        // Save context guide for selected user
+        const response = await fetch('/api/training-data/user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            targetUserId: selectedUserId,
+            dataType: 'context_guide',
+            data: {
+              contextGuide: contextGuide.trim(),
+              lastTrainingDate: lastTrainingDate?.toISOString()
+            }
+          }),
+        });
 
-      console.log('Saving context guide for user:', user.id);
+        const result = await response.json();
 
-      // First, try to get existing preferences with id
-      const { data: existingPrefs, error: selectError } = await supabase
-        .from('user_preferences')
-        .select('id, settings')
-        .eq('user_id', user.id)
-        .single();
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to save context guide');
+        }
 
-      if (selectError && selectError.code !== 'PGRST116') {
-        console.error('Error fetching existing preferences:', selectError);
-        throw selectError;
-      }
-
-      const updatedSettings = {
-        ...(existingPrefs?.settings || {}),
-        contextGuide: contextGuide.trim(),
-        lastTrainingDate: lastTrainingDate?.toISOString()
-      };
-
-      console.log('Updated settings:', updatedSettings);
-
-      let result;
-      if (existingPrefs) {
-        // Update existing record
-        result = await supabase
-          .from('user_preferences')
-          .update({
-            settings: updatedSettings,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existingPrefs.id);
+        console.log('Context guide saved successfully for selected user');
+        setLastSaved(new Date());
+        toast({
+          title: "Success",
+          description: `Context guide saved for ${selectedUserInfo?.full_name || selectedUserInfo?.email}!`,
+        });
       } else {
-        // Insert new record
-        result = await supabase
+        // Save context guide for current user
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        console.log('Saving context guide for user:', user.id);
+
+        // First, try to get existing preferences with id
+        const { data: existingPrefs, error: selectError } = await supabase
           .from('user_preferences')
-          .insert({
-            user_id: user.id,
-            settings: updatedSettings,
-            updated_at: new Date().toISOString()
-          });
-      }
+          .select('id, settings')
+          .eq('user_id', user.id)
+          .single();
 
-      if (result.error) {
-        console.error('Database operation error:', result.error);
-        throw result.error;
-      }
+        if (selectError && selectError.code !== 'PGRST116') {
+          console.error('Error fetching existing preferences:', selectError);
+          throw selectError;
+        }
 
-      console.log('Context guide saved successfully');
-      setLastSaved(new Date());
-      toast({
-        title: "Success",
-        description: "Your context guide has been saved!",
-      });
+        const updatedSettings = {
+          ...(existingPrefs?.settings || {}),
+          contextGuide: contextGuide.trim(),
+          lastTrainingDate: lastTrainingDate?.toISOString()
+        };
+
+        console.log('Updated settings:', updatedSettings);
+
+        let result;
+        if (existingPrefs) {
+          // Update existing record
+          result = await supabase
+            .from('user_preferences')
+            .update({
+              settings: updatedSettings,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', existingPrefs.id);
+        } else {
+          // Insert new record
+          result = await supabase
+            .from('user_preferences')
+            .insert({
+              user_id: user.id,
+              settings: updatedSettings,
+              updated_at: new Date().toISOString()
+            });
+        }
+
+        if (result.error) {
+          console.error('Database operation error:', result.error);
+          throw result.error;
+        }
+
+        console.log('Context guide saved successfully');
+        setLastSaved(new Date());
+        toast({
+          title: "Success",
+          description: "Your context guide has been saved!",
+        });
+      }
     } catch (error) {
       console.error('Error saving context guide:', error);
       toast({
         title: "Error",
-        description: `Failed to save your context guide: ${error.message}`,
+        description: `Failed to save context guide: ${error.message}`,
         variant: "destructive",
       });
     } finally {
@@ -522,15 +648,33 @@ Edit this guide to match your unique voice and content strategy. The AI will use
       {/* Header */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Database className="w-4 h-4 text-white" />
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <CardTitle className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <Database className="w-4 h-4 text-white" />
+                </div>
+                Training Data Manager
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Import and manage LinkedIn posts for AI training data. Extract data from URLs or scrape posts using professional APIs.
+              </p>
             </div>
-            Training Data Manager
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Import and manage LinkedIn posts for AI training data. Extract data from URLs or scrape posts using professional APIs.
-          </p>
+            <div className="w-80 ml-6">
+              <UserSelector
+                selectedUserId={selectedUserId}
+                onUserSelect={handleUserSelect}
+                currentUserRole={currentUserRole}
+              />
+              {selectedUserInfo && (
+                <div className="mt-2 p-2 bg-blue-50 rounded-md">
+                  <p className="text-sm text-blue-800">
+                    Currently managing training data for: <strong>{selectedUserInfo.full_name || selectedUserInfo.email}</strong>
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         </CardHeader>
       </Card>
 
