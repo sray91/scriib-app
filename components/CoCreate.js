@@ -1,12 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, StopCircle, Send, RefreshCw, History, Copy, Sparkles, TrendingUp, User, BarChart3, Edit, Calendar, Plus } from 'lucide-react';
+import { Mic, StopCircle, Send, RefreshCw, History, Copy, Sparkles, TrendingUp, User, BarChart3, Edit, Calendar, Plus, Users } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import PostEditorDialog from '@/components/post-forge/PostEditorDialog';
 
 // AI Thinking Process Display Component  
@@ -172,17 +175,25 @@ const CoCreate = () => {
   const [voiceAnalysis, setVoiceAnalysis] = useState(null);
   const [trendingInsights, setTrendingInsights] = useState(null);
   const [showInsights, setShowInsights] = useState(false);
-  
+
   // New state for Model Ensemble details
   const [ensembleDetails, setEnsembleDetails] = useState(null);
   const [showEnsembleModal, setShowEnsembleModal] = useState(false);
-  
+
   // Post Editor states
   const [isPostEditorOpen, setIsPostEditorOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [isCreatingNewPost, setIsCreatingNewPost] = useState(false);
-  
+
+  // User selection states
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [availableUsers, setAvailableUsers] = useState([]);
+  const [currentUserRole, setCurrentUserRole] = useState('ghostwriter');
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+
   const { toast } = useToast();
+  const supabase = createClientComponentClient();
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -193,6 +204,114 @@ const CoCreate = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Fetch available users on component mount
+  useEffect(() => {
+    fetchAvailableUsers();
+  }, []);
+
+  // Fetch users linked to current user
+  const fetchAvailableUsers = async () => {
+    setIsLoadingUsers(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      // Check current user's role and get linked users
+      const { data: asGhostwriter, error: gwError } = await supabase
+        .from('ghostwriter_approver_link')
+        .select('approver_id')
+        .eq('ghostwriter_id', user.id)
+        .eq('active', true);
+
+      const { data: asApprover, error: appError } = await supabase
+        .from('ghostwriter_approver_link')
+        .select('ghostwriter_id')
+        .eq('approver_id', user.id)
+        .eq('active', true);
+
+      if (gwError && appError) throw new Error('Failed to fetch user links');
+
+      let linkedUserIds = [];
+      let role = 'ghostwriter';
+
+      if (asGhostwriter && asGhostwriter.length > 0) {
+        linkedUserIds = asGhostwriter.map(link => link.approver_id);
+        role = 'ghostwriter';
+      } else if (asApprover && asApprover.length > 0) {
+        linkedUserIds = asApprover.map(link => link.ghostwriter_id);
+        role = 'approver';
+      }
+
+      setCurrentUserRole(role);
+
+      // Always include current user as an option
+      const allUserIds = [user.id, ...linkedUserIds];
+
+      // Get user details - always include current user even if no linked users
+      const { data: userDetails, error: userError } = await supabase
+        .from('users_view')
+        .select('id, email, raw_user_meta_data')
+        .in('id', allUserIds);
+
+      if (userError) {
+        console.error('Error fetching user details:', userError);
+        // Fallback: Create a basic profile for current user
+        const fallbackProfiles = [{
+          id: user.id,
+          email: user.email,
+          full_name: user.email.split('@')[0],
+          role: 'current_user',
+          isCurrentUser: true
+        }];
+        setAvailableUsers(fallbackProfiles);
+        setSelectedUserId(user.id);
+        setSelectedUser(fallbackProfiles[0]);
+        return;
+      }
+
+      const userProfiles = userDetails.map(userDetail => {
+        const userMetadata = userDetail.raw_user_meta_data || {};
+        const isCurrentUser = userDetail.id === user.id;
+        return {
+          id: userDetail.id,
+          email: userDetail.email,
+          full_name: userMetadata.full_name || userMetadata.name || userDetail.email.split('@')[0],
+          role: isCurrentUser ? 'current_user' : (role === 'ghostwriter' ? 'approver' : 'ghostwriter'),
+          isCurrentUser
+        };
+      });
+
+      setAvailableUsers(userProfiles);
+
+      // Set current user as default selection
+      setSelectedUserId(user.id);
+      setSelectedUser(userProfiles.find(u => u.isCurrentUser));
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load available users',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  const handleUserSelect = (userId) => {
+    const user = availableUsers.find(u => u.id === userId);
+    setSelectedUserId(userId);
+    setSelectedUser(user);
+
+    // Show toast to indicate context change
+    if (user) {
+      toast({
+        title: 'Context Updated',
+        description: `Now using ${user.isCurrentUser ? 'your own' : user.full_name + '&apos;s'} training data and voice`,
+      });
+    }
+  };
 
   // Function to handle sending a message
   const handleSendMessage = async () => {
@@ -229,7 +348,8 @@ const CoCreate = () => {
         body: JSON.stringify({
           userMessage,
           currentDraft: currentPost,
-          action: currentPost ? 'refine' : 'create'
+          action: currentPost ? 'refine' : 'create',
+          contextUserId: selectedUserId || undefined
         }),
       });
 
@@ -520,7 +640,8 @@ const CoCreate = () => {
         },
         body: JSON.stringify({
           userMessage: randomPrompt,
-          action: 'create'
+          action: 'create',
+          contextUserId: selectedUserId || undefined
         }),
       });
 
@@ -754,6 +875,60 @@ const CoCreate = () => {
             <Sparkles className="mr-2 h-4 w-4" />
             Generate New Post
           </Button>
+        </div>
+      </div>
+
+      {/* User Selection Dropdown */}
+      <div className="mb-6 p-4 bg-gradient-to-r from-gray-50 to-blue-50 border border-gray-200 rounded-lg">
+        <div className="space-y-2">
+          <Label htmlFor="context-user-selector" className="text-sm font-medium">
+            <Users className="w-4 h-4 inline mr-2" />
+            Context Source - Whose voice and training data to use
+          </Label>
+
+          {/* Debug info */}
+          <div className="text-xs text-gray-500 mb-2">
+            Loading: {isLoadingUsers.toString()} | Available users: {availableUsers.length} | Selected: {selectedUserId || 'none'}
+          </div>
+
+          <Select value={selectedUserId || ''} onValueChange={handleUserSelect} disabled={isLoadingUsers}>
+            <SelectTrigger className="w-full max-w-md">
+              <SelectValue
+                placeholder={
+                  isLoadingUsers
+                    ? 'Loading users...'
+                    : availableUsers.length === 0
+                      ? 'No users available'
+                      : 'Select context source'
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {availableUsers.map((user) => (
+                <SelectItem key={user.id} value={user.id}>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-6 h-6 ${user.isCurrentUser ? 'bg-green-500' : 'bg-blue-500'} rounded-full flex items-center justify-center text-white text-xs`}>
+                      {user.full_name ? user.full_name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
+                    </div>
+                    <span>
+                      {user.isCurrentUser ? 'Me' : user.full_name}
+                      {user.isCurrentUser ? ' (Your Voice)' : ` (${user.role === 'approver' ? 'Approver' : 'Ghostwriter'})`}
+                    </span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selectedUser && !selectedUser.isCurrentUser && (
+            <p className="text-xs text-blue-600">
+              Using {selectedUser.full_name}&apos;s training data and voice patterns
+            </p>
+          )}
+          {selectedUser && selectedUser.isCurrentUser && (
+            <p className="text-xs text-green-600">
+              Using your own training data and voice patterns
+            </p>
+          )}
         </div>
       </div>
 

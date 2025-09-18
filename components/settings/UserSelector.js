@@ -23,53 +23,57 @@ const UserSelector = ({ selectedUserId, onUserSelect, currentUserRole = 'ghostwr
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Get users based on the current user's role
-      let query;
-
+      // Get ghostwriter-approver links for current user
+      let links;
       if (currentUserRole === 'ghostwriter') {
         // Ghostwriter can access their approvers' training data
-        query = supabase
+        const { data, error } = await supabase
           .from('ghostwriter_approver_link')
-          .select(`
-            approver_id,
-            profiles!ghostwriter_approver_link_approver_id_fkey (
-              id,
-              full_name,
-              email,
-              role
-            )
-          `)
+          .select('approver_id')
           .eq('ghostwriter_id', user.id)
           .eq('active', true);
+
+        if (error) throw error;
+        links = data;
       } else {
         // Approvers can access their ghostwriters' training data
-        query = supabase
+        const { data, error } = await supabase
           .from('ghostwriter_approver_link')
-          .select(`
-            ghostwriter_id,
-            profiles!ghostwriter_approver_link_ghostwriter_id_fkey (
-              id,
-              full_name,
-              email,
-              role
-            )
-          `)
+          .select('ghostwriter_id')
           .eq('approver_id', user.id)
           .eq('active', true);
+
+        if (error) throw error;
+        links = data;
       }
 
-      const { data, error } = await query;
+      if (links.length === 0) {
+        setUsers([]);
+        return;
+      }
 
-      if (error) throw error;
+      // Get user details from users_view
+      const userIds = links.map(link =>
+        currentUserRole === 'ghostwriter' ? link.approver_id : link.ghostwriter_id
+      );
+
+      const { data: userDetails, error: userError } = await supabase
+        .from('users_view')
+        .select('id, email, raw_user_meta_data')
+        .in('id', userIds);
+
+      if (userError) throw userError;
 
       // Transform the data to get user profiles
-      const userProfiles = data.map(link => {
-        if (currentUserRole === 'ghostwriter') {
-          return link.profiles;
-        } else {
-          return link.profiles;
-        }
-      }).filter(profile => profile); // Filter out null profiles
+      const userProfiles = userDetails.map(user => {
+        const userMetadata = user.raw_user_meta_data || {};
+        return {
+          id: user.id,
+          email: user.email,
+          full_name: userMetadata.full_name || userMetadata.name || user.email.split('@')[0],
+          role: currentUserRole === 'ghostwriter' ? 'approver' : 'ghostwriter'
+        };
+      });
 
       setUsers(userProfiles);
     } catch (error) {

@@ -3,7 +3,7 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 
 // Import modular functions
-import { fetchUserPastPosts, fetchUserTrainingDocuments, fetchTrendingPosts } from './lib/database.js';
+import { fetchUserPastPosts, fetchUserTrainingDocuments, fetchTrendingPosts, validateUserAccess } from './lib/database.js';
 import { generateWithModelEnsemble } from './lib/ensemble.js';
 
 // Configure the API route for AI processing
@@ -27,22 +27,40 @@ export async function POST(req) {
     
     // Parse request body
     const body = await req.json();
-    const { userMessage, currentDraft, action = 'create' } = body;
+    const { userMessage, currentDraft, action = 'create', contextUserId } = body;
     
     // Validate input
     if (!userMessage) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
     
-    console.log(`🚀 CoCreate Model Ensemble request from user ${user.id}: "${userMessage}"`);
-    
-    // Fetch user's past posts from database to analyze their voice
-    const pastPosts = await fetchUserPastPosts(supabase, user.id);
-    console.log(`📚 Found ${pastPosts.length} past posts for voice analysis`);
-    
-    // Fetch user's training documents for enhanced voice analysis (limit for performance)
-    const trainingDocuments = await fetchUserTrainingDocuments(supabase, user.id);
-    console.log(`📄 Found ${trainingDocuments.length} training documents for enhanced voice analysis`);
+    // Determine which user's context to use (current user or contextUserId)
+    let targetUserId = user.id;
+
+    if (contextUserId && contextUserId !== user.id) {
+      // Validate that current user has access to the contextUserId's data
+      const hasAccess = await validateUserAccess(supabase, user.id, contextUserId);
+
+      if (!hasAccess) {
+        return NextResponse.json(
+          { error: 'Access denied: You do not have permission to use this user\'s context data' },
+          { status: 403 }
+        );
+      }
+
+      targetUserId = contextUserId;
+      console.log(`🔐 Access validated: User ${user.id} can access context from user ${contextUserId}`);
+    }
+
+    console.log(`🚀 CoCreate Model Ensemble request from user ${user.id} using context from user ${targetUserId}: "${userMessage}"`);
+
+    // Fetch target user's past posts from database to analyze their voice
+    const pastPosts = await fetchUserPastPosts(supabase, targetUserId);
+    console.log(`📚 Found ${pastPosts.length} past posts for voice analysis from user ${targetUserId}`);
+
+    // Fetch target user's training documents for enhanced voice analysis (limit for performance)
+    const trainingDocuments = await fetchUserTrainingDocuments(supabase, targetUserId);
+    console.log(`📄 Found ${trainingDocuments.length} training documents for enhanced voice analysis from user ${targetUserId}`);
     
     // Limit training documents to prevent timeouts (max 8 docs, max 100k words total)
     const limitedTrainingDocs = trainingDocuments
@@ -97,14 +115,15 @@ export async function POST(req) {
     
     // Generate post content using Model Ensemble
     const result = await generateWithModelEnsemble(
-      userMessage, 
-      currentDraft, 
-      action, 
-      pastPosts, 
+      userMessage,
+      currentDraft,
+      action,
+      pastPosts,
       trendingPosts,
       limitedTrainingDocs,
       user.id,
-      supabase
+      supabase,
+      targetUserId // Pass the context user ID
     );
     
     return NextResponse.json({

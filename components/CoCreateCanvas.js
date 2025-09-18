@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import ReactFlow, { 
-  MiniMap, 
-  Controls, 
-  Background, 
-  useNodesState, 
-  useEdgesState, 
+import ReactFlow, {
+  MiniMap,
+  Controls,
+  Background,
+  useNodesState,
+  useEdgesState,
   addEdge,
   ReactFlowProvider,
   Panel,
@@ -15,9 +15,11 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Play } from 'lucide-react';
 import PostEditorDialog from '@/components/post-forge/PostEditorDialog';
 import { useToast } from "@/components/ui/use-toast";
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 // Import our refactored modules
 import { useCanvasStore } from '@/lib/stores/canvasStore';
@@ -38,20 +40,131 @@ const CoCreateCanvas = () => {
   const [selectedNodes, setSelectedNodes] = useState([]);
   const { initializeSession } = useCanvasStore();
   const { toast } = useToast();
-  
+  const supabase = createClientComponentClient();
+
   // Post Editor Dialog states
   const [isPostEditorOpen, setIsPostEditorOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [isCreatingNewPost, setIsCreatingNewPost] = useState(false);
-  
+
   // Track the last compiled post for re-editing
   const [lastCompiledPost, setLastCompiledPost] = useState(null);
+
+  // User selection states
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [availableUsers, setAvailableUsers] = useState([]);
+  const [currentUserRole, setCurrentUserRole] = useState('ghostwriter');
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   
   // Use our custom hooks
   const { addNode, addConnectedBlock, removeNode } = useCanvasNodes(nodes, setNodes, edges, setEdges);
-  
+
   // Custom compilation handler that opens the dialog instead of redirecting
   const { compilePost: originalCompilePost } = usePostCompilation();
+
+  // Fetch users linked to current user
+  const fetchAvailableUsers = async () => {
+    setIsLoadingUsers(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      // Check current user's role and get linked users
+      const { data: asGhostwriter, error: gwError } = await supabase
+        .from('ghostwriter_approver_link')
+        .select('approver_id')
+        .eq('ghostwriter_id', user.id)
+        .eq('active', true);
+
+      const { data: asApprover, error: appError } = await supabase
+        .from('ghostwriter_approver_link')
+        .select('ghostwriter_id')
+        .eq('approver_id', user.id)
+        .eq('active', true);
+
+      if (gwError && appError) throw new Error('Failed to fetch user links');
+
+      let linkedUserIds = [];
+      let role = 'ghostwriter';
+
+      if (asGhostwriter && asGhostwriter.length > 0) {
+        linkedUserIds = asGhostwriter.map(link => link.approver_id);
+        role = 'ghostwriter';
+      } else if (asApprover && asApprover.length > 0) {
+        linkedUserIds = asApprover.map(link => link.ghostwriter_id);
+        role = 'approver';
+      }
+
+      setCurrentUserRole(role);
+
+      // Always include current user as an option
+      const allUserIds = [user.id, ...linkedUserIds];
+
+      // Get user details - always include current user even if no linked users
+      const { data: userDetails, error: userError } = await supabase
+        .from('users_view')
+        .select('id, email, raw_user_meta_data')
+        .in('id', allUserIds);
+
+      if (userError) {
+        console.error('Error fetching user details:', userError);
+        // Fallback: Create a basic profile for current user
+        const fallbackProfiles = [{
+          id: user.id,
+          email: user.email,
+          full_name: user.email.split('@')[0],
+          role: 'current_user',
+          isCurrentUser: true
+        }];
+        setAvailableUsers(fallbackProfiles);
+        setSelectedUserId(user.id);
+        setSelectedUser(fallbackProfiles[0]);
+        return;
+      }
+
+      const userProfiles = userDetails.map(userDetail => {
+        const userMetadata = userDetail.raw_user_meta_data || {};
+        const isCurrentUser = userDetail.id === user.id;
+        return {
+          id: userDetail.id,
+          email: userDetail.email,
+          full_name: userMetadata.full_name || userMetadata.name || userDetail.email.split('@')[0],
+          role: isCurrentUser ? 'current_user' : (role === 'ghostwriter' ? 'approver' : 'ghostwriter'),
+          isCurrentUser
+        };
+      });
+
+      setAvailableUsers(userProfiles);
+
+      // Set current user as default selection
+      setSelectedUserId(user.id);
+      setSelectedUser(userProfiles.find(u => u.isCurrentUser));
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load available users',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  const handleUserSelect = (userId) => {
+    const user = availableUsers.find(u => u.id === userId);
+    setSelectedUserId(userId);
+    setSelectedUser(user);
+
+    // Show toast to indicate context change
+    if (user) {
+      toast({
+        title: 'Context Updated',
+        description: `Now using ${user.isCurrentUser ? 'your own' : user.full_name + '\'s'} training data and voice`,
+      });
+    }
+  };
   
   // Handle node selection
   const onSelectionChange = useCallback((elements) => {
@@ -310,20 +423,25 @@ Consider including:
     }
   };
   
+  // Fetch available users on component mount
+  useEffect(() => {
+    fetchAvailableUsers();
+  }, []);
+
   // Initialize session and setup default ideation block
   useEffect(() => {
     initializeSession();
-    
+
     // Add default ideation block
     const defaultIdeationBlock = {
       id: 'ideation-default',
       type: 'ideationBlock',
       position: CANVAS_SETTINGS.DEFAULT_NODE_POSITION,
-      data: { 
+      data: {
         label: 'ideation',
         onUpdate: (updates) => {
-          setNodes(nds => nds.map(node => 
-            node.id === 'ideation-default' 
+          setNodes(nds => nds.map(node =>
+            node.id === 'ideation-default'
               ? { ...node, data: { ...node.data, ...updates } }
               : node
           ));
@@ -331,7 +449,7 @@ Consider including:
         // No onClose function for the default ideation block
       },
     };
-    
+
     setNodes([defaultIdeationBlock]);
   }, [initializeSession, setNodes]);
   
@@ -465,11 +583,51 @@ Consider including:
           </div>
         </Panel>
         
+        {/* User Selection Panel - Clean Dropdown Only */}
+        <Panel position="top-center">
+          <Select value={selectedUserId || ''} onValueChange={handleUserSelect} disabled={isLoadingUsers}>
+            <SelectTrigger className="w-[280px] h-11 border-0 bg-white/90 backdrop-blur-xl hover:bg-white/95 rounded-xl text-sm font-medium shadow-2xl shadow-black/10 transition-all duration-200 focus:ring-2 focus:ring-blue-500/20 focus:bg-white">
+              <SelectValue
+                placeholder={
+                  isLoadingUsers
+                    ? 'Loading...'
+                    : availableUsers.length === 0
+                      ? 'No users available'
+                      : 'Choose voice context'
+                }
+              />
+            </SelectTrigger>
+            <SelectContent className="border-0 bg-white/95 backdrop-blur-xl rounded-xl shadow-2xl shadow-black/20 p-1">
+              {availableUsers.map((user) => (
+                <SelectItem
+                  key={user.id}
+                  value={user.id}
+                  className="rounded-lg hover:bg-blue-50/80 focus:bg-blue-50/80 transition-all duration-150 cursor-pointer p-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 ${user.isCurrentUser ? 'bg-gradient-to-br from-green-400 to-green-600' : 'bg-gradient-to-br from-blue-400 to-blue-600'} rounded-full flex items-center justify-center text-white text-sm font-semibold shadow-sm`}>
+                      {user.full_name ? user.full_name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-gray-900">
+                        {user.isCurrentUser ? 'Your Voice' : user.full_name}
+                      </span>
+                      <span className="text-xs text-gray-500 font-normal">
+                        {user.isCurrentUser ? 'Personal training data' : `${user.role === 'approver' ? 'Approver' : 'Ghostwriter'} context`}
+                      </span>
+                    </div>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Panel>
+
         {/* Quick Add Panel */}
         <Panel position="top-left">
           <div className="flex flex-col gap-2">
-            <Button 
-              onClick={() => addNode('ideation')} 
+            <Button
+              onClick={() => addNode('ideation')}
               variant="outline"
               size="sm"
               className="bg-white/80 hover:bg-white border-blue-200 text-blue-700 hover:text-blue-800"

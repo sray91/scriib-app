@@ -10,7 +10,7 @@ import { analyzeUserVoice, analyzeTrendingPosts } from './analysis.js';
  * Model 3: Claude Sonnet 4 - Draft generation and quality review
  * Optimized for 60-second serverless function timeout
  */
-export async function generateWithModelEnsemble(userMessage, currentDraft, action, pastPosts, trendingPosts, trainingDocuments, userId, supabase) {
+export async function generateWithModelEnsemble(userMessage, currentDraft, action, pastPosts, trendingPosts, trainingDocuments, userId, supabase, contextUserId = null) {
   const processingSteps = [];
   const ensembleDetails = {
     modelsUsed: [],
@@ -51,7 +51,7 @@ export async function generateWithModelEnsemble(userMessage, currentDraft, actio
         processingSteps.push(`🎨 Claude 4 Sonnet: Creating reusable style preset from ${pastPosts.length} past posts...`);
         
         try {
-          stylePreset = await createStylePresetWithClaude(pastPosts, userId, supabase);
+          stylePreset = await createStylePresetWithClaude(pastPosts, contextUserId || userId, supabase);
           ensembleDetails.modelsUsed.push('Claude 4 Sonnet');
           ensembleDetails.stylePreset = stylePreset;
           processingSteps.push(`✅ Claude 4 Sonnet: Generated style preset capturing voice patterns, tone, and rhythm`);

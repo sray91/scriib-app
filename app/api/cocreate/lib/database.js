@@ -1,5 +1,32 @@
 // Database operations for CoCreate API
 
+// Validate if current user can access another user's training data
+export async function validateUserAccess(supabase, currentUserId, targetUserId) {
+  try {
+    // Users can always access their own data
+    if (currentUserId === targetUserId) {
+      return true;
+    }
+
+    // Check if users are linked via ghostwriter_approver_link
+    const { data: links, error } = await supabase
+      .from('ghostwriter_approver_link')
+      .select('id')
+      .eq('active', true)
+      .or(`and(ghostwriter_id.eq.${currentUserId},approver_id.eq.${targetUserId}),and(ghostwriter_id.eq.${targetUserId},approver_id.eq.${currentUserId})`);
+
+    if (error) {
+      console.error('Error validating user access:', error);
+      return false;
+    }
+
+    return links && links.length > 0;
+  } catch (error) {
+    console.error('Error in validateUserAccess:', error);
+    return false;
+  }
+}
+
 // Fetch user's past posts from the database
 export async function fetchUserPastPosts(supabase, userId) {
   try {

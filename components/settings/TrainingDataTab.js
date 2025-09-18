@@ -71,14 +71,33 @@ const TrainingDataTab = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
+      // Check if user is a ghostwriter (has approver links)
+      const { data: ghostwriterLinks, error: ghostwriterError } = await supabase
+        .from('ghostwriter_approver_link')
+        .select('id')
+        .eq('ghostwriter_id', user.id)
+        .limit(1);
 
-      if (error) throw error;
-      setCurrentUserRole(data?.role || 'ghostwriter');
+      if (ghostwriterError) throw ghostwriterError;
+
+      // Check if user is an approver (has ghostwriter links)
+      const { data: approverLinks, error: approverError } = await supabase
+        .from('ghostwriter_approver_link')
+        .select('id')
+        .eq('approver_id', user.id)
+        .limit(1);
+
+      if (approverError) throw approverError;
+
+      // Determine role based on links (can be both, but default to ghostwriter)
+      if (ghostwriterLinks.length > 0) {
+        setCurrentUserRole('ghostwriter');
+      } else if (approverLinks.length > 0) {
+        setCurrentUserRole('approver');
+      } else {
+        // Default to ghostwriter if no links found
+        setCurrentUserRole('ghostwriter');
+      }
     } catch (error) {
       console.error('Error getting user role:', error);
       // Default to ghostwriter if we can't determine role
