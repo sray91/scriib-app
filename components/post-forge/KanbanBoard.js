@@ -613,7 +613,7 @@ export default function KanbanBoard() {
         />
 
         {/* Main Board */}
-        <div className="flex-1 overflow-auto px-6 py-4">
+        <div className="flex-1 overflow-auto px-4 py-4">
           <WeeklyKanbanView 
             posts={posts}
             isNextWeek={isNextWeek}

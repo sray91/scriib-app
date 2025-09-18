@@ -69,7 +69,7 @@ export default function WeeklyKanbanView({
     : DAYS_OF_WEEK;
 
   return (
-    <div className="mt-8">
+    <div className="mt-6">
       {/* Mobile navigation controls */}
       {isMobile && (
         <div className="flex justify-between items-center mb-6 p-4 bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100">
@@ -99,10 +99,10 @@ export default function WeeklyKanbanView({
       )}
 
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className={`grid gap-4 min-h-0 ${
-          isMobile 
-            ? 'grid-cols-1' 
-            : 'grid-cols-3 md:grid-cols-5 lg:grid-cols-7'
+        <div className={`${
+          isMobile
+            ? 'grid grid-cols-1 gap-4'
+            : 'flex gap-4 min-w-max overflow-x-auto'
         }`}>
           {visibleDays.map((day) => {
             const dayPosts = posts.filter(post => post.day_of_week === day);
@@ -130,13 +130,13 @@ export default function WeeklyKanbanView({
             };
 
             return (
-              <div key={day} className="flex flex-col h-full min-w-0">
+              <div key={day} className={`flex flex-col h-full ${isMobile ? 'w-full' : 'w-80 flex-shrink-0'}`}>
                 {/* Day Header */}
-                <div className="mb-4 p-4 bg-white/60 backdrop-blur-sm rounded-2xl border border-gray-100/50 shadow-sm">
+                <div className="mb-3 p-3 bg-white/60 backdrop-blur-sm rounded-xl border border-gray-100/50 shadow-sm">
                   <div className="flex justify-between items-center">
                     <div className="flex flex-col min-w-0">
-                      <h3 className="font-semibold text-gray-900 text-base truncate">{day}</h3>
-                      <span className="text-sm text-gray-500 font-medium">{getDateForDay()}</span>
+                      <h3 className="font-semibold text-gray-900 text-sm leading-tight">{day}</h3>
+                      <span className="text-xs text-gray-500 font-medium">{getDateForDay()}</span>
                     </div>
                     <div className="flex items-center gap-3">
                       {/* Post count */}
@@ -175,9 +175,9 @@ export default function WeeklyKanbanView({
                     <div
                       {...provided.droppableProps}
                       ref={provided.innerRef}
-                      className={`flex-1 p-3 rounded-2xl transition-all duration-300 ${isMobile ? 'min-h-[50vh]' : 'min-h-[65vh]'} max-h-[75vh] overflow-y-auto ${
-                        snapshot.isDraggingOver 
-                          ? 'bg-blue-50/70 backdrop-blur-sm border-2 border-blue-200 border-dashed' 
+                      className={`flex-1 p-2 rounded-xl transition-all duration-300 ${isMobile ? 'min-h-[50vh]' : 'min-h-[60vh]'} max-h-[70vh] overflow-y-auto ${
+                        snapshot.isDraggingOver
+                          ? 'bg-blue-50/70 backdrop-blur-sm border-2 border-blue-200 border-dashed'
                           : 'bg-gray-50/30'
                       }`}
                     >
@@ -211,17 +211,17 @@ export default function WeeklyKanbanView({
                       
                       {/* Add Post Button for empty columns */}
                       {dayPosts.length === 0 && (
-                        <div className="flex items-center justify-center h-48 rounded-2xl border-2 border-dashed border-gray-200 bg-white/30 hover:bg-white/50 transition-all duration-200">
+                        <div className="flex items-center justify-center h-40 rounded-xl border-2 border-dashed border-gray-200 bg-white/30 hover:bg-white/50 transition-all duration-200">
                           <Button
                             variant="ghost"
-                            className="flex flex-col items-center gap-3 text-gray-400 hover:text-gray-600 p-6 rounded-xl hover:bg-white/70 transition-all duration-200"
+                            className="flex flex-col items-center gap-2 text-gray-400 hover:text-gray-600 p-4 rounded-xl hover:bg-white/70 transition-all duration-200"
                             onClick={() => onCreatePost(day)}
                           >
-                            <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
-                              <Plus size={20} />
+                            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                              <Plus size={18} />
                             </div>
                             <div className="text-center">
-                              <div className="font-medium">Add Post</div>
+                              <div className="font-medium text-sm">Add Post</div>
                               <div className="text-xs text-gray-400 mt-1">Create content for {day}</div>
                             </div>
                           </Button>

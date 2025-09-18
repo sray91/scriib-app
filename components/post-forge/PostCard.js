@@ -172,7 +172,7 @@ export default function PostCard({
         group cursor-pointer transition-all duration-300 ease-out
         bg-white/80 backdrop-blur-sm border-0 shadow-sm hover:shadow-lg 
         hover:shadow-black/5 hover:-translate-y-0.5 rounded-2xl overflow-hidden
-        h-[280px] flex flex-col
+min-h-[180px] flex flex-col
         ${isDragging ? 'opacity-60 rotate-1 scale-95 shadow-xl' : ''}
       `}
       onClick={handleCardClick}
@@ -181,7 +181,7 @@ export default function PostCard({
         {/* Status indicator bar */}
         <div className={`h-1 w-full ${statusConfig.dotColor} flex-shrink-0`} />
         
-        <div className="p-5 space-y-4 flex-1 flex flex-col min-h-0">
+        <div className="p-4 space-y-3 flex-1 flex flex-col min-h-0">
           {/* Header */}
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
@@ -218,9 +218,9 @@ export default function PostCard({
           </div>
 
           {/* Content preview */}
-          <div className="space-y-3 min-h-0 flex-1">
+          <div className="space-y-2 min-h-0 flex-1">
             <div className="overflow-hidden">
-              <p className="text-gray-800 text-sm leading-relaxed font-normal line-clamp-4 break-words">
+              <p className="text-gray-800 text-sm leading-snug font-normal line-clamp-4 break-words" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                 {post.content || (
                   <span className="text-gray-400 italic">No content...</span>
                 )}
@@ -240,27 +240,27 @@ export default function PostCard({
                   }
                 </AvatarFallback>
               </Avatar>
-              <div className="flex flex-col min-w-0">
+              <div className="flex flex-col min-w-0 overflow-hidden">
                 <span className="text-xs font-medium text-gray-700 truncate">
-                  {post.user_id === currentUser?.id 
-                    ? 'You' 
+                  {post.user_id === currentUser?.id
+                    ? 'You'
                     : (post.creator_name || 'Unknown')
                   }
                 </span>
                 {userRole && userRole !== 'owner' && (
-                  <span className="text-xs text-gray-500 capitalize truncate">
+                  <span className="text-xs text-gray-500 capitalize">
                     {userRole}
                   </span>
                 )}
               </div>
             </div>
             
-            {/* Time and schedule info */}
-            <div className="flex items-center gap-2 text-xs text-gray-500 flex-shrink-0">
+            {/* Time and schedule info - compact */}
+            <div className="flex items-center gap-1.5 text-xs text-gray-500 flex-shrink-0">
               {post.scheduled_time && (
                 <div className="flex items-center gap-1">
-                  <Calendar size={12} />
-                  <span className="whitespace-nowrap">
+                  <Calendar size={10} />
+                  <span className="whitespace-nowrap text-xs">
                     {new Date(post.scheduled_time).toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric'
@@ -268,25 +268,19 @@ export default function PostCard({
                   </span>
                 </div>
               )}
-              <span className="whitespace-nowrap">
-                {new Date(post.created_at || Date.now()).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric'
-                })}
-              </span>
             </div>
           </div>
 
-          {/* Approval info */}
+          {/* Approval info - compact version */}
           {post.approver_id && post.approver_name && (
-            <div className="flex items-center p-3 bg-blue-50/50 rounded-xl border border-blue-100/50 flex-shrink-0">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                  <Users size={12} className="text-blue-600" />
+            <div className="flex items-center p-2 bg-blue-50/50 rounded-lg border border-blue-100/50 flex-shrink-0">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <Users size={10} className="text-blue-600" />
                 </div>
-                <span className="text-sm text-blue-700 truncate">
-                  {post.status === 'pending_approval' ? 'Awaiting approval from' : 
-                   post.status === 'approved' ? 'Approved by' : 'Reviewed by'} {post.approver_name}
+                <span className="text-xs text-blue-700 truncate">
+                  {post.status === 'pending_approval' ? 'Awaiting' :
+                   post.status === 'approved' ? 'Approved' : 'Reviewed'}
                 </span>
               </div>
             </div>
