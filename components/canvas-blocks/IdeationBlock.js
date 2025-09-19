@@ -165,7 +165,7 @@ const IdeationBlock = ({ data, id }) => {
       />
       
       <div className="bg-white shadow-lg border-2 border-blue-200 w-full h-full relative flex flex-col">
-      <div className="flex items-center gap-2 p-3 bg-blue-50 border-b">
+      <div className="flex items-center gap-2 p-3 bg-blue-50 border-b flex-shrink-0">
         <Brain className="h-5 w-5 text-blue-600" />
         <span className="font-medium text-blue-800">Ideation</span>
         {id === 'ideation-default' && (
@@ -174,9 +174,9 @@ const IdeationBlock = ({ data, id }) => {
           </span>
         )}
       </div>
-      
+
       {/* Plus Button */}
-      <div className="absolute -right-4 top-1/2 transform -translate-y-1/2">
+      <div className="absolute -right-4 top-1/2 transform -translate-y-1/2 z-20">
         <div className="relative">
           <button
             onClick={() => setShowDropdown(!showDropdown)}
@@ -216,11 +216,26 @@ const IdeationBlock = ({ data, id }) => {
       
       <div className="p-4 flex-1 flex flex-col min-h-0">
         {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto mb-4 space-y-2 min-h-0">
+        <div
+          className="flex-1 overflow-y-scroll mb-4 space-y-2 pr-2 nowheel"
+          style={{
+            scrollbarWidth: 'thin',
+            WebkitOverflowScrolling: 'touch'
+          }}
+          onWheel={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const delta = e.deltaY;
+            e.currentTarget.scrollTop += delta;
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+        >
           {messages.map((message, index) => (
-            <div key={index} className={`p-3 rounded text-sm ${
-              message.role === 'user' 
-                ? 'bg-blue-100 text-blue-800 ml-4 font-sans' 
+            <div key={index} className={`p-3 rounded text-sm break-words ${
+              message.role === 'user'
+                ? 'bg-blue-100 text-blue-800 ml-4 font-sans'
                 : 'bg-gray-100 text-gray-800 mr-4 font-serif'
             }`}>
               {message.role === 'assistant' ? (
@@ -229,20 +244,20 @@ const IdeationBlock = ({ data, id }) => {
                     if (line.trim() === '') return <div key={lineIndex} className="h-2"></div>;
                     if (line.includes('Used your personal context guide') || line.includes('No context guide found')) {
                       return (
-                        <div key={lineIndex} className="text-xs bg-white p-2 rounded border-l-4 border-blue-400 mb-3">
+                        <div key={lineIndex} className="text-xs bg-white p-2 rounded border-l-4 border-blue-400 mb-3 break-words">
                           {line}
                         </div>
                       );
                     }
                     return (
-                      <div key={lineIndex} className="leading-relaxed">
+                      <div key={lineIndex} className="leading-relaxed break-words whitespace-pre-wrap">
                         {line}
                       </div>
                     );
                   })}
                 </div>
               ) : (
-                message.content
+                <div className="break-words whitespace-pre-wrap">{message.content}</div>
               )}
             </div>
           ))}
@@ -261,7 +276,7 @@ const IdeationBlock = ({ data, id }) => {
         </div>
         
         {/* Input */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           <input
             type="text"
             value={input}
