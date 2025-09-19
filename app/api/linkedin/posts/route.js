@@ -21,8 +21,21 @@ export async function GET(request) {
     const platform = searchParams.get('platform') || 'linkedin';
     const sortBy = searchParams.get('sortBy') || 'published_at';
     const order = searchParams.get('order') || 'desc';
+    const targetUserId = searchParams.get('userId'); // Allow filtering by specific user
     
     const offset = (page - 1) * limit;
+
+    // Determine which user's posts to fetch
+    let userIdToQuery = user.id; // Default to current user
+    
+    if (targetUserId && targetUserId !== user.id) {
+      // Check if current user has permission to access target user's posts
+      const hasPermission = await checkUserPermission(supabase, user.id, targetUserId);
+      if (!hasPermission) {
+        return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
+      }
+      userIdToQuery = targetUserId;
+    }
 
     // Build query
     let query = supabase
@@ -40,7 +53,7 @@ export async function GET(request) {
         visibility,
         created_at
       `)
-      .eq('user_id', user.id)
+      .eq('user_id', userIdToQuery)
       .eq('platform', platform)
       .order(sortBy, { ascending: order === 'asc' })
       .range(offset, offset + limit - 1);
@@ -154,5 +167,28 @@ export async function DELETE(request) {
       { error: 'Failed to delete past posts', details: error.message },
       { status: 500 }
     );
+  }
+}
+
+async function checkUserPermission(supabase, currentUserId, targetUserId) {
+  try {
+    // If user is accessing their own data, allow it
+    if (currentUserId === targetUserId) {
+      return true;
+    }
+
+    // Check if current user is linked to target user through ghostwriter_approver_link
+    const { data, error } = await supabase
+      .from('ghostwriter_approver_link')
+      .select('*')
+      .or(`and(ghostwriter_id.eq.${currentUserId},approver_id.eq.${targetUserId}),and(ghostwriter_id.eq.${targetUserId},approver_id.eq.${currentUserId})`)
+      .eq('active', true);
+
+    if (error) throw error;
+
+    return data && data.length > 0;
+  } catch (error) {
+    console.error('Error checking user permission:', error);
+    return false;
   }
 } 

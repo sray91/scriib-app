@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { getSupabase } from '@/lib/supabase';
 
-export default function PastPostsViewer() {
+export default function PastPostsViewer({ userId = null, currentUser = null }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -13,17 +13,21 @@ export default function PastPostsViewer() {
   const [syncResult, setSyncResult] = useState(null);
 
   const supabase = getSupabase();
+  
+  // Check if we're viewing another user's data
+  const isViewingOtherUser = userId && currentUser && userId !== currentUser.id;
 
   useEffect(() => {
     fetchPosts();
-  }, [currentPage]);
+  }, [currentPage, userId]);
 
   const fetchPosts = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`/api/linkedin/posts?page=${currentPage}&limit=20`);
+      const url = `/api/linkedin/posts?page=${currentPage}&limit=20${userId ? `&userId=${userId}` : ''}`;
+      const response = await fetch(url);
       const data = await response.json();
 
       if (data.success) {
@@ -140,21 +144,25 @@ export default function PastPostsViewer() {
           <h2 className="text-2xl font-bold text-gray-900 mb-4">LinkedIn Past Posts</h2>
           
           <div className="flex flex-wrap gap-3 mb-4">
-            <button
-              onClick={() => syncLinkedInPosts(30)}
-              disabled={syncing}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {syncing ? 'Syncing...' : 'Sync Posts (30)'}
-            </button>
-            
-            <button
-              onClick={() => syncLinkedInPosts(50)}
-              disabled={syncing}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {syncing ? 'Syncing...' : 'Sync Posts (50)'}
-            </button>
+            {!isViewingOtherUser && (
+              <>
+                <button
+                  onClick={() => syncLinkedInPosts(30)}
+                  disabled={syncing}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {syncing ? 'Syncing...' : 'Sync Posts (30)'}
+                </button>
+                
+                <button
+                  onClick={() => syncLinkedInPosts(50)}
+                  disabled={syncing}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {syncing ? 'Syncing...' : 'Sync Posts (50)'}
+                </button>
+              </>
+            )}
             
             <button
               onClick={fetchPosts}
@@ -164,13 +172,19 @@ export default function PastPostsViewer() {
               {loading ? 'Loading...' : 'Refresh'}
             </button>
             
-            {posts.length > 0 && (
+            {posts.length > 0 && !isViewingOtherUser && (
               <button
                 onClick={deleteAllPosts}
                 className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
               >
                 Delete All
               </button>
+            )}
+            
+            {isViewingOtherUser && (
+              <div className="bg-blue-50 text-blue-700 px-3 py-2 rounded-lg text-sm">
+                Viewing posts for another user - sync and delete operations disabled
+              </div>
             )}
           </div>
 

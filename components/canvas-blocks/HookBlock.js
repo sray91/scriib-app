@@ -95,8 +95,8 @@ const HookBlock = ({ data, id }) => {
         contentToUse = latestContent.content;
       }
 
-      // Generate hooks using AI with the hook templates as context
-      const response = await fetch(API_ENDPOINTS.COCREATE, {
+      // Generate hooks using dedicated hooks API with HOOKS_GUIDE.md
+      const response = await fetch(API_ENDPOINTS.HOOKS, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -135,19 +135,25 @@ RULES:
 - Make solutions sound achievable
 - Focus on the 4 eternal markets: Health, Wealth, Relationships, Happiness
 
-Return ONLY the numbered hooks, nothing else.`,
-          action: 'create'
+Return ONLY the numbered hooks, nothing else.`
         }),
       });
       
       const result = await response.json();
       
       if (response.ok) {
-        // Parse the AI response to extract individual hooks
-        const hookText = result.updatedPost || result.post || '';
-        const hookLines = hookText.split('\n').filter(line => 
-          line.trim() && line.match(/^\d+\./)
-        );
+        // Parse the hooks API response (new structure)
+        let hookLines = [];
+        if (result.hooks && Array.isArray(result.hooks)) {
+          // New hooks API returns array of hooks directly
+          hookLines = result.hooks.map((hook, index) => `${index + 1}. ${hook}`);
+        } else {
+          // Fallback: parse from text response (old format)
+          const hookText = result.updatedPost || result.post || '';
+          hookLines = hookText.split('\n').filter(line => 
+            line.trim() && line.match(/^\d+\./)
+          );
+        }
         
         // Use the defined hook patterns for categorizing
         

@@ -23,6 +23,24 @@ const UserSelector = ({ selectedUserId, onUserSelect, currentUserRole = 'ghostwr
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // Get current user details first
+      const { data: currentUserData, error: currentUserError } = await supabase
+        .from('users_view')
+        .select('id, email, raw_user_meta_data')
+        .eq('id', user.id)
+        .single();
+
+      if (currentUserError) throw currentUserError;
+
+      const currentUserMetadata = currentUserData.raw_user_meta_data || {};
+      const currentUserProfile = {
+        id: currentUserData.id,
+        email: currentUserData.email,
+        full_name: currentUserMetadata.full_name || currentUserMetadata.name || currentUserData.email.split('@')[0],
+        role: 'current_user',
+        isCurrent: true
+      };
+
       // Get ghostwriter-approver links for current user
       let links;
       if (currentUserRole === 'ghostwriter') {
@@ -47,35 +65,34 @@ const UserSelector = ({ selectedUserId, onUserSelect, currentUserRole = 'ghostwr
         links = data;
       }
 
-      if (links.length === 0) {
-        setUsers([]);
-        return;
+      let linkedUserProfiles = [];
+      if (links.length > 0) {
+        // Get user details from users_view
+        const userIds = links.map(link =>
+          currentUserRole === 'ghostwriter' ? link.approver_id : link.ghostwriter_id
+        );
+
+        const { data: userDetails, error: userError } = await supabase
+          .from('users_view')
+          .select('id, email, raw_user_meta_data')
+          .in('id', userIds);
+
+        if (userError) throw userError;
+
+        // Transform the data to get user profiles
+        linkedUserProfiles = userDetails.map(linkedUser => {
+          const userMetadata = linkedUser.raw_user_meta_data || {};
+          return {
+            id: linkedUser.id,
+            email: linkedUser.email,
+            full_name: userMetadata.full_name || userMetadata.name || linkedUser.email.split('@')[0],
+            role: currentUserRole === 'ghostwriter' ? 'approver' : 'ghostwriter'
+          };
+        });
       }
 
-      // Get user details from users_view
-      const userIds = links.map(link =>
-        currentUserRole === 'ghostwriter' ? link.approver_id : link.ghostwriter_id
-      );
-
-      const { data: userDetails, error: userError } = await supabase
-        .from('users_view')
-        .select('id, email, raw_user_meta_data')
-        .in('id', userIds);
-
-      if (userError) throw userError;
-
-      // Transform the data to get user profiles
-      const userProfiles = userDetails.map(user => {
-        const userMetadata = user.raw_user_meta_data || {};
-        return {
-          id: user.id,
-          email: user.email,
-          full_name: userMetadata.full_name || userMetadata.name || user.email.split('@')[0],
-          role: currentUserRole === 'ghostwriter' ? 'approver' : 'ghostwriter'
-        };
-      });
-
-      setUsers(userProfiles);
+      // Combine current user and linked users, with current user first
+      setUsers([currentUserProfile, ...linkedUserProfiles]);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
@@ -104,10 +121,7 @@ const UserSelector = ({ selectedUserId, onUserSelect, currentUserRole = 'ghostwr
     <div className="space-y-2">
       <Label htmlFor="user-selector" className="text-sm font-medium">
         <Users className="w-4 h-4 inline mr-2" />
-        {currentUserRole === 'ghostwriter'
-          ? 'Select Approver\'s Training Data'
-          : 'Select Ghostwriter\'s Training Data'
-        }
+        Select Training Data Source
       </Label>
 
       <Select value={selectedUserId || ''} onValueChange={handleUserSelect} disabled={isLoading}>
@@ -117,8 +131,8 @@ const UserSelector = ({ selectedUserId, onUserSelect, currentUserRole = 'ghostwr
               isLoading
                 ? 'Loading users...'
                 : users.length === 0
-                  ? `No ${currentUserRole === 'ghostwriter' ? 'approvers' : 'ghostwriters'} found`
-                  : `Select a ${currentUserRole === 'ghostwriter' ? 'approver' : 'ghostwriter'}`
+                  ? 'No users available'
+                  : 'Select a user'
             }
           />
         </SelectTrigger>
@@ -126,11 +140,15 @@ const UserSelector = ({ selectedUserId, onUserSelect, currentUserRole = 'ghostwr
           {users.map((user) => (
             <SelectItem key={user.id} value={user.id}>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs">
+                <div className={`w-6 h-6 ${user.isCurrent ? 'bg-green-500' : 'bg-blue-500'} rounded-full flex items-center justify-center text-white text-xs`}>
                   {user.full_name ? user.full_name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
                 </div>
                 <span>{getUserDisplayName(user)}</span>
-                {user.role && (
+                {user.isCurrent ? (
+                  <span className="text-xs text-green-600 ml-1">
+                    (My Data)
+                  </span>
+                ) : user.role && (
                   <span className="text-xs text-muted-foreground ml-1">
                     ({user.role})
                   </span>
@@ -141,12 +159,11 @@ const UserSelector = ({ selectedUserId, onUserSelect, currentUserRole = 'ghostwr
         </SelectContent>
       </Select>
 
-      {users.length === 0 && !isLoading && (
+      {users.length <= 1 && !isLoading && (
         <p className="text-sm text-muted-foreground">
           {currentUserRole === 'ghostwriter'
-            ? 'You need to be linked with approvers to access their training data.'
-            : 'You need to be linked with ghostwriters to access their training data.'
-          }
+            ? 'Link with approvers to access their training data.'
+            : 'Link with ghostwriters to access their training data.'}
         </p>
       )}
     </div>

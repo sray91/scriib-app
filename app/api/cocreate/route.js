@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 
 // Import modular functions
 import { fetchUserPastPosts, fetchUserTrainingDocuments, fetchTrendingPosts, validateUserAccess } from './lib/database.js';
-import { generateWithModelEnsemble } from './lib/ensemble.js';
+import { generatePostContentWithClaude } from './lib/generators.js';
 
 // Configure the API route for AI processing
 export const runtime = 'nodejs';
@@ -110,20 +110,19 @@ export async function POST(req) {
     const trendingPosts = await fetchTrendingPosts(supabase);
     console.log(`📈 Found ${trendingPosts.length} trending posts for inspiration`);
     
-    // === MODEL ENSEMBLE APPROACH ===
-    console.log('🔀 Initializing Model Ensemble for Quality and Voice...');
+    // === CLAUDE SONNET 4 APPROACH ===
+    console.log('🔀 Initializing Claude Sonnet 4 for content generation...');
     
-    // Generate post content using Model Ensemble
-    const result = await generateWithModelEnsemble(
+    // Generate post content using Claude Sonnet 4
+    const result = await generatePostContentWithClaude(
       userMessage,
       currentDraft,
       action,
       pastPosts,
       trendingPosts,
       limitedTrainingDocs,
-      user.id,
-      supabase,
-      targetUserId // Pass the context user ID
+      targetUserId,
+      supabase
     );
     
     return NextResponse.json({
@@ -134,11 +133,12 @@ export async function POST(req) {
       processingSteps: result.processingSteps,
       voiceAnalysis: result.voiceAnalysis,
       trendingInsights: result.trendingInsights,
-      ensembleDetails: result.ensembleDetails // New: Details about which models were used
+      contextGuideUsed: result.contextGuideUsed,
+      model: result.model
     });
     
   } catch (error) {
-    console.error('Error in CoCreate Model Ensemble API:', error);
+    console.error('Error in CoCreate Claude API:', error);
     
     // Handle specific OpenAI errors
     if (error.status === 429 || (error.error && error.error.type === 'insufficient_quota')) {

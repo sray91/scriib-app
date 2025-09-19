@@ -28,6 +28,7 @@ const TrainingDataTab = () => {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [selectedUserInfo, setSelectedUserInfo] = useState(null);
   const [currentUserRole, setCurrentUserRole] = useState('ghostwriter');
+  const [currentUser, setCurrentUser] = useState(null);
 
   // Document upload states
   const [uploadedDocuments, setUploadedDocuments] = useState([]);
@@ -61,9 +62,45 @@ const TrainingDataTab = () => {
 
   const initializeComponent = async () => {
     await getCurrentUserRole();
+    await setCurrentUserAsDefault();
     fetchTrendingPosts();
     fetchUploadedDocuments();
     loadContextGuide();
+  };
+
+  const setCurrentUserAsDefault = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get current user details
+      const { data: currentUserData, error: currentUserError } = await supabase
+        .from('users_view')
+        .select('id, email, raw_user_meta_data')
+        .eq('id', user.id)
+        .single();
+
+      if (currentUserError) return;
+
+      const currentUserMetadata = currentUserData.raw_user_meta_data || {};
+      const currentUserProfile = {
+        id: currentUserData.id,
+        email: currentUserData.email,
+        full_name: currentUserMetadata.full_name || currentUserMetadata.name || currentUserData.email.split('@')[0],
+        role: 'current_user',
+        isCurrent: true
+      };
+
+      setCurrentUser(currentUserProfile);
+      
+      // Set current user as default selection if no user is selected
+      if (!selectedUserId) {
+        setSelectedUserId(user.id);
+        setSelectedUserInfo(currentUserProfile);
+      }
+    } catch (error) {
+      console.error('Error setting current user as default:', error);
+    }
   };
 
   const getCurrentUserRole = async () => {
@@ -121,8 +158,8 @@ const TrainingDataTab = () => {
     try {
       let data;
 
-      if (selectedUserId) {
-        // Fetch data for selected user
+      if (selectedUserId && selectedUserId !== currentUser?.id) {
+        // Fetch data for selected user (not current user)
         const response = await fetch(`/api/training-data/user?userId=${selectedUserId}&type=trending_posts`);
         const result = await response.json();
 
@@ -157,8 +194,8 @@ const TrainingDataTab = () => {
     try {
       let data;
 
-      if (selectedUserId) {
-        // Fetch data for selected user
+      if (selectedUserId && selectedUserId !== currentUser?.id) {
+        // Fetch data for selected user (not current user)
         const response = await fetch(`/api/training-data/user?userId=${selectedUserId}&type=training_documents`);
         const result = await response.json();
 
@@ -404,8 +441,8 @@ const TrainingDataTab = () => {
     try {
       let data;
 
-      if (selectedUserId) {
-        // Load context guide for selected user
+      if (selectedUserId && selectedUserId !== currentUser?.id) {
+        // Load context guide for selected user (not current user)
         const response = await fetch(`/api/training-data/user?userId=${selectedUserId}&type=context_guide`);
         const result = await response.json();
 
@@ -464,8 +501,8 @@ const TrainingDataTab = () => {
   const saveContextGuide = async () => {
     setIsSavingGuide(true);
     try {
-      if (selectedUserId) {
-        // Save context guide for selected user
+      if (selectedUserId && selectedUserId !== currentUser?.id) {
+        // Save context guide for selected user (not current user)
         const response = await fetch('/api/training-data/user', {
           method: 'POST',
           headers: {
@@ -1302,7 +1339,7 @@ Edit this guide to match your unique voice and content strategy. The AI will use
               </CardHeader>
               <CardContent className="p-0">
                 <div className="px-6 pb-6">
-                  <PastPostsViewer />
+                  <PastPostsViewer userId={selectedUserId} currentUser={currentUser} />
                 </div>
               </CardContent>
             </Card>
