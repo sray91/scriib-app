@@ -141,8 +141,8 @@ const IdeationBlock = ({ data, id }) => {
   return (
     <>
       <NodeResizer
-        minWidth={350}
-        minHeight={300}
+        minWidth={450}
+        minHeight={400}
         isVisible={true}
         lineClassName="border-blue-500/30"
         handleClassName="w-3 h-3 bg-blue-500/80 hover:bg-blue-600 transition-all rounded-sm border border-white/50"

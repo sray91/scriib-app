@@ -437,6 +437,7 @@ Consider including:
       id: 'ideation-default',
       type: 'ideationBlock',
       position: CANVAS_SETTINGS.DEFAULT_NODE_POSITION,
+      style: { width: 450, height: 400 },
       data: {
         label: 'ideation',
         onUpdate: (updates) => {
@@ -570,7 +571,7 @@ Consider including:
         </Panel>
         
         {/* Top Panel */}
-        <Panel position="top-right">
+        <Panel position="top-right" style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1000 }}>
           <div className="flex gap-2">
             <Button 
               onClick={handleCompilePost} 
@@ -584,7 +585,7 @@ Consider including:
         </Panel>
         
         {/* User Selection Panel - Clean Dropdown Only */}
-        <Panel position="top-center">
+        <Panel position="top-center" style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}>
           <Select value={selectedUserId || ''} onValueChange={handleUserSelect} disabled={isLoadingUsers}>
             <SelectTrigger className="w-[280px] h-11 border-0 bg-white/90 backdrop-blur-xl hover:bg-white/95 rounded-xl text-sm font-medium shadow-2xl shadow-black/10 transition-all duration-200 focus:ring-2 focus:ring-blue-500/20 focus:bg-white">
               <SelectValue
@@ -624,7 +625,7 @@ Consider including:
         </Panel>
 
         {/* Quick Add Panel */}
-        <Panel position="top-left">
+        <Panel position="top-left" style={{ position: 'fixed', top: '20px', left: '120px', zIndex: 1000 }}>
           <div className="flex flex-col gap-2">
             <Button
               onClick={() => addNode('ideation')}
