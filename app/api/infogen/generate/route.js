@@ -53,15 +53,21 @@ const templates = {
 };
 
 export async function POST(request) {
-  try {
-    // Check if required API key is available
-    if (!openai.apiKey) {
-      console.error('OpenAI API key not configured');
-      return NextResponse.json(
-        { error: 'Service configuration error', details: 'OpenAI API key not configured' },
-        { status: 500 }
-      );
-    }
+  // Set timeout for the entire request
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Request timeout after 10 minutes')), 10 * 60 * 1000);
+  });
+
+  const mainProcess = async () => {
+    try {
+      // Check if required API key is available
+      if (!openai.apiKey) {
+        console.error('OpenAI API key not configured');
+        return NextResponse.json(
+          { error: 'Service configuration error', details: 'OpenAI API key not configured' },
+          { status: 500 }
+        );
+      }
 
     const cookieStore = await cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
@@ -126,21 +132,26 @@ Make it professional and engaging for LinkedIn. Mark sections that would benefit
 
     let contentResponse;
     try {
-      contentResponse = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: "You are an expert at creating structured infographic content. Always respond with valid JSON in the exact format requested."
-          },
-          {
-            role: "user",
-            content: structuredPrompt
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 2000,
-      });
+      contentResponse = await Promise.race([
+        openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            {
+              role: "system",
+              content: "You are an expert at creating structured infographic content. Always respond with valid JSON in the exact format requested."
+            },
+            {
+              role: "user",
+              content: structuredPrompt
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 2000,
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('OpenAI content generation timeout')), 60000)
+        )
+      ]);
 
       if (!contentResponse?.choices?.[0]?.message?.content) {
         throw new Error('Failed to generate structured content');
@@ -178,25 +189,36 @@ Make it professional and engaging for LinkedIn. Mark sections that would benefit
       };
     }
 
-    // Step 2: Generate images for content sections that need them
+    // Step 2: Generate images for content sections that need them (with timeout and limit)
     const sectionsWithImages = [];
+    let imageGenerationCount = 0;
+    const maxImages = 3; // Limit to 3 images to prevent timeout
+
     for (const section of infographicData.contentSections) {
-      if (section.needsImage && section.imagePrompt) {
+      if (section.needsImage && section.imagePrompt && imageGenerationCount < maxImages) {
         try {
-          const imageResponse = await openai.images.generate({
-            model: "dall-e-3",
-            prompt: `Simple, clean, professional icon or illustration: ${section.imagePrompt}. Minimal style, white background, suitable for business infographic.`,
-            n: 1,
-            size: "1024x1024",
-            quality: "standard",
-            style: "natural"
-          });
+          console.log(`Generating image ${imageGenerationCount + 1}/${maxImages} for section: ${section.title}`);
+
+          const imageResponse = await Promise.race([
+            openai.images.generate({
+              model: "dall-e-3",
+              prompt: `Simple, clean, professional icon or illustration: ${section.imagePrompt}. Minimal style, white background, suitable for business infographic.`,
+              n: 1,
+              size: "1024x1024",
+              quality: "standard",
+              style: "natural"
+            }),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('DALL-E image generation timeout')), 120000) // 2 minute timeout per image
+            )
+          ]);
 
           if (imageResponse?.data?.[0]?.url) {
             sectionsWithImages.push({
               ...section,
               generatedImageUrl: imageResponse.data[0].url
             });
+            imageGenerationCount++;
           } else {
             sectionsWithImages.push(section);
           }
@@ -233,14 +255,21 @@ Make it professional and engaging for LinkedIn. Mark sections that would benefit
       );
     }
 
-    // Step 4: Generate PNG from HTML using Puppeteer
+    // Step 4: Generate PNG from HTML using Puppeteer (with timeout)
     let imageBuffer;
     try {
-      imageBuffer = await generatePNG(htmlContent, {
-        width: 1080,
-        height: 1080,
-        quality: 'high'
-      });
+      console.log('Starting PNG generation with Puppeteer...');
+      imageBuffer = await Promise.race([
+        generatePNG(htmlContent, {
+          width: 1080,
+          height: 1080,
+          quality: 'high'
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('PNG generation timeout')), 180000) // 3 minute timeout
+        )
+      ]);
+      console.log('PNG generation completed successfully');
     } catch (pngError) {
       console.error('PNG generation failed:', pngError);
       return NextResponse.json(
@@ -276,8 +305,32 @@ Make it professional and engaging for LinkedIn. Mark sections that would benefit
       templateUsed: templateId ? `Template ${templateId}` : 'Custom',
       infographicData,
     });
+    } catch (error) {
+      console.error('Generation error:', error);
+      return NextResponse.json(
+        { error: 'Failed to generate infographic', details: error.message },
+        { status: 500 }
+      );
+    }
+  };
+
+  try {
+    return await Promise.race([mainProcess(), timeoutPromise]);
   } catch (error) {
-    console.error('Generation error:', error);
+    console.error('Request processing error:', error);
+
+    // Ensure we always return valid JSON
+    if (error.message?.includes('timeout')) {
+      return NextResponse.json(
+        {
+          error: 'Request timeout',
+          details: 'The infographic generation is taking too long. Please try again with simpler content or fewer image generations.',
+          suggestion: 'Try reducing the content length or using a template without image generation.'
+        },
+        { status: 504 }
+      );
+    }
+
     return NextResponse.json(
       { error: 'Failed to generate infographic', details: error.message },
       { status: 500 }

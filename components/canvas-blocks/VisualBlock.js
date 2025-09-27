@@ -134,9 +134,21 @@ const VisualBlock = ({ data, id }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
       });
-      
-      const result = await response.json();
-      
+
+      let result;
+      try {
+        const text = await response.text();
+        result = JSON.parse(text);
+      } catch (parseError) {
+        console.error('Failed to parse response as JSON:', parseError);
+        // If response is not JSON, treat it as an error
+        const errorMessage = response.status === 504
+          ? 'Request timeout - the generation is taking too long. Please try again with simpler content.'
+          : `Server error (${response.status}) - please try again`;
+
+        throw new Error(errorMessage);
+      }
+
       if (response.ok) {
         setGeneratedImage(result.imageUrl);
 
@@ -163,13 +175,40 @@ const VisualBlock = ({ data, id }) => {
           description: "Infographic added to session context"
         });
       } else {
-        throw new Error(result.error || 'Failed to generate visual');
+        // Extract error details from API response
+        const errorMessage = result.error || 'Failed to generate visual';
+        const errorDetails = result.details || '';
+        const suggestion = result.suggestion || '';
+
+        let userFriendlyMessage = errorMessage;
+        if (errorDetails.includes('timeout')) {
+          userFriendlyMessage = 'Generation timed out. Try simpler content or fewer details.';
+        } else if (errorDetails.includes('OpenAI') || errorDetails.includes('API')) {
+          userFriendlyMessage = 'AI service temporarily unavailable. Please try again.';
+        } else if (errorDetails.includes('PNG generation')) {
+          userFriendlyMessage = 'Image rendering failed. Please try again.';
+        }
+
+        throw new Error(suggestion ? `${userFriendlyMessage} ${suggestion}` : userFriendlyMessage);
       }
     } catch (error) {
       console.error('Error generating visual:', error);
+
+      // Show user-friendly error messages
+      let toastTitle = "Generation Error";
+      let toastDescription = error.message || "Failed to generate visual";
+
+      if (error.message?.includes('timeout')) {
+        toastTitle = "Request Timeout";
+        toastDescription = "The generation is taking too long. Try reducing content complexity or using a simpler template.";
+      } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+        toastTitle = "Connection Error";
+        toastDescription = "Network connection failed. Please check your internet and try again.";
+      }
+
       toast({
-        title: "Error",
-        description: error.message || "Failed to generate visual",
+        title: toastTitle,
+        description: toastDescription,
         variant: "destructive",
       });
     } finally {
