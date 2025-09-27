@@ -9,6 +9,11 @@ This document lists all environment variables used in the Scriib App and explain
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - The public anonymous key for your Supabase project
 - `SUPABASE_SERVICE_ROLE_KEY` - The service role key for admin operations (required for certain operations)
 
+### AI Service Configuration
+- `OPENAI_API_KEY` - Main OpenAI API key for general operations
+- `OPENAI_COCREATE_API_KEY` - OpenAI API key specifically for CoCreate functionality
+- `OPENAI_INFOGEN_API_KEY` - OpenAI API key specifically for infographic generation (fallback to main key if not set)
+
 ### Site URLs
 - `NEXT_PUBLIC_SITE_URL` - The base URL of your application (e.g. http://localhost:3000 for development or https://your-app.com for production)
   - **IMPORTANT**: Must include the full URL with protocol (http:// or https://)

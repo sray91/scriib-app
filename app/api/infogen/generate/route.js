@@ -6,8 +6,9 @@ import { generatePNG } from '@/lib/infographics/image-generator';
 import { generateInfographicHTML } from '@/lib/infographics/html-generator';
 import { v4 as uuidv4 } from 'uuid';
 
+// Initialize OpenAI client with fallback to main API key
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_INFOGEN_API_KEY,
+  apiKey: process.env.OPENAI_INFOGEN_API_KEY || process.env.OPENAI_API_KEY || process.env.OPENAI_COCREATE_API_KEY,
 });
 
 
@@ -53,6 +54,15 @@ const templates = {
 
 export async function POST(request) {
   try {
+    // Check if required API key is available
+    if (!openai.apiKey) {
+      console.error('OpenAI API key not configured');
+      return NextResponse.json(
+        { error: 'Service configuration error', details: 'OpenAI API key not configured' },
+        { status: 500 }
+      );
+    }
+
     const cookieStore = await cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
 
@@ -114,24 +124,33 @@ IMPORTANT: Structure your content according to the template instructions above. 
 
 Make it professional and engaging for LinkedIn. Mark sections that would benefit from visual illustrations with needsImage: true and provide appropriate imagePrompt for simple, professional icons or illustrations.`;
 
-    const contentResponse = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert at creating structured infographic content. Always respond with valid JSON in the exact format requested."
-        },
-        {
-          role: "user",
-          content: structuredPrompt
-        }
-      ],
-      temperature: 0.7,
-      max_tokens: 2000,
-    });
+    let contentResponse;
+    try {
+      contentResponse = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert at creating structured infographic content. Always respond with valid JSON in the exact format requested."
+          },
+          {
+            role: "user",
+            content: structuredPrompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000,
+      });
 
-    if (!contentResponse?.choices?.[0]?.message?.content) {
-      throw new Error('Failed to generate structured content');
+      if (!contentResponse?.choices?.[0]?.message?.content) {
+        throw new Error('Failed to generate structured content');
+      }
+    } catch (openaiError) {
+      console.error('OpenAI content generation failed:', openaiError);
+      return NextResponse.json(
+        { error: 'Failed to generate infographic', details: `Content generation error: ${openaiError.message}` },
+        { status: 500 }
+      );
     }
 
     let infographicData;
@@ -194,18 +213,41 @@ Make it professional and engaging for LinkedIn. Mark sections that would benefit
     infographicData.contentSections = sectionsWithImages;
 
     // Step 3: Generate HTML using our custom generator
-    const htmlContent = generateInfographicHTML(
-      infographicData,
-      profile,
-      parseInt(templateId) || 1
-    );
+    let htmlContent;
+    try {
+      htmlContent = generateInfographicHTML(
+        infographicData,
+        profile,
+        parseInt(templateId) || 1
+      );
+      
+      // Validate HTML content
+      if (!htmlContent || htmlContent.length < 100) {
+        throw new Error('Generated HTML content is too short or empty');
+      }
+    } catch (htmlError) {
+      console.error('HTML generation failed:', htmlError);
+      return NextResponse.json(
+        { error: 'Failed to generate infographic', details: `HTML generation error: ${htmlError.message}` },
+        { status: 500 }
+      );
+    }
 
     // Step 4: Generate PNG from HTML using Puppeteer
-    const imageBuffer = await generatePNG(htmlContent, {
-      width: 1080,
-      height: 1080,
-      quality: 'high'
-    });
+    let imageBuffer;
+    try {
+      imageBuffer = await generatePNG(htmlContent, {
+        width: 1080,
+        height: 1080,
+        quality: 'high'
+      });
+    } catch (pngError) {
+      console.error('PNG generation failed:', pngError);
+      return NextResponse.json(
+        { error: 'Failed to generate infographic', details: `PNG generation error: ${pngError.message}` },
+        { status: 500 }
+      );
+    }
     // Step 5: Upload to Supabase Storage
     const uniqueId = uuidv4();
     const fileName = `infographic-${uniqueId}.png`;
