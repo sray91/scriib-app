@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { Image as ImageIcon, X, FileImage, Grid3X3, Upload } from 'lucide-react';
+import { Image as ImageIcon, X, FileImage, Grid3X3, Upload, Download } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Image from 'next/image';
 import { NodeResizer, Handle, Position } from 'reactflow';
 import { useCanvasStore } from '@/lib/stores/canvasStore';
@@ -17,6 +18,8 @@ const VisualBlock = ({ data, id }) => {
   const [content, setContent] = useState('');
   const [context, setContext] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportFormat, setExportFormat] = useState('png-hd');
   const { toast } = useToast();
   const { session, updateDynamicContext } = useCanvasStore();
   
@@ -136,7 +139,8 @@ const VisualBlock = ({ data, id }) => {
       
       if (response.ok) {
         setGeneratedImage(result.imageUrl);
-        
+
+
         // Update session context
         updateDynamicContext({
           visuals: [...(session?.dynamicContext?.visuals || []), {
@@ -151,9 +155,9 @@ const VisualBlock = ({ data, id }) => {
             referenceImage: referenceImage
           }]
         });
-        
+
         setStep(3);
-        
+
         toast({
           title: "Visual generated!",
           description: "Infographic added to session context"
@@ -181,6 +185,70 @@ const VisualBlock = ({ data, id }) => {
     setContent('');
     setContext('');
     setGeneratedImage(null);
+  };
+
+
+  const handleExportPNG = async () => {
+    if (!generatedImage) return;
+
+    setIsExporting(true);
+    try {
+      let filename = 'infographic';
+
+      // Determine export parameters based on format
+      switch (exportFormat) {
+        case 'png-hd':
+          filename = 'infographic-hd.png';
+          break;
+        case 'social-all':
+          filename = 'infographic-social';
+          break;
+        case 'instagram':
+          filename = 'infographic-instagram.png';
+          break;
+        case 'linkedin':
+          filename = 'infographic-linkedin.png';
+          break;
+        default:
+          filename = 'infographic.png';
+      }
+
+      if (exportFormat === 'social-all') {
+        // For social media pack, we'll use the direct download approach
+        const downloadUrl = `/api/infographics/export?url=${encodeURIComponent(generatedImage)}&format=social`;
+        window.open(downloadUrl, '_blank');
+
+        toast({
+          title: "Export started!",
+          description: "Your social media pack is being prepared for download"
+        });
+      } else {
+        // For single format exports, download directly
+        const downloadUrl = `/api/infographics/export?url=${encodeURIComponent(generatedImage)}&format=png&quality=high`;
+
+        // Create a temporary link to trigger download
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast({
+          title: "Export successful!",
+          description: `Downloaded as ${filename}`
+        });
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export failed",
+        description: "Failed to export infographic",
+        variant: "destructive"
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
   
   return (
@@ -431,27 +499,60 @@ const VisualBlock = ({ data, id }) => {
                 )}
               </div>
               
-              <div className="flex gap-2">
+              <div className="space-y-3">
+                {/* Export Format Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Export Format
+                  </label>
+                  <Select value={exportFormat} onValueChange={setExportFormat}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="png-hd">PNG High Quality (1080x1080)</SelectItem>
+                      <SelectItem value="instagram">Instagram Square (1080x1080)</SelectItem>
+                      <SelectItem value="linkedin">LinkedIn Post (1200x630)</SelectItem>
+                      <SelectItem value="social-all">Social Media Pack (All Sizes)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Export Button */}
                 <Button
-                  onClick={resetToModeSelection}
-                  variant="outline"
-                  className="flex-1"
+                  onClick={handleExportPNG}
+                  className="w-full"
+                  disabled={!generatedImage || isExporting}
                 >
-                  New Visual
+                  <Download className="h-4 w-4 mr-2" />
+                  {isExporting ? 'Exporting...' : 'Download'}
                 </Button>
-                {generatedImage && (
+
+                {/* Action Buttons */}
+                <div className="flex gap-2">
                   <Button
-                    onClick={() => window.open(generatedImage, '_blank')}
+                    onClick={resetToModeSelection}
+                    variant="outline"
                     className="flex-1"
                   >
-                    Download
+                    New Visual
                   </Button>
-                )}
+                  {generatedImage && (
+                    <Button
+                      onClick={() => window.open(generatedImage, '_blank')}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      View Full Size
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           )}
         </div>
       </div>
+
     </>
   );
 };
