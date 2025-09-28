@@ -1,15 +1,21 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { generatePNG } from '@/lib/infographics/image-generator';
 import { generateInfographicHTML } from '@/lib/infographics/html-generator';
 import { v4 as uuidv4 } from 'uuid';
 
-// Initialize OpenAI client with fallback to main API key
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_INFOGEN_API_KEY || process.env.OPENAI_API_KEY || process.env.OPENAI_COCREATE_API_KEY,
+// Initialize Anthropic client for Claude Sonnet 4
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+// Initialize Google Nano Banana client for image generation
+const nanoBanana = {
+  apiKey: process.env.GOOGLE_NANO_BANANA_API_KEY,
+  baseUrl: process.env.GOOGLE_NANO_BANANA_BASE_URL || 'https://api.google.com/nano-banana/v1'
+};
 
 
 // Template definitions with specific instructions
@@ -60,11 +66,19 @@ export async function POST(request) {
 
   const mainProcess = async () => {
     try {
-      // Check if required API key is available
-      if (!openai.apiKey) {
-        console.error('OpenAI API key not configured');
+      // Check if required API keys are available
+      if (!anthropic.apiKey) {
+        console.error('Anthropic API key not configured');
         return NextResponse.json(
-          { error: 'Service configuration error', details: 'OpenAI API key not configured' },
+          { error: 'Service configuration error', details: 'Anthropic API key not configured' },
+          { status: 500 }
+        );
+      }
+
+      if (!nanoBanana.apiKey) {
+        console.error('Google Nano Banana API key not configured');
+        return NextResponse.json(
+          { error: 'Service configuration error', details: 'Google Nano Banana API key not configured' },
           { status: 500 }
         );
       }
@@ -95,9 +109,8 @@ export async function POST(request) {
     const templateInstructions = selectedTemplate ? selectedTemplate.instructions : 'Create a general professional infographic';
     const templateName = selectedTemplate ? selectedTemplate.name : 'General Layout';
 
-    // Step 1: Generate structured infographic content using GPT-4o with template context
-    const structuredPrompt = `
-Create structured infographic content in the following JSON format:
+    // Step 1: Generate structured infographic content using Claude Sonnet 4 with template context
+    const structuredPrompt = `Create structured infographic content in the following JSON format:
 {
   "header": {
     "number": "5", // if it's a numbered list, otherwise omit
@@ -133,40 +146,37 @@ Make it professional and engaging for LinkedIn. Mark sections that would benefit
     let contentResponse;
     try {
       contentResponse = await Promise.race([
-        openai.chat.completions.create({
-          model: "gpt-4o",
+        anthropic.messages.create({
+          model: "claude-3-sonnet-4-20250514",
+          max_tokens: 2000,
+          temperature: 0.7,
+          system: "You are an expert at creating structured infographic content. Always respond with valid JSON in the exact format requested.",
           messages: [
-            {
-              role: "system",
-              content: "You are an expert at creating structured infographic content. Always respond with valid JSON in the exact format requested."
-            },
             {
               role: "user",
               content: structuredPrompt
             }
-          ],
-          temperature: 0.7,
-          max_tokens: 2000,
+          ]
         }),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('OpenAI content generation timeout')), 60000)
+          setTimeout(() => reject(new Error('Claude content generation timeout')), 60000)
         )
       ]);
 
-      if (!contentResponse?.choices?.[0]?.message?.content) {
+      if (!contentResponse?.content?.[0]?.text) {
         throw new Error('Failed to generate structured content');
       }
-    } catch (openaiError) {
-      console.error('OpenAI content generation failed:', openaiError);
+    } catch (claudeError) {
+      console.error('Claude content generation failed:', claudeError);
       return NextResponse.json(
-        { error: 'Failed to generate infographic', details: `Content generation error: ${openaiError.message}` },
+        { error: 'Failed to generate infographic', details: `Content generation error: ${claudeError.message}` },
         { status: 500 }
       );
     }
 
     let infographicData;
     try {
-      infographicData = JSON.parse(contentResponse.choices[0].message.content);
+      infographicData = JSON.parse(contentResponse.content[0].text);
     } catch (parseError) {
       // Fallback if JSON parsing fails
       infographicData = {
@@ -177,7 +187,7 @@ Make it professional and engaging for LinkedIn. Mark sections that would benefit
         contentSections: [
           {
             title: "Generated Content",
-            content: contentResponse.choices[0].message.content.substring(0, 200)
+            content: contentResponse.content[0].text.substring(0, 200)
           }
         ],
         footer: {
@@ -189,34 +199,42 @@ Make it professional and engaging for LinkedIn. Mark sections that would benefit
       };
     }
 
-    // Step 2: Generate images for content sections that need them (with timeout and limit)
+    // Step 2: Generate images for content sections that need them using Google Nano Banana
     const sectionsWithImages = [];
     let imageGenerationCount = 0;
-    const maxImages = 3; // Limit to 3 images to prevent timeout
 
     for (const section of infographicData.contentSections) {
-      if (section.needsImage && section.imagePrompt && imageGenerationCount < maxImages) {
+      if (section.needsImage && section.imagePrompt) {
         try {
-          console.log(`Generating image ${imageGenerationCount + 1}/${maxImages} for section: ${section.title}`);
+          console.log(`Generating image ${imageGenerationCount + 1} for section: ${section.title}`);
 
           const imageResponse = await Promise.race([
-            openai.images.generate({
-              model: "dall-e-3",
-              prompt: `Simple, clean, professional icon or illustration: ${section.imagePrompt}. Minimal style, white background, suitable for business infographic.`,
-              n: 1,
-              size: "1024x1024",
-              quality: "standard",
-              style: "natural"
+            fetch(`${nanoBanana.baseUrl}/generate`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${nanoBanana.apiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                prompt: `Simple, clean, professional icon or illustration: ${section.imagePrompt}. Minimal style, white background, suitable for business infographic.`,
+                model: "nano-banana-v1",
+                size: "1024x1024",
+                quality: "standard",
+                style: "professional"
+              })
+            }).then(async res => {
+              if (!res.ok) throw new Error(`Google Nano Banana API error: ${res.status}`);
+              return res.json();
             }),
             new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('DALL-E image generation timeout')), 120000) // 2 minute timeout per image
+              setTimeout(() => reject(new Error('Google Nano Banana image generation timeout')), 120000) // 2 minute timeout per image
             )
           ]);
 
-          if (imageResponse?.data?.[0]?.url) {
+          if (imageResponse?.images?.[0]?.url) {
             sectionsWithImages.push({
               ...section,
-              generatedImageUrl: imageResponse.data[0].url
+              generatedImageUrl: imageResponse.images[0].url
             });
             imageGenerationCount++;
           } else {

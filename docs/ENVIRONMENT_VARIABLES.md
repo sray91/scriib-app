@@ -12,7 +12,9 @@ This document lists all environment variables used in the Scriib App and explain
 ### AI Service Configuration
 - `OPENAI_API_KEY` - Main OpenAI API key for general operations
 - `OPENAI_COCREATE_API_KEY` - OpenAI API key specifically for CoCreate functionality
-- `OPENAI_INFOGEN_API_KEY` - OpenAI API key specifically for infographic generation (fallback to main key if not set)
+- `ANTHROPIC_API_KEY` - Anthropic API key for Claude Sonnet 4 (used for infographic generation)
+- `GOOGLE_NANO_BANANA_API_KEY` - Google Nano Banana API key for image generation
+- `GOOGLE_NANO_BANANA_BASE_URL` - Base URL for Google Nano Banana API (defaults to https://api.google.com/nano-banana/v1)
 
 ### Site URLs
 - `NEXT_PUBLIC_SITE_URL` - The base URL of your application (e.g. http://localhost:3000 for development or https://your-app.com for production)
