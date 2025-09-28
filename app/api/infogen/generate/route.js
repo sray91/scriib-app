@@ -147,7 +147,7 @@ Make it professional and engaging for LinkedIn. Mark sections that would benefit
     try {
       contentResponse = await Promise.race([
         anthropic.messages.create({
-          model: "claude-3-sonnet-4-20250514",
+          model: "claude-sonnet-4-20250514",
           max_tokens: 2000,
           temperature: 0.7,
           system: "You are an expert at creating structured infographic content. Always respond with valid JSON in the exact format requested.",
