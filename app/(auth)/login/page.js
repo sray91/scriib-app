@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AlertCircle, Info } from 'lucide-react'
 
 export default function LoginPage() {
@@ -17,6 +18,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetSuccess, setResetSuccess] = useState(false)
+  const [resetError, setResetError] = useState(null)
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
 
   const [isApproverInvite, setIsApproverInvite] = useState(false)
   const [showApproverHelp, setShowApproverHelp] = useState(false)
@@ -62,15 +68,15 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    
+
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
-      
+
       if (error) throw error
-      
+
       // Redirect to the next URL or home page
       router.push(nextUrl)
       router.refresh()
@@ -78,6 +84,34 @@ export default function LoginPage() {
       setError(error.message)
       setLoading(false)
     }
+  }
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault()
+    setResetLoading(true)
+    setResetError(null)
+    setResetSuccess(false)
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
+
+      if (error) throw error
+
+      setResetSuccess(true)
+    } catch (error) {
+      setResetError(error.message)
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
+  const openResetDialog = () => {
+    setResetEmail(email) // Pre-fill with login email if available
+    setResetError(null)
+    setResetSuccess(false)
+    setIsResetDialogOpen(true)
   }
 
 
@@ -121,7 +155,16 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <button
+                  type="button"
+                  onClick={openResetDialog}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
               <Input
                 id="password"
                 type="password"
@@ -144,6 +187,73 @@ export default function LoginPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset your password</DialogTitle>
+            <DialogDescription>
+              Enter your email address and we&apos;ll send you a link to reset your password.
+            </DialogDescription>
+          </DialogHeader>
+
+          {resetSuccess ? (
+            <div className="space-y-4">
+              <Alert className="bg-green-50 border-green-200">
+                <Info className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-700">
+                  Password reset link sent! Check your email for instructions to reset your password.
+                </AlertDescription>
+              </Alert>
+              <Button
+                onClick={() => setIsResetDialogOpen(false)}
+                className="w-full"
+              >
+                Close
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              {resetError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{resetError}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="resetEmail">Email address</Label>
+                <Input
+                  id="resetEmail"
+                  type="email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  required
+                />
+              </div>
+
+              <div className="flex space-x-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsResetDialogOpen(false)}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={resetLoading}
+                  className="flex-1"
+                >
+                  {resetLoading ? 'Sending...' : 'Send reset link'}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
