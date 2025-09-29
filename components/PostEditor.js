@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
-import { FileIcon, Trash2, AlertCircle, Users, Send, Archive, Sparkles, FileText, Eye } from 'lucide-react';
+import { FileIcon, Trash2, AlertCircle, Users, Send, Archive, Sparkles, FileText, Eye, Copy, Check } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Input } from "@/components/ui/input";
@@ -212,6 +212,7 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
     imageName: '',
     imageType: null
   });
+  const [copyButtonState, setCopyButtonState] = useState('idle'); // idle, copying, copied
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -1096,6 +1097,42 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
     }
   }, [approvalComment, setPostData, handleSavePost, setShowApprovalDialog, setApprovalComment, toast]);
 
+  // Handle copying post content to clipboard
+  const handleCopyContent = useCallback(async () => {
+    if (!postData.content.trim()) {
+      toast({
+        title: "Nothing to copy",
+        description: "The post content is empty",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setCopyButtonState('copying');
+      await navigator.clipboard.writeText(postData.content);
+      setCopyButtonState('copied');
+
+      toast({
+        title: "Copied!",
+        description: "Post content copied to clipboard",
+      });
+
+      // Reset button state after 2 seconds
+      setTimeout(() => {
+        setCopyButtonState('idle');
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy content:', error);
+      setCopyButtonState('idle');
+      toast({
+        title: "Copy failed",
+        description: "Failed to copy content to clipboard",
+        variant: "destructive",
+      });
+    }
+  }, [postData.content, toast]);
+
   if (error) {
     return (
       <div className="p-6">
@@ -1297,7 +1334,33 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
       </div>
 
       <div className="w-[400px] p-6 bg-gray-50">
-        <h3 className="text-lg font-semibold mb-4">Preview</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Preview</h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCopyContent}
+            disabled={copyButtonState === 'copying' || !postData.content.trim()}
+            className="flex items-center gap-2 text-sm border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {copyButtonState === 'copied' ? (
+              <>
+                <Check className="h-4 w-4 text-green-600" />
+                Copied!
+              </>
+            ) : copyButtonState === 'copying' ? (
+              <>
+                <Copy className="h-4 w-4 animate-pulse" />
+                Copying...
+              </>
+            ) : (
+              <>
+                <Copy className="h-4 w-4" />
+                Copy
+              </>
+            )}
+          </Button>
+        </div>
         <div className="bg-white rounded-lg p-4 shadow">
           <p className="whitespace-pre-wrap font-serif">{postData.content || 'Your post will appear here...'}</p>
           
