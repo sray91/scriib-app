@@ -11,10 +11,10 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// Initialize Google Nano Banana client for image generation
+// Initialize Google Nano Banana (Gemini Image Generation) client
 const nanoBanana = {
   apiKey: process.env.GOOGLE_NANO_BANANA_API_KEY,
-  baseUrl: process.env.GOOGLE_NANO_BANANA_BASE_URL || 'https://api.google.com/nano-banana/v1'
+  baseUrl: process.env.GOOGLE_NANO_BANANA_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta'
 };
 
 
@@ -110,20 +110,22 @@ export async function POST(request) {
     const templateName = selectedTemplate ? selectedTemplate.name : 'General Layout';
 
     // Step 1: Generate structured infographic content using Claude Sonnet 4 with template context
-    const structuredPrompt = `Create structured infographic content in the following JSON format:
+    const structuredPrompt = `Create structured infographic content in VALID JSON format. Do not include any comments or explanations outside the JSON.
+
+REQUIRED JSON STRUCTURE:
 {
   "header": {
-    "number": "5", // if it's a numbered list, otherwise omit
-    "mainTitle": "APPLICATIONS", // main large title
-    "subtitle": "Of Pharmaceutical Manufacturing Automation" // descriptive subtitle
+    "number": "5",
+    "mainTitle": "APPLICATIONS",
+    "subtitle": "Of Pharmaceutical Manufacturing Automation"
   },
   "contentSections": [
     {
       "title": "Section Title",
       "content": "Brief description",
       "items": ["optional array of bullet points"],
-      "needsImage": true, // set to true if this section would benefit from a visual illustration
-      "imagePrompt": "simple icon or illustration showing [concept]" // only if needsImage is true
+      "needsImage": true,
+      "imagePrompt": "simple icon or illustration showing [concept]"
     }
   ],
   "footer": {
@@ -134,14 +136,22 @@ export async function POST(request) {
   }
 }
 
-Content topic: ${content}
-Context: ${context}
-Template: ${templateName}
-Template Instructions: ${templateInstructions}
+CONTENT REQUIREMENTS:
+- Content topic: ${content}
+- Context: ${context}
+- Template: ${templateName}
+- Template Instructions: ${templateInstructions}
 
-IMPORTANT: Structure your content according to the template instructions above. ${getTemplateSpecificGuidance(templateId)}
+STRUCTURE GUIDANCE: ${getTemplateSpecificGuidance(templateId)}
 
-Make it professional and engaging for LinkedIn. Mark sections that would benefit from visual illustrations with needsImage: true and provide appropriate imagePrompt for simple, professional icons or illustrations.`;
+RULES:
+1. Return ONLY valid JSON - no comments, no explanations
+2. Include "number" field only if it's a numbered list template
+3. Set needsImage to true for sections that would benefit from visual illustrations
+4. Make content professional and engaging for LinkedIn
+5. Follow the template instructions precisely
+
+Respond with valid JSON only:`;
 
     let contentResponse;
     try {
@@ -150,7 +160,7 @@ Make it professional and engaging for LinkedIn. Mark sections that would benefit
           model: "claude-sonnet-4-20250514",
           max_tokens: 2000,
           temperature: 0.7,
-          system: "You are an expert at creating structured infographic content. Always respond with valid JSON in the exact format requested.",
+          system: "You are an expert at creating structured infographic content. You MUST respond with valid JSON only - no comments, no explanations, no markdown formatting. Return raw JSON that can be parsed directly.",
           messages: [
             {
               role: "user",
@@ -178,16 +188,20 @@ Make it professional and engaging for LinkedIn. Mark sections that would benefit
     try {
       infographicData = JSON.parse(contentResponse.content[0].text);
     } catch (parseError) {
-      // Fallback if JSON parsing fails
+      console.error('JSON parsing failed:', parseError);
+      console.log('Raw Claude response:', contentResponse.content[0].text);
+
+      // Improved fallback if JSON parsing fails
       infographicData = {
         header: {
-          mainTitle: "INSIGHTS",
-          subtitle: content.substring(0, 50) + "..."
+          mainTitle: "CONTENT OVERVIEW",
+          subtitle: "Generated insights and information"
         },
         contentSections: [
           {
-            title: "Generated Content",
-            content: contentResponse.content[0].text.substring(0, 200)
+            title: "Key Information",
+            content: content.substring(0, 300) + (content.length > 300 ? '...' : ''),
+            items: []
           }
         ],
         footer: {
@@ -203,27 +217,41 @@ Make it professional and engaging for LinkedIn. Mark sections that would benefit
     const sectionsWithImages = [];
     let imageGenerationCount = 0;
 
+    console.log('=== IMAGE GENERATION DEBUG ===');
+    console.log('Total sections:', infographicData.contentSections.length);
+    infographicData.contentSections.forEach((section, index) => {
+      console.log(`Section ${index + 1}:`, {
+        title: section.title,
+        needsImage: section.needsImage,
+        hasImagePrompt: !!section.imagePrompt,
+        imagePrompt: section.imagePrompt
+      });
+    });
+
     for (const section of infographicData.contentSections) {
       if (section.needsImage && section.imagePrompt) {
         try {
           console.log(`Generating image ${imageGenerationCount + 1} for section: ${section.title}`);
 
           const imageResponse = await Promise.race([
-            fetch(`${nanoBanana.baseUrl}/generate`, {
+            fetch(`${nanoBanana.baseUrl}/models/gemini-2.5-flash-image-preview:generateContent`, {
               method: 'POST',
               headers: {
-                'Authorization': `Bearer ${nanoBanana.apiKey}`,
+                'x-goog-api-key': nanoBanana.apiKey,
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                prompt: `Simple, clean, professional icon or illustration: ${section.imagePrompt}. Minimal style, white background, suitable for business infographic.`,
-                model: "nano-banana-v1",
-                size: "1024x1024",
-                quality: "standard",
-                style: "professional"
+                contents: [{
+                  parts: [{
+                    text: `Create a simple, clean, professional icon or illustration: ${section.imagePrompt}. Minimal style, white background, suitable for business infographic. No text or words in the image.`
+                  }]
+                }]
               })
             }).then(async res => {
-              if (!res.ok) throw new Error(`Google Nano Banana API error: ${res.status}`);
+              if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(`Google Gemini API error: ${res.status} - ${errorText}`);
+              }
               return res.json();
             }),
             new Promise((_, reject) =>
@@ -231,17 +259,27 @@ Make it professional and engaging for LinkedIn. Mark sections that would benefit
             )
           ]);
 
-          if (imageResponse?.images?.[0]?.url) {
+          if (imageResponse?.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data) {
+            // Convert base64 data to a data URL
+            const base64Data = imageResponse.candidates[0].content.parts[0].inline_data.data;
+            const mimeType = imageResponse.candidates[0].content.parts[0].inline_data.mime_type || 'image/png';
+            const dataUrl = `data:${mimeType};base64,${base64Data}`;
+
             sectionsWithImages.push({
               ...section,
-              generatedImageUrl: imageResponse.images[0].url
+              generatedImageUrl: dataUrl
             });
             imageGenerationCount++;
+            console.log(`Successfully generated image for section: ${section.title}`);
           } else {
+            console.log(`No image data received for section: ${section.title}`);
             sectionsWithImages.push(section);
           }
         } catch (imageError) {
-          console.error('Failed to generate image for section:', section.title, imageError);
+          console.error('Failed to generate image for section:', section.title);
+          console.error('Nano Banana API Error:', imageError.message);
+          console.error('API Key available:', !!nanoBanana.apiKey);
+          console.error('Base URL:', nanoBanana.baseUrl);
           sectionsWithImages.push(section); // Continue without image
         }
       } else {
@@ -318,7 +356,6 @@ Make it professional and engaging for LinkedIn. Mark sections that would benefit
 
     return NextResponse.json({
       success: true,
-      generatedContent: JSON.stringify(infographicData),
       imageUrl: publicUrl,
       templateUsed: templateId ? `Template ${templateId}` : 'Custom',
       infographicData,
