@@ -5,31 +5,33 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
-import { FileIcon, Trash2, AlertCircle, Users, Send, Archive, Sparkles, FileText } from 'lucide-react';
+import { FileIcon, Trash2, AlertCircle, Users, Send, Archive, Sparkles, FileText, Eye } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Input } from "@/components/ui/input";
 
 import { Alert, AlertDescription } from '@/components/ui/alert.js';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import ImagePreviewDialog from "@/components/ui/image-preview-dialog";
 
 const supabase = createClientComponentClient();
 
 // Media preview component
-function MediaPreview({ file, index, onRemove }) {
+function MediaPreview({ file, index, onRemove, onPreview }) {
   // For blob URLs, we need to use regular img tag/video tag
   const isBlobUrl = file.url?.startsWith('blob:');
-  
+
   if (file.type?.startsWith('image/')) {
     return (
-      <div className="relative h-[200px] w-full">
+      <div className="relative h-[200px] w-full group">
         {isBlobUrl ? (
           // Use regular img tag for blob URLs
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={file.url}
             alt="Preview"
-            className="rounded-lg object-cover w-full h-full"
+            className="rounded-lg object-cover w-full h-full cursor-pointer"
+            onClick={() => onPreview && onPreview(file)}
           />
         ) : (
           // Use Next.js Image for remote URLs
@@ -37,10 +39,25 @@ function MediaPreview({ file, index, onRemove }) {
             src={file.url}
             alt="Preview"
             fill
-            className="rounded-lg object-cover"
+            className="rounded-lg object-cover cursor-pointer"
             unoptimized={isBlobUrl}
+            onClick={() => onPreview && onPreview(file)}
           />
         )}
+        {/* Preview button overlay */}
+        <div
+          className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center cursor-pointer"
+          onClick={() => onPreview && onPreview(file)}
+        >
+          <Button
+            variant="secondary"
+            size="sm"
+            className="bg-white/20 backdrop-blur-sm border-white/30 text-white hover:bg-white/30"
+          >
+            <Eye className="h-4 w-4 mr-1" />
+            Preview
+          </Button>
+        </div>
         <button
           onClick={() => onRemove(index)}
           className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 z-10"
@@ -55,15 +72,29 @@ function MediaPreview({ file, index, onRemove }) {
   
   if (file.type?.startsWith('video/')) {
     return (
-      <div className="relative h-[200px] w-full bg-black rounded-lg overflow-hidden">
+      <div className="relative h-[200px] w-full bg-black rounded-lg overflow-hidden group">
         <video
           src={file.url}
-          className="rounded-lg object-contain w-full h-full"
-          controls
+          className="rounded-lg object-contain w-full h-full cursor-pointer"
           preload="metadata"
+          onClick={() => onPreview && onPreview(file)}
         >
           Your browser does not support the video tag.
         </video>
+        {/* Preview button overlay */}
+        <div
+          className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center cursor-pointer"
+          onClick={() => onPreview && onPreview(file)}
+        >
+          <Button
+            variant="secondary"
+            size="sm"
+            className="bg-white/20 backdrop-blur-sm border-white/30 text-white hover:bg-white/30"
+          >
+            <Eye className="h-4 w-4 mr-1" />
+            Preview
+          </Button>
+        </div>
         <button
           onClick={() => onRemove(index)}
           className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 z-10"
@@ -79,7 +110,7 @@ function MediaPreview({ file, index, onRemove }) {
   // PDF file preview
   if (file.type === 'application/pdf' || file.path?.toLowerCase().endsWith('.pdf')) {
     return (
-      <div className="relative p-4 border rounded-lg bg-red-50 border-red-200">
+      <div className="relative p-4 border rounded-lg bg-red-50 border-red-200 group cursor-pointer" onClick={() => onPreview && onPreview(file)}>
         <div className="flex items-center gap-3">
           <FileText className="h-8 w-8 text-red-600" />
           <div className="flex-1 min-w-0">
@@ -90,6 +121,18 @@ function MediaPreview({ file, index, onRemove }) {
               PDF Document
             </p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 border-red-300 text-red-600 hover:bg-red-50"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPreview && onPreview(file);
+            }}
+          >
+            <Eye className="h-4 w-4 mr-1" />
+            Preview
+          </Button>
         </div>
         {file.url && (
           <div className="mt-2">
@@ -98,13 +141,17 @@ function MediaPreview({ file, index, onRemove }) {
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-red-700 hover:text-red-800 underline"
+              onClick={(e) => e.stopPropagation()}
             >
-              View PDF
+              Open in new tab
             </a>
           </div>
         )}
         <button
-          onClick={() => onRemove(index)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove(index);
+          }}
           className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
           aria-label="Remove PDF"
           type="button"
@@ -159,6 +206,12 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
   const [approvalComment, setApprovalComment] = useState('');
   const [uploadProgress, setUploadProgress] = useState({});
   const [isUploading, setIsUploading] = useState(false);
+  const [previewDialog, setPreviewDialog] = useState({
+    isOpen: false,
+    imageUrl: null,
+    imageName: '',
+    imageType: null
+  });
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -513,6 +566,15 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
         ...prev,
         mediaFiles: updatedMediaFiles
       };
+    });
+  }, []);
+
+  const handlePreviewMedia = useCallback((file) => {
+    setPreviewDialog({
+      isOpen: true,
+      imageUrl: file.url,
+      imageName: file.file?.name || file.path || 'Media File',
+      imageType: file.type
     });
   }, []);
 
@@ -1242,11 +1304,12 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
           {postData.mediaFiles && postData.mediaFiles.length > 0 && (
             <div className="mt-4 grid grid-cols-2 gap-2">
               {postData.mediaFiles.map((file, index) => (
-                <MediaPreview 
-                  key={index} 
-                  file={file} 
-                  index={index} 
-                  onRemove={handleRemoveMedia} 
+                <MediaPreview
+                  key={index}
+                  file={file}
+                  index={index}
+                  onRemove={handleRemoveMedia}
+                  onPreview={handlePreviewMedia}
                 />
               ))}
             </div>
@@ -1297,13 +1360,12 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
                 {postData.mediaFiles && postData.mediaFiles.length > 0 && (
                   <div className="grid grid-cols-2 gap-3 mt-4">
                     {postData.mediaFiles.map((file, index) => (
-                      <div key={index} className="relative h-[200px] w-full">
+                      <div key={index} className="relative h-[200px] w-full group cursor-pointer" onClick={() => handlePreviewMedia(file)}>
                         {file.type?.startsWith('video/') ? (
                           <div className="bg-black rounded-lg w-full h-full flex items-center justify-center">
                             <video
                               src={file.url}
                               className="rounded-lg object-contain max-w-full max-h-full"
-                              controls
                               preload="metadata"
                             >
                               Your browser does not support the video tag.
@@ -1317,6 +1379,17 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
                             className="rounded-lg object-cover"
                           />
                         )}
+                        {/* Preview overlay for approval dialog */}
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="bg-white/20 backdrop-blur-sm border-white/30 text-white hover:bg-white/30"
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            Preview
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1386,6 +1459,15 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Image Preview Dialog */}
+      <ImagePreviewDialog
+        isOpen={previewDialog.isOpen}
+        onOpenChange={(open) => setPreviewDialog(prev => ({ ...prev, isOpen: open }))}
+        imageUrl={previewDialog.imageUrl}
+        imageName={previewDialog.imageName}
+        imageType={previewDialog.imageType}
+      />
     </div>
   );
 } 
