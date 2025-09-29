@@ -59,9 +59,9 @@ const templates = {
 };
 
 export async function POST(request) {
-  // Set timeout for the entire request
+  // Set timeout for the entire request - reduced to 5 minutes
   const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Request timeout after 10 minutes')), 10 * 60 * 1000);
+    setTimeout(() => reject(new Error('Request timeout after 5 minutes')), 5 * 60 * 1000);
   });
 
   const mainProcess = async () => {
@@ -169,7 +169,7 @@ Respond with valid JSON only:`;
           ]
         }),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Claude content generation timeout')), 60000)
+          setTimeout(() => reject(new Error('Claude content generation timeout')), 30000)
         )
       ]);
 
@@ -213,10 +213,7 @@ Respond with valid JSON only:`;
       };
     }
 
-    // Step 2: Generate images for content sections that need them using Google Nano Banana
-    const sectionsWithImages = [];
-    let imageGenerationCount = 0;
-
+    // Step 2: Generate images for content sections that need them using Google Nano Banana (in parallel)
     console.log('=== IMAGE GENERATION DEBUG ===');
     console.log('Total sections:', infographicData.contentSections.length);
     infographicData.contentSections.forEach((section, index) => {
@@ -228,10 +225,18 @@ Respond with valid JSON only:`;
       });
     });
 
-    for (const section of infographicData.contentSections) {
-      if (section.needsImage && section.imagePrompt) {
+    // Limit the number of images to prevent excessive API calls and timeouts
+    const MAX_IMAGES = 4;
+    const sectionsNeedingImages = infographicData.contentSections.filter(section => section.needsImage && section.imagePrompt);
+    console.log(`Found ${sectionsNeedingImages.length} sections needing images, limiting to ${MAX_IMAGES}`);
+
+    // Generate all images in parallel to reduce total time
+    let imageCount = 0;
+    const imagePromises = infographicData.contentSections.map(async (section, index) => {
+      if (section.needsImage && section.imagePrompt && imageCount < MAX_IMAGES) {
+        imageCount++;
         try {
-          console.log(`Generating image ${imageGenerationCount + 1} for section: ${section.title}`);
+          console.log(`Generating image ${index + 1} for section: ${section.title}`);
 
           const imageResponse = await Promise.race([
             fetch(`${nanoBanana.baseUrl}/models/gemini-2.5-flash-image-preview:generateContent`, {
@@ -255,60 +260,41 @@ Respond with valid JSON only:`;
               return res.json();
             }),
             new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Google Nano Banana image generation timeout')), 120000) // 2 minute timeout per image
+              setTimeout(() => reject(new Error('Google Nano Banana image generation timeout')), 60000) // Reduced to 1 minute per image
             )
           ]);
-
-          // Log the full response to debug
-          console.log('Gemini API Response for', section.title, ':', JSON.stringify(imageResponse, null, 2));
 
           // Check for image in the response
           const candidate = imageResponse?.candidates?.[0];
           const parts = candidate?.content?.parts;
-
-          // Find the part that contains image data
           const imagePart = parts?.find(part => part.inlineData?.data);
 
           if (imagePart?.inlineData?.data) {
-            // Convert base64 data to a data URL
             const base64Data = imagePart.inlineData.data;
             const mimeType = imagePart.inlineData.mimeType || 'image/png';
             const dataUrl = `data:${mimeType};base64,${base64Data}`;
 
-            sectionsWithImages.push({
+            console.log(`Successfully generated image for section: ${section.title}`);
+            return {
               ...section,
               generatedImageUrl: dataUrl
-            });
-            imageGenerationCount++;
-            console.log(`Successfully generated image for section: ${section.title}`);
+            };
           } else {
             console.log(`No image data received for section: ${section.title}`);
-            console.log('Response structure:', Object.keys(imageResponse || {}));
-            if (candidate) {
-              console.log('Candidate structure:', Object.keys(candidate));
-              if (candidate.content) {
-                console.log('Content structure:', Object.keys(candidate.content));
-                if (parts) {
-                  console.log('Parts count:', parts.length);
-                  parts.forEach((part, index) => {
-                    console.log(`Part ${index}:`, Object.keys(part));
-                  });
-                }
-              }
-            }
-            sectionsWithImages.push(section);
+            return section;
           }
         } catch (imageError) {
           console.error('Failed to generate image for section:', section.title);
           console.error('Nano Banana API Error:', imageError.message);
-          console.error('API Key available:', !!nanoBanana.apiKey);
-          console.error('Base URL:', nanoBanana.baseUrl);
-          sectionsWithImages.push(section); // Continue without image
+          return section; // Continue without image
         }
       } else {
-        sectionsWithImages.push(section);
+        return section;
       }
-    }
+    });
+
+    // Wait for all image generations to complete (or fail)
+    const sectionsWithImages = await Promise.all(imagePromises);
 
     // Update infographic data with generated images
     infographicData.contentSections = sectionsWithImages;
@@ -345,7 +331,7 @@ Respond with valid JSON only:`;
           quality: 'high'
         }),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('PNG generation timeout')), 180000) // 3 minute timeout
+          setTimeout(() => reject(new Error('PNG generation timeout')), 90000) // Reduced to 90 seconds
         )
       ]);
       console.log('PNG generation completed successfully');
@@ -401,9 +387,9 @@ Respond with valid JSON only:`;
     if (error.message?.includes('timeout')) {
       return NextResponse.json(
         {
-          error: 'Request timeout',
-          details: 'The infographic generation is taking too long. Please try again with simpler content or fewer image generations.',
-          suggestion: 'Try reducing the content length or using a template without image generation.'
+          error: 'Request timeout - the generation is taking too long. Please try again with simpler content.',
+          details: 'The request exceeded the maximum processing time. Try using shorter content or a simpler template.',
+          suggestion: 'Reduce content length, avoid complex templates, or try again in a few minutes.'
         },
         { status: 504 }
       );
