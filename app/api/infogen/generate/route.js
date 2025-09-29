@@ -259,10 +259,20 @@ Respond with valid JSON only:`;
             )
           ]);
 
-          if (imageResponse?.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data) {
+          // Log the full response to debug
+          console.log('Gemini API Response for', section.title, ':', JSON.stringify(imageResponse, null, 2));
+
+          // Check for image in the response
+          const candidate = imageResponse?.candidates?.[0];
+          const parts = candidate?.content?.parts;
+
+          // Find the part that contains image data
+          const imagePart = parts?.find(part => part.inlineData?.data);
+
+          if (imagePart?.inlineData?.data) {
             // Convert base64 data to a data URL
-            const base64Data = imageResponse.candidates[0].content.parts[0].inline_data.data;
-            const mimeType = imageResponse.candidates[0].content.parts[0].inline_data.mime_type || 'image/png';
+            const base64Data = imagePart.inlineData.data;
+            const mimeType = imagePart.inlineData.mimeType || 'image/png';
             const dataUrl = `data:${mimeType};base64,${base64Data}`;
 
             sectionsWithImages.push({
@@ -273,6 +283,19 @@ Respond with valid JSON only:`;
             console.log(`Successfully generated image for section: ${section.title}`);
           } else {
             console.log(`No image data received for section: ${section.title}`);
+            console.log('Response structure:', Object.keys(imageResponse || {}));
+            if (candidate) {
+              console.log('Candidate structure:', Object.keys(candidate));
+              if (candidate.content) {
+                console.log('Content structure:', Object.keys(candidate.content));
+                if (parts) {
+                  console.log('Parts count:', parts.length);
+                  parts.forEach((part, index) => {
+                    console.log(`Part ${index}:`, Object.keys(part));
+                  });
+                }
+              }
+            }
             sectionsWithImages.push(section);
           }
         } catch (imageError) {
