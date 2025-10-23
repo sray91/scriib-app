@@ -1,0 +1,267 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { useToast } from '@/components/ui/use-toast'
+import { Loader2, RefreshCw, Search, User, Briefcase, Mail, Linkedin } from 'lucide-react'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+
+export default function CRMPage() {
+  const [contacts, setContacts] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [scraping, setScraping] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const supabase = createClientComponentClient()
+  const { toast } = useToast()
+
+  // Fetch contacts from database
+  const fetchContacts = useCallback(async () => {
+    setLoading(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data, error } = await supabase
+        .from('crm_contacts')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setContacts(data || [])
+    } catch (error) {
+      console.error('Error fetching contacts:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to load contacts',
+        variant: 'destructive'
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [supabase, toast])
+
+  useEffect(() => {
+    fetchContacts()
+  }, [fetchContacts])
+
+  // Handle populate button click - triggers Apify scraping
+  const handlePopulate = async () => {
+    setScraping(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast({
+          title: 'Error',
+          description: 'You must be logged in to populate CRM',
+          variant: 'destructive'
+        })
+        return
+      }
+
+      // Get user's LinkedIn profile URL from their profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('linkedin_url')
+        .eq('id', user.id)
+        .single()
+
+      if (!profile?.linkedin_url) {
+        toast({
+          title: 'LinkedIn URL Required',
+          description: 'Please add your LinkedIn profile URL in Settings > Profile',
+          variant: 'destructive'
+        })
+        setScraping(false)
+        return
+      }
+
+      toast({
+        title: 'Starting LinkedIn Scrape',
+        description: 'Fetching your recent posts and engagement data...',
+      })
+
+      // Call API route to trigger Apify scraping
+      const response = await fetch('/api/crm/scrape-linkedin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          linkedinUrl: profile.linkedin_url,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to scrape LinkedIn data')
+      }
+
+      toast({
+        title: 'Success!',
+        description: `Added ${result.contactsAdded || 0} new contacts to your CRM`,
+      })
+
+      // Refresh contacts list
+      await fetchContacts()
+    } catch (error) {
+      console.error('Error populating CRM:', error)
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to populate CRM',
+        variant: 'destructive'
+      })
+    } finally {
+      setScraping(false)
+    }
+  }
+
+  // Filter contacts based on search
+  const filteredContacts = contacts.filter(contact => {
+    if (!searchTerm) return true
+    const search = searchTerm.toLowerCase()
+    return (
+      contact.name?.toLowerCase().includes(search) ||
+      contact.job_title?.toLowerCase().includes(search) ||
+      contact.company?.toLowerCase().includes(search) ||
+      contact.email?.toLowerCase().includes(search)
+    )
+  })
+
+  return (
+    <div className="container py-8 max-w-7xl">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">CRM</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage your LinkedIn engagement contacts
+          </p>
+        </div>
+        <Button
+          onClick={handlePopulate}
+          disabled={scraping}
+          size="lg"
+        >
+          {scraping ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Scraping LinkedIn...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Populate from LinkedIn
+            </>
+          )}
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Contacts</CardTitle>
+          <div className="flex items-center gap-4 pt-4">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search contacts..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {filteredContacts.length} contact{filteredContacts.length !== 1 ? 's' : ''}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredContacts.length === 0 ? (
+            <div className="text-center py-12">
+              <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-lg font-medium mb-1">No contacts yet</p>
+              <p className="text-sm text-muted-foreground mb-4">
+                Click &quot;Populate from LinkedIn&quot; to import contacts from your post engagements
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Job Title</TableHead>
+                    <TableHead>Company</TableHead>
+                    <TableHead>Engagement Type</TableHead>
+                    <TableHead>Source Post</TableHead>
+                    <TableHead>Profile</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredContacts.map((contact) => (
+                    <TableRow key={contact.id}>
+                      <TableCell className="font-medium">
+                        {contact.name || 'Unknown'}
+                      </TableCell>
+                      <TableCell>{contact.job_title || '-'}</TableCell>
+                      <TableCell>{contact.company || '-'}</TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          contact.engagement_type === 'like'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-green-100 text-green-700'
+                        }`}>
+                          {contact.engagement_type || 'unknown'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {contact.post_url ? (
+                          <a
+                            href={contact.post_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline"
+                          >
+                            View post
+                          </a>
+                        ) : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {contact.profile_url ? (
+                          <a
+                            href={contact.profile_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Button variant="ghost" size="sm">
+                              <Linkedin className="h-4 w-4" />
+                            </Button>
+                          </a>
+                        ) : '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
