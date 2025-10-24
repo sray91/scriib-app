@@ -121,7 +121,13 @@ export async function POST(request) {
     const profileDetails = profileDetailsData[0]
     const currentPosition = profileDetails.experience?.[0] || {}
     const jobTitle = currentPosition.title || profileDetails.headline || null
-    const company = currentPosition.companyName || null
+
+    // Try different possible field names for company
+    const company = currentPosition.companyName ||
+                    currentPosition.company ||
+                    currentPosition.companyProfileName ||
+                    currentPosition.company_name ||
+                    null
 
     // Update contact in database
     const { data: updatedContact, error: updateError } = await supabase
