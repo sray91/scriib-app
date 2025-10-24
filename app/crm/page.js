@@ -108,7 +108,7 @@ export default function CRMPage() {
 
       toast({
         title: 'Success!',
-        description: `Added ${result.contactsAdded || 0} new contacts to your CRM`,
+        description: `Added ${result.contactsAdded || 0} contacts and enriched ${result.profilesEnriched || 0} profiles with detailed job info`,
       })
 
       // Refresh contacts list

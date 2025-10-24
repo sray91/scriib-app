@@ -386,10 +386,144 @@ export async function POST(request) {
       contactsAdded = allContacts.length
     }
 
+    // Step 3: Enrich profiles with detailed job title and company information
+    console.log('\n==========================================')
+    console.log('Step 3: Enriching profile details...')
+    console.log('==========================================')
+
+    const profileDetailsActorId = 'VhxlqQXRwhW8H5hNV'
+    let profilesEnriched = 0
+
+    // Get unique profile URLs that need enrichment
+    const uniqueProfileUrls = [...new Set(allContacts.map(c => c.profile_url))]
+      .filter(url => url && !url.includes('/unknown/')) // Skip placeholder URLs
+
+    console.log(`Found ${uniqueProfileUrls.length} unique profiles to enrich`)
+
+    // Limit to 10 profiles per run to avoid excessive API usage
+    const profilesToEnrich = uniqueProfileUrls.slice(0, 10)
+    console.log(`Enriching first ${profilesToEnrich.length} profiles`)
+
+    for (const profileUrl of profilesToEnrich) {
+      try {
+        // Extract username from profile URL
+        // Format: https://www.linkedin.com/in/ACoAABhlDWUBbpS-HfKBXX3T-GUXeeFhyKf4hug
+        // or: https://www.linkedin.com/in/username
+        const usernameMatch = profileUrl.match(/\/in\/([^\/?\s]+)/)
+        if (!usernameMatch) {
+          console.log(`Skipping invalid profile URL: ${profileUrl}`)
+          continue
+        }
+        const profileUsername = usernameMatch[1]
+
+        console.log(`\nEnriching profile: ${profileUsername}`)
+
+        const profileDetailsInput = {
+          username: profileUsername,
+          includeEmail: false
+        }
+
+        // Call Apify actor
+        const profileDetailsRunResponse = await fetch(
+          `https://api.apify.com/v2/acts/${profileDetailsActorId}/runs?token=${apifyToken}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(profileDetailsInput),
+          }
+        )
+
+        if (!profileDetailsRunResponse.ok) {
+          const errorData = await profileDetailsRunResponse.json()
+          console.error(`Failed to start profile details scraper for ${profileUsername}:`, errorData.error?.message || profileDetailsRunResponse.statusText)
+          continue
+        }
+
+        const profileDetailsRun = await profileDetailsRunResponse.json()
+        const profileDetailsRunId = profileDetailsRun.data.id
+
+        // Wait for profile details scraper to complete
+        let profileDetailsCompleted = false
+        let profileDetailsDatasetId = null
+        let profileAttempts = 0
+        const maxProfileAttempts = 30 // 2.5 minutes max per profile
+
+        while (!profileDetailsCompleted && profileAttempts < maxProfileAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 5000))
+
+          const statusResponse = await fetch(
+            `https://api.apify.com/v2/actor-runs/${profileDetailsRunId}?token=${apifyToken}`
+          )
+          const statusData = await statusResponse.json()
+
+          if (statusData.data.status === 'SUCCEEDED') {
+            profileDetailsCompleted = true
+            profileDetailsDatasetId = statusData.data.defaultDatasetId
+          } else if (statusData.data.status === 'FAILED') {
+            console.error(`Profile details scraper failed for ${profileUsername}`)
+            break
+          }
+
+          profileAttempts++
+        }
+
+        if (!profileDetailsDatasetId) {
+          console.error(`Timeout waiting for profile details scraper for ${profileUsername}`)
+          continue
+        }
+
+        // Get the profile details data
+        const profileDetailsDataResponse = await fetch(
+          `https://api.apify.com/v2/datasets/${profileDetailsDatasetId}/items?token=${apifyToken}`
+        )
+        const profileDetailsData = await profileDetailsDataResponse.json()
+
+        if (profileDetailsData.length > 0) {
+          const profileDetails = profileDetailsData[0]
+          console.log('Profile details received:', JSON.stringify(profileDetails, null, 2).substring(0, 500))
+
+          // Extract job title and company from the profile details
+          // The actor returns experience array with positions
+          const currentPosition = profileDetails.experience?.[0] || {}
+          const jobTitle = currentPosition.title || profileDetails.headline || null
+          const company = currentPosition.companyName || null
+
+          if (jobTitle || company) {
+            // Update the contact in the database
+            const { error: updateError } = await supabase
+              .from('crm_contacts')
+              .update({
+                job_title: jobTitle,
+                company: company,
+                updated_at: new Date().toISOString()
+              })
+              .eq('user_id', user.id)
+              .eq('profile_url', profileUrl)
+
+            if (updateError) {
+              console.error(`Error updating profile ${profileUsername}:`, updateError)
+            } else {
+              profilesEnriched++
+              console.log(`✓ Enriched ${profileUsername}: ${jobTitle} at ${company}`)
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`Error enriching profile ${profileUrl}:`, error.message)
+        // Continue with next profile
+      }
+    }
+
+    console.log(`\nProfile enrichment complete: ${profilesEnriched}/${profilesToEnrich.length} profiles updated`)
+    console.log('==========================================')
+
     return NextResponse.json({
       success: true,
       contactsAdded,
       postsScraped: postsData.length,
+      profilesEnriched,
     })
 
   } catch (error) {
