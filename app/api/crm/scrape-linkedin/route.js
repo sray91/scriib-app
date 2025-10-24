@@ -88,10 +88,36 @@ export async function POST(request) {
       )
     }
 
+    // Extract username from LinkedIn URL
+    // Format: https://linkedin.com/in/swanaganray -> swanaganray
+    const usernameMatch = linkedinUrl.match(/linkedin\.com\/in\/([^\/?\s]+)/)
+    if (!usernameMatch) {
+      return NextResponse.json(
+        { error: 'Could not extract username from LinkedIn URL: ' + linkedinUrl },
+        { status: 400 }
+      )
+    }
+    const username = usernameMatch[1]
+
+    console.log('==========================================')
     console.log('Step 1: Scraping LinkedIn profile posts...')
+    console.log('Using actor ID:', 'LQQIXN9Othf8f7R5n')
+    console.log('TARGET LinkedIn Profile URL:', linkedinUrl)
+    console.log('Extracted username:', username)
+    console.log('User ID:', user.id)
+    console.log('User Email:', user.email)
+    console.log('==========================================')
 
     // Step 1: Get last 5 post URLs using LinkedIn Profile Posts Scraper
-    const postsActorId = 'curious_coder/linkedin-post-search-scraper'
+    const postsActorId = 'LQQIXN9Othf8f7R5n'
+    const postsInput = {
+      username: username,
+      page_number: 1,
+      limit: 5
+    }
+    console.log('Actor input:', JSON.stringify(postsInput, null, 2))
+
+    // Call the Apify actor
     const postsRunResponse = await fetch(
       `https://api.apify.com/v2/acts/${postsActorId}/runs?token=${apifyToken}`,
       {
@@ -99,15 +125,16 @@ export async function POST(request) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          profileUrl: linkedinUrl,
-          maxPosts: 5,
-        }),
+        body: JSON.stringify(postsInput),
       }
     )
 
+    console.log('Apify response status:', postsRunResponse.status)
+
     if (!postsRunResponse.ok) {
-      throw new Error('Failed to start LinkedIn posts scraper')
+      const errorData = await postsRunResponse.json()
+      console.error('Apify error response:', JSON.stringify(errorData, null, 2))
+      throw new Error(`Failed to start LinkedIn posts scraper: ${errorData.error?.message || postsRunResponse.statusText}`)
     }
 
     const postsRun = await postsRunResponse.json()
@@ -145,90 +172,195 @@ export async function POST(request) {
     const postsDataResponse = await fetch(
       `https://api.apify.com/v2/datasets/${postsDatasetId}/items?token=${apifyToken}`
     )
-    const postsData = await postsDataResponse.json()
+    const postsDataRaw = await postsDataResponse.json()
+
+    console.log('==========================================')
+    console.log('RAW ACTOR RESPONSE:')
+    console.log('Response type:', typeof postsDataRaw)
+    console.log('Is array:', Array.isArray(postsDataRaw))
+    console.log('Length:', postsDataRaw?.length)
+    console.log('First item keys:', postsDataRaw?.[0] ? Object.keys(postsDataRaw[0]) : 'N/A')
+    console.log('Full raw data (first 2000 chars):', JSON.stringify(postsDataRaw, null, 2).substring(0, 2000))
+    console.log('==========================================')
+
+    // The new actor (LQQIXN9Othf8f7R5n) returns an array of post objects directly
+    let postsData = []
+    if (Array.isArray(postsDataRaw) && postsDataRaw.length > 0) {
+      postsData = postsDataRaw
+      console.log('✓ Using postsDataRaw directly as array of posts')
+    } else if (postsDataRaw.length > 0 && postsDataRaw[0].data?.posts) {
+      // Fallback for old actor format
+      postsData = postsDataRaw[0].data.posts
+      console.log('✓ Extracted posts from postsDataRaw[0].data.posts')
+    }
 
     console.log(`Found ${postsData.length} posts`)
 
-    // Step 2: For each post URL, get engagement data
+    // Limit to 5 posts to avoid excessive processing
+    if (postsData.length > 5) {
+      console.log(`Limiting to first 5 posts (was ${postsData.length})`)
+      postsData = postsData.slice(0, 5)
+    }
+
+    // Validate that posts belong to the user's profile
+    if (postsData.length > 0) {
+      const samplePost = postsData[0]
+      console.log('==========================================')
+      console.log('FIRST POST ANALYSIS:')
+      console.log('Post URL:', samplePost.url)
+      console.log('Post keys:', Object.keys(samplePost))
+      console.log('Full first post:', JSON.stringify(samplePost, null, 2))
+      console.log('==========================================')
+
+      // Validate posts belong to the user by checking username in post URLs
+      console.log('VALIDATION CHECK:')
+      console.log('Expected username:', username)
+
+      let mismatchCount = 0
+      for (const post of postsData) { // Check all posts (max 5)
+        // LinkedIn post URLs format: https://www.linkedin.com/posts/{username}_...
+        const postUsernameMatch = post.url?.match(/\/posts\/([^_\-?\/]+)/)
+        const postUsername = postUsernameMatch ? postUsernameMatch[1] : null
+
+        console.log(`\nPost: ${post.url}`)
+        console.log(`  Username from URL: ${postUsername}`)
+
+        if (postUsername && postUsername.toLowerCase() === username.toLowerCase()) {
+          console.log(`  ✓ Match confirmed`)
+        } else {
+          console.warn(`  ❌ MISMATCH: Expected '${username}', got '${postUsername || 'unknown'}'`)
+          mismatchCount++
+        }
+      }
+
+      console.log(`\nVALIDATION SUMMARY: ${mismatchCount}/${postsData.length} posts DO NOT match your profile`)
+      console.log('==========================================')
+
+      // Stop if more than 50% of posts don't match
+      if (mismatchCount > postsData.length / 2) {
+        return NextResponse.json(
+          {
+            error: 'Profile mismatch detected',
+            details: `The Apify actor returned posts from other profiles instead of yours. ${mismatchCount}/${postsData.length} posts don't match username '${username}'. The actor may be malfunctioning.`,
+            suggestedAction: 'Check if your LinkedIn username is correct and if your profile is public.',
+            debug: {
+              expectedUsername: username,
+              postsReturned: postsData.length,
+              mismatches: mismatchCount,
+              samplePostUrl: postsData[0]?.url
+            }
+          },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Step 2: For each post URL, get engagement data (both likers and commenters)
     const allContacts = []
+    const engagementsActorId = 'd5ib8ypLiKOuB8y8Q'
 
     for (const post of postsData) {
       if (!post.url) continue
 
+      console.log(`\n==========================================`)
       console.log(`Step 2: Scraping engagements for post: ${post.url}`)
 
-      const engagementsActorId = 'scraping_solutions/linkedin-posts-engagers-likers-and-commenters-no-cookies'
-      const engagementsRunResponse = await fetch(
-        `https://api.apify.com/v2/acts/${engagementsActorId}/runs?token=${apifyToken}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            postUrl: post.url,
-          }),
+      // Scrape both likers and commenters
+      for (const engagementType of ['likers', 'commenters']) {
+        console.log(`\nScraping ${engagementType}...`)
+
+        const engagementsInput = {
+          url: post.url,
+          start: 1,
+          iterations: 2, // Get 2 pages of engagements
+          type: engagementType
         }
-      )
+        console.log('Engagements actor input:', JSON.stringify(engagementsInput, null, 2))
 
-      if (!engagementsRunResponse.ok) {
-        console.error(`Failed to start engagements scraper for post ${post.url}`)
-        continue
-      }
-
-      const engagementsRun = await engagementsRunResponse.json()
-      const engagementsRunId = engagementsRun.data.id
-
-      // Wait for engagements scraper to complete
-      let engagementsCompleted = false
-      let engagementsDatasetId = null
-      let engagementAttempts = 0
-
-      while (!engagementsCompleted && engagementAttempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 5000))
-
-        const statusResponse = await fetch(
-          `https://api.apify.com/v2/actor-runs/${engagementsRunId}?token=${apifyToken}`
+        // Call Apify actor
+        const engagementsRunResponse = await fetch(
+          `https://api.apify.com/v2/acts/${engagementsActorId}/runs?token=${apifyToken}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(engagementsInput),
+          }
         )
-        const statusData = await statusResponse.json()
 
-        if (statusData.data.status === 'SUCCEEDED') {
-          engagementsCompleted = true
-          engagementsDatasetId = statusData.data.defaultDatasetId
-        } else if (statusData.data.status === 'FAILED') {
-          console.error(`Engagements scraper failed for post ${post.url}`)
-          break
+        console.log(`${engagementType} response status:`, engagementsRunResponse.status)
+
+        if (!engagementsRunResponse.ok) {
+          const errorData = await engagementsRunResponse.json()
+          console.error(`Failed to start ${engagementType} scraper:`, JSON.stringify(errorData, null, 2))
+          continue
         }
 
-        engagementAttempts++
+        const engagementsRun = await engagementsRunResponse.json()
+        const engagementsRunId = engagementsRun.data.id
+
+        // Wait for engagements scraper to complete
+        let engagementsCompleted = false
+        let engagementsDatasetId = null
+        let engagementAttempts = 0
+
+        while (!engagementsCompleted && engagementAttempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 5000))
+
+          const statusResponse = await fetch(
+            `https://api.apify.com/v2/actor-runs/${engagementsRunId}?token=${apifyToken}`
+          )
+          const statusData = await statusResponse.json()
+
+          if (statusData.data.status === 'SUCCEEDED') {
+            engagementsCompleted = true
+            engagementsDatasetId = statusData.data.defaultDatasetId
+          } else if (statusData.data.status === 'FAILED') {
+            console.error(`${engagementType} scraper failed for post ${post.url}`)
+            break
+          }
+
+          engagementAttempts++
+        }
+
+        if (!engagementsDatasetId) {
+          console.error(`Timeout waiting for ${engagementType} scraper`)
+          continue
+        }
+
+        // Get the engagement data
+        const engagementsDataResponse = await fetch(
+          `https://api.apify.com/v2/datasets/${engagementsDatasetId}/items?token=${apifyToken}`
+        )
+        const engagementsData = await engagementsDataResponse.json()
+
+        console.log(`Found ${engagementsData.length} ${engagementType} for post`)
+
+        // Log first engagement structure for debugging
+        if (engagementsData.length > 0) {
+          console.log('Sample engagement data:', JSON.stringify(engagementsData[0], null, 2))
+        }
+
+        // Add contacts with post context
+        for (const engagement of engagementsData) {
+          // Use placeholder if profile_url is missing
+          const profileUrl = engagement.profileUrl || engagement.profile_url || `https://linkedin.com/unknown/${Date.now()}-${Math.random()}`
+
+          allContacts.push({
+            user_id: user.id,
+            profile_url: profileUrl,
+            name: engagement.name || engagement.fullName || 'Unknown',
+            job_title: engagement.jobTitle || engagement.headline || null,
+            company: engagement.company || null,
+            engagement_type: engagementType === 'likers' ? 'like' : 'comment',
+            post_url: post.url,
+            scraped_at: new Date().toISOString(),
+          })
+        }
       }
 
-      if (!engagementsDatasetId) {
-        console.error(`Timeout waiting for engagements scraper for post ${post.url}`)
-        continue
-      }
-
-      // Get the engagement data
-      const engagementsDataResponse = await fetch(
-        `https://api.apify.com/v2/datasets/${engagementsDatasetId}/items?token=${apifyToken}`
-      )
-      const engagementsData = await engagementsDataResponse.json()
-
-      console.log(`Found ${engagementsData.length} engagements for post`)
-
-      // Add contacts with post context
-      for (const engagement of engagementsData) {
-        allContacts.push({
-          user_id: user.id,
-          profile_url: engagement.profileUrl,
-          name: engagement.name,
-          job_title: engagement.jobTitle,
-          company: engagement.company,
-          engagement_type: engagement.type, // 'like' or 'comment'
-          post_url: post.url,
-          scraped_at: new Date().toISOString(),
-        })
-      }
+      console.log(`==========================================`)
     }
 
     console.log(`Total contacts collected: ${allContacts.length}`)
