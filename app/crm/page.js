@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, RefreshCw, Search, User, Briefcase, Mail, Linkedin, X } from 'lucide-react'
+import { Loader2, RefreshCw, Search, User, Briefcase, Mail, Linkedin, X, Trash2 } from 'lucide-react'
 import PostScraperProgress from '@/components/crm/PostScraperProgress'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -17,6 +17,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function CRMPage() {
   const [contacts, setContacts] = useState([])
@@ -26,6 +36,9 @@ export default function CRMPage() {
   const [scrapingProgress, setScrapingProgress] = useState(null)
   const [posts, setPosts] = useState([])
   const [currentPost, setCurrentPost] = useState(-1)
+  const [deleteContactId, setDeleteContactId] = useState(null)
+  const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const supabase = createClientComponentClient()
   const { toast } = useToast()
 
@@ -59,6 +72,80 @@ export default function CRMPage() {
   useEffect(() => {
     fetchContacts()
   }, [fetchContacts])
+
+  // Delete a single contact
+  const handleDeleteContact = async () => {
+    if (!deleteContactId) return
+
+    setDeleting(true)
+    try {
+      const response = await fetch(`/api/crm/contacts?id=${deleteContactId}`, {
+        method: 'DELETE',
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete contact')
+      }
+
+      toast({
+        title: 'Success',
+        description: 'Contact deleted successfully',
+      })
+
+      // Refresh contacts list
+      fetchContacts()
+    } catch (error) {
+      console.error('Error deleting contact:', error)
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete contact',
+        variant: 'destructive'
+      })
+    } finally {
+      setDeleting(false)
+      setDeleteContactId(null)
+    }
+  }
+
+  // Delete all contacts
+  const handleDeleteAll = async () => {
+    setDeleting(true)
+    try {
+      const response = await fetch('/api/crm/contacts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'delete_all' }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete contacts')
+      }
+
+      toast({
+        title: 'Success',
+        description: 'All contacts deleted successfully',
+      })
+
+      // Refresh contacts list
+      fetchContacts()
+    } catch (error) {
+      console.error('Error deleting all contacts:', error)
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete contacts',
+        variant: 'destructive'
+      })
+    } finally {
+      setDeleting(false)
+      setShowDeleteAllDialog(false)
+    }
+  }
 
   // Handle populate button click - triggers Apify scraping with SSE
   const handlePopulate = async () => {
@@ -247,23 +334,36 @@ export default function CRMPage() {
             Manage your LinkedIn engagement contacts
           </p>
         </div>
-        <Button
-          onClick={handlePopulate}
-          disabled={scraping}
-          size="lg"
-        >
-          {scraping ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Scraping LinkedIn...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Populate from LinkedIn
-            </>
+        <div className="flex gap-2">
+          {contacts.length > 0 && (
+            <Button
+              onClick={() => setShowDeleteAllDialog(true)}
+              disabled={scraping || deleting}
+              variant="outline"
+              size="lg"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Clear All
+            </Button>
           )}
-        </Button>
+          <Button
+            onClick={handlePopulate}
+            disabled={scraping}
+            size="lg"
+          >
+            {scraping ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Scraping LinkedIn...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Populate from LinkedIn
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Progress Modal/Overlay */}
@@ -354,6 +454,7 @@ export default function CRMPage() {
                     <TableHead>Engagement Type</TableHead>
                     <TableHead>Source Post</TableHead>
                     <TableHead>Profile</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -401,6 +502,16 @@ export default function CRMPage() {
                           </a>
                         ) : '-'}
                       </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeleteContactId(contact.id)}
+                          disabled={deleting}
+                        >
+                          <X className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -409,6 +520,64 @@ export default function CRMPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete single contact confirmation */}
+      <AlertDialog open={!!deleteContactId} onOpenChange={(open) => !open && setDeleteContactId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Contact</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this contact? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteContact}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete all contacts confirmation */}
+      <AlertDialog open={showDeleteAllDialog} onOpenChange={setShowDeleteAllDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete All Contacts</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete all {contacts.length} contacts? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAll}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete All'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

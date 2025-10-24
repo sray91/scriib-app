@@ -298,16 +298,32 @@ export async function GET(request) {
           })
         }
 
-        // Insert contacts
+        // Insert contacts - deduplicate first to avoid conflicts within batch
         if (allContacts.length > 0) {
+          // Deduplicate by profile_url, keeping the most recent engagement (last in array)
+          const contactsMap = new Map()
+          allContacts.forEach(contact => {
+            const key = contact.profile_url
+            // Keep the latest occurrence
+            contactsMap.set(key, contact)
+          })
+
+          const uniqueContacts = Array.from(contactsMap.values())
+
+          sendEvent({
+            type: 'status',
+            message: `Saving ${uniqueContacts.length} unique contacts...`
+          })
+
           const { error: insertError } = await supabase
             .from('crm_contacts')
-            .upsert(allContacts, {
+            .upsert(uniqueContacts, {
               onConflict: 'user_id,profile_url',
               ignoreDuplicates: false,
             })
 
           if (insertError) {
+            console.error('Insert error details:', insertError)
             sendEvent({ type: 'error', message: 'Error inserting contacts: ' + insertError.message })
             controller.close()
             return
