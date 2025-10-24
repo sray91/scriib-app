@@ -81,6 +81,8 @@ export async function GET(request) {
 
     // Try to get the vanity name (public profile identifier) for CRM use
     let vanityName = null;
+    console.log('Fetching LinkedIn profile data for vanity name...');
+
     try {
       const meResponse = await fetch('https://api.linkedin.com/v2/me', {
         headers: {
@@ -90,12 +92,22 @@ export async function GET(request) {
 
       if (meResponse.ok) {
         const meData = await meResponse.json();
-        vanityName = meData.vanityName || null;
+        console.log('LinkedIn /v2/me response:', JSON.stringify(meData, null, 2));
+
+        // Try different possible field names
+        vanityName = meData.vanityName || meData.localizedVanityName || null;
+
+        console.log('Extracted vanity name:', vanityName);
+      } else {
+        console.error('LinkedIn /v2/me request failed:', meResponse.status, await meResponse.text());
       }
     } catch (error) {
       console.error('Error fetching vanity name:', error);
       // Non-critical error, continue without vanity name
     }
+
+    // Also check if the profile data from OIDC has any useful info
+    console.log('Profile data from OAuth:', JSON.stringify(profileData, null, 2));
 
     // Enhance profile data with vanity name if available
     if (vanityName) {
@@ -132,6 +144,27 @@ export async function GET(request) {
     if (dbError) {
       console.error('Database save failed:', dbError);
       return NextResponse.redirect(`${baseURL}/settings?error=db_error&details=${encodeURIComponent('Failed to save account')}`);
+    }
+
+    // Also update the user's profile with their LinkedIn URL if we have the vanity name
+    console.log('Checking if we should update profile... vanityName:', vanityName);
+    if (vanityName) {
+      const linkedinUrl = `https://www.linkedin.com/in/${vanityName}`;
+      console.log('Attempting to update profile with LinkedIn URL:', linkedinUrl);
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ linkedin_url: linkedinUrl })
+        .eq('id', user.id);
+
+      if (profileError) {
+        console.error('Failed to update profile with LinkedIn URL:', profileError);
+        // Non-critical error, don't block the auth flow
+      } else {
+        console.log('✅ Successfully updated profile with LinkedIn URL:', linkedinUrl);
+      }
+    } else {
+      console.log('⚠️ No vanity name available, cannot update profile with LinkedIn URL');
     }
 
     // Success redirect

@@ -30,14 +30,28 @@ export async function POST(request) {
       )
     }
 
-    // Get LinkedIn profile URL from the user's profile data
-    // LinkedIn's userinfo endpoint returns 'sub' as the unique ID but not the profile URL
-    // We'll need to fetch the profile to get the public profile URL
-    let linkedinUrl = linkedInAccount.profile_data?.vanityName
-      ? `https://www.linkedin.com/in/${linkedInAccount.profile_data.vanityName}`
-      : null
+    // Get LinkedIn profile URL - try multiple sources
+    let linkedinUrl = null
 
-    // If we don't have the vanity name in profile_data, we'll need to fetch it
+    // 1. First, check if user manually entered their LinkedIn URL in their profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('linkedin_url')
+      .eq('id', user.id)
+      .single()
+
+    if (profile?.linkedin_url) {
+      linkedinUrl = profile.linkedin_url
+      console.log('Using LinkedIn URL from profile:', linkedinUrl)
+    }
+
+    // 2. If not in profile, try to get from OAuth profile_data (vanityName)
+    if (!linkedinUrl && linkedInAccount.profile_data?.vanityName) {
+      linkedinUrl = `https://www.linkedin.com/in/${linkedInAccount.profile_data.vanityName}`
+      console.log('Using LinkedIn URL from OAuth vanityName:', linkedinUrl)
+    }
+
+    // 3. If still not found, try to fetch it from LinkedIn API
     if (!linkedinUrl) {
       try {
         const profileResponse = await fetch('https://api.linkedin.com/v2/me', {
@@ -48,9 +62,10 @@ export async function POST(request) {
 
         if (profileResponse.ok) {
           const profileData = await profileResponse.json()
-          linkedinUrl = profileData.vanityName
-            ? `https://www.linkedin.com/in/${profileData.vanityName}`
-            : null
+          if (profileData.vanityName) {
+            linkedinUrl = `https://www.linkedin.com/in/${profileData.vanityName}`
+            console.log('Using LinkedIn URL from API:', linkedinUrl)
+          }
         }
       } catch (error) {
         console.error('Error fetching LinkedIn profile:', error)
@@ -59,7 +74,7 @@ export async function POST(request) {
 
     if (!linkedinUrl) {
       return NextResponse.json(
-        { error: 'Unable to determine LinkedIn profile URL. Please reconnect your LinkedIn account.' },
+        { error: 'Unable to determine LinkedIn profile URL. Please add your LinkedIn profile URL in Settings → Profile, or reconnect your LinkedIn account.' },
         { status: 400 }
       )
     }
@@ -76,7 +91,7 @@ export async function POST(request) {
     console.log('Step 1: Scraping LinkedIn profile posts...')
 
     // Step 1: Get last 5 post URLs using LinkedIn Profile Posts Scraper
-    const postsActorId = 'apify/linkedin-profile-posts-scraper' // Replace with actual actor ID
+    const postsActorId = 'curious_coder/linkedin-post-search-scraper'
     const postsRunResponse = await fetch(
       `https://api.apify.com/v2/acts/${postsActorId}/runs?token=${apifyToken}`,
       {
@@ -142,7 +157,7 @@ export async function POST(request) {
 
       console.log(`Step 2: Scraping engagements for post: ${post.url}`)
 
-      const engagementsActorId = 'apify/linkedin-posts-engagers' // Replace with actual actor ID
+      const engagementsActorId = 'scraping_solutions/linkedin-posts-engagers-likers-and-commenters-no-cookies'
       const engagementsRunResponse = await fetch(
         `https://api.apify.com/v2/acts/${engagementsActorId}/runs?token=${apifyToken}`,
         {
@@ -223,7 +238,7 @@ export async function POST(request) {
 
     if (allContacts.length > 0) {
       // Upsert contacts - update if profile_url + user_id exists, insert if not
-      const { data, error: insertError } = await supabase
+      const { error: insertError } = await supabase
         .from('crm_contacts')
         .upsert(allContacts, {
           onConflict: 'user_id,profile_url',

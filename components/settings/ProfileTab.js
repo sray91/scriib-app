@@ -20,6 +20,7 @@ export default function ProfileTab() {
     username: '',
     bio: '',
     website: '',
+    linkedin_url: '',
     avatar_url: '',
     phone_number: '',
     sms_opt_in: false
@@ -55,6 +56,7 @@ export default function ProfileTab() {
           username: data.username || '',
           bio: data.bio || '',
           website: data.website || '',
+          linkedin_url: data.linkedin_url || '',
           avatar_url: data.avatar_url || '',
           phone_number: data.phone_number || '',
           sms_opt_in: !!data.sms_opt_in
@@ -95,6 +97,7 @@ export default function ProfileTab() {
       if (profile.full_name !== undefined) updates.full_name = profile.full_name;
       if (profile.bio !== undefined) updates.bio = profile.bio;
       if (profile.website !== undefined) updates.website = profile.website;
+      if (profile.linkedin_url !== undefined) updates.linkedin_url = profile.linkedin_url || null;
       if (profile.avatar_url !== undefined) updates.avatar_url = profile.avatar_url;
       if (profile.phone_number !== undefined) updates.phone_number = profile.phone_number || null;
       if (profile.sms_opt_in !== undefined) updates.sms_opt_in = !!profile.sms_opt_in;
@@ -468,8 +471,23 @@ export default function ProfileTab() {
             />
           </div>
 
-          <Button 
-            type="submit" 
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label htmlFor="linkedin_url" className="text-sm font-medium">LinkedIn Profile URL</Label>
+            <Input
+              id="linkedin_url"
+              type="url"
+              value={profile.linkedin_url}
+              onChange={(e) => setProfile({ ...profile, linkedin_url: e.target.value })}
+              placeholder="https://www.linkedin.com/in/your-name"
+              className="h-10 text-sm"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Required for CRM features. Example: https://www.linkedin.com/in/your-name
+            </p>
+          </div>
+
+          <Button
+            type="submit"
             disabled={loading}
             className="w-full sm:w-auto"
           >
