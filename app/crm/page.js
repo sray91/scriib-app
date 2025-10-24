@@ -131,6 +131,7 @@ export default function CRMPage() {
     const search = searchTerm.toLowerCase()
     return (
       contact.name?.toLowerCase().includes(search) ||
+      contact.subtitle?.toLowerCase().includes(search) ||
       contact.job_title?.toLowerCase().includes(search) ||
       contact.company?.toLowerCase().includes(search) ||
       contact.email?.toLowerCase().includes(search)
@@ -203,6 +204,7 @@ export default function CRMPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
+                    <TableHead>Subtitle</TableHead>
                     <TableHead>Job Title</TableHead>
                     <TableHead>Company</TableHead>
                     <TableHead>Engagement Type</TableHead>
@@ -215,6 +217,9 @@ export default function CRMPage() {
                     <TableRow key={contact.id}>
                       <TableCell className="font-medium">
                         {contact.name || 'Unknown'}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {contact.subtitle || '-'}
                       </TableCell>
                       <TableCell>{contact.job_title || '-'}</TableCell>
                       <TableCell>{contact.company || '-'}</TableCell>

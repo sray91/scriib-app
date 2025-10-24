@@ -345,13 +345,14 @@ export async function POST(request) {
         // Add contacts with post context
         for (const engagement of engagementsData) {
           // Use placeholder if profile_url is missing
-          const profileUrl = engagement.profileUrl || engagement.profile_url || `https://linkedin.com/unknown/${Date.now()}-${Math.random()}`
+          const profileUrl = engagement.url_profile || engagement.profileUrl || engagement.profile_url || `https://linkedin.com/unknown/${Date.now()}-${Math.random()}`
 
           allContacts.push({
             user_id: user.id,
             profile_url: profileUrl,
             name: engagement.name || engagement.fullName || 'Unknown',
-            job_title: engagement.jobTitle || engagement.headline || null,
+            subtitle: engagement.headline || engagement.subtitle || null,
+            job_title: engagement.jobTitle || engagement.occupation || null,
             company: engagement.company || null,
             engagement_type: engagementType === 'likers' ? 'like' : 'comment',
             post_url: post.url,
