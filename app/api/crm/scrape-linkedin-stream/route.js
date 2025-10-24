@@ -1,7 +1,7 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 
-export async function POST(request) {
+export async function GET(request) {
   const encoder = new TextEncoder()
 
   const stream = new ReadableStream({
