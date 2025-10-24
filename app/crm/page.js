@@ -69,17 +69,18 @@ export default function CRMPage() {
         return
       }
 
-      // Get user's LinkedIn profile URL from their profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('linkedin_url')
-        .eq('id', user.id)
+      // Check if user has a connected LinkedIn account
+      const { data: linkedInAccount, error: accountError } = await supabase
+        .from('social_accounts')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('platform', 'linkedin')
         .single()
 
-      if (!profile?.linkedin_url) {
+      if (accountError || !linkedInAccount) {
         toast({
-          title: 'LinkedIn URL Required',
-          description: 'Please add your LinkedIn profile URL in Settings > Profile',
+          title: 'LinkedIn Account Not Connected',
+          description: 'Please connect your LinkedIn account in Settings > Social',
           variant: 'destructive'
         })
         setScraping(false)
@@ -97,9 +98,6 @@ export default function CRMPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          linkedinUrl: profile.linkedin_url,
-        }),
       })
 
       const result = await response.json()

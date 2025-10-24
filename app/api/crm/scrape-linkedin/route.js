@@ -15,11 +15,51 @@ export async function POST(request) {
       )
     }
 
-    const { linkedinUrl } = await request.json()
+    // Get user's connected LinkedIn account
+    const { data: linkedInAccount, error: accountError } = await supabase
+      .from('social_accounts')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('platform', 'linkedin')
+      .single()
+
+    if (accountError || !linkedInAccount) {
+      return NextResponse.json(
+        { error: 'LinkedIn account not connected. Please connect your LinkedIn account in Settings.' },
+        { status: 400 }
+      )
+    }
+
+    // Get LinkedIn profile URL from the user's profile data
+    // LinkedIn's userinfo endpoint returns 'sub' as the unique ID but not the profile URL
+    // We'll need to fetch the profile to get the public profile URL
+    let linkedinUrl = linkedInAccount.profile_data?.vanityName
+      ? `https://www.linkedin.com/in/${linkedInAccount.profile_data.vanityName}`
+      : null
+
+    // If we don't have the vanity name in profile_data, we'll need to fetch it
+    if (!linkedinUrl) {
+      try {
+        const profileResponse = await fetch('https://api.linkedin.com/v2/me', {
+          headers: {
+            'Authorization': `Bearer ${linkedInAccount.access_token}`,
+          },
+        })
+
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json()
+          linkedinUrl = profileData.vanityName
+            ? `https://www.linkedin.com/in/${profileData.vanityName}`
+            : null
+        }
+      } catch (error) {
+        console.error('Error fetching LinkedIn profile:', error)
+      }
+    }
 
     if (!linkedinUrl) {
       return NextResponse.json(
-        { error: 'LinkedIn URL is required' },
+        { error: 'Unable to determine LinkedIn profile URL. Please reconnect your LinkedIn account.' },
         { status: 400 }
       )
     }

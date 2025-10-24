@@ -79,6 +79,29 @@ export async function GET(request) {
       return NextResponse.redirect(`${baseURL}/settings?error=linkedin_profile_error&details=${encodeURIComponent('Failed to fetch profile')}`);
     }
 
+    // Try to get the vanity name (public profile identifier) for CRM use
+    let vanityName = null;
+    try {
+      const meResponse = await fetch('https://api.linkedin.com/v2/me', {
+        headers: {
+          'Authorization': `Bearer ${tokenData.access_token}`,
+        },
+      });
+
+      if (meResponse.ok) {
+        const meData = await meResponse.json();
+        vanityName = meData.vanityName || null;
+      }
+    } catch (error) {
+      console.error('Error fetching vanity name:', error);
+      // Non-critical error, continue without vanity name
+    }
+
+    // Enhance profile data with vanity name if available
+    if (vanityName) {
+      profileData.vanityName = vanityName;
+    }
+
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
