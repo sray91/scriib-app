@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
 import { Loader2, RefreshCw, Search, User, Briefcase, Mail, Linkedin, X, Trash2 } from 'lucide-react'
 import PostScraperProgress from '@/components/crm/PostScraperProgress'
+import ProfileModal from '@/components/crm/ProfileModal'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Table,
@@ -39,6 +40,8 @@ export default function CRMPage() {
   const [deleteContactId, setDeleteContactId] = useState(null)
   const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [selectedContact, setSelectedContact] = useState(null)
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
   const supabase = createClientComponentClient()
   const { toast } = useToast()
 
@@ -107,6 +110,19 @@ export default function CRMPage() {
       setDeleting(false)
       setDeleteContactId(null)
     }
+  }
+
+  // Handle row click to open profile modal
+  const handleRowClick = (contact) => {
+    setSelectedContact(contact)
+    setIsProfileModalOpen(true)
+  }
+
+  // Handle profile enriched callback
+  const handleProfileEnriched = (updatedContact) => {
+    // Update the contact in the local state
+    setContacts(prev => prev.map(c => c.id === updatedContact.id ? updatedContact : c))
+    setSelectedContact(updatedContact)
   }
 
   // Delete all contacts
@@ -253,23 +269,13 @@ export default function CRMPage() {
             })
             break
 
-          case 'enrichment_start':
-            setScrapingProgress({ message: data.message })
-            break
-
-          case 'enrichment_progress':
-            setScrapingProgress({
-              message: `Enriching profiles: ${data.current} / ${data.total}`
-            })
-            break
-
           case 'complete':
             eventSource.close()
             setScraping(false)
             setScrapingProgress(null)
             toast({
               title: 'Success!',
-              description: `Added ${data.contactsAdded} contacts and enriched ${data.profilesEnriched} profiles`,
+              description: `Added ${data.contactsAdded} contacts from ${data.postsScraped} posts`,
             })
             // Refresh contacts list
             fetchContacts()
@@ -469,7 +475,11 @@ export default function CRMPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredContacts.map((contact) => (
-                    <TableRow key={contact.id}>
+                    <TableRow
+                      key={contact.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleRowClick(contact)}
+                    >
                       <TableCell className="font-medium">
                         {contact.name || 'Unknown'}
                       </TableCell>
@@ -494,6 +504,7 @@ export default function CRMPage() {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="hover:underline"
+                            onClick={(e) => e.stopPropagation()}
                           >
                             View post
                           </a>
@@ -505,6 +516,7 @@ export default function CRMPage() {
                             href={contact.profile_url}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                           >
                             <Button variant="ghost" size="sm">
                               <Linkedin className="h-4 w-4" />
@@ -516,7 +528,10 @@ export default function CRMPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setDeleteContactId(contact.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setDeleteContactId(contact.id)
+                          }}
                           disabled={deleting}
                         >
                           <X className="h-4 w-4 text-muted-foreground hover:text-destructive" />
@@ -588,6 +603,14 @@ export default function CRMPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Profile Modal */}
+      <ProfileModal
+        contact={selectedContact}
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        onProfileEnriched={handleProfileEnriched}
+      />
     </div>
   )
 }
