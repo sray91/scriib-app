@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, RefreshCw, Search, User, Briefcase, Mail, Linkedin, X, Trash2 } from 'lucide-react'
+import { Loader2, RefreshCw, Search, User, Briefcase, Mail, Linkedin, X, Trash2, UserPlus } from 'lucide-react'
 import PostScraperProgress from '@/components/crm/PostScraperProgress'
 import ProfileModal from '@/components/crm/ProfileModal'
+import AddContactModal from '@/components/crm/AddContactModal'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Table,
@@ -42,6 +43,7 @@ export default function CRMPage() {
   const [deleting, setDeleting] = useState(false)
   const [selectedContact, setSelectedContact] = useState(null)
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
+  const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false)
   const supabase = createClientComponentClient()
   const { toast } = useToast()
 
@@ -123,6 +125,12 @@ export default function CRMPage() {
     // Update the contact in the local state
     setContacts(prev => prev.map(c => c.id === updatedContact.id ? updatedContact : c))
     setSelectedContact(updatedContact)
+  }
+
+  // Handle contact added callback
+  const handleContactAdded = (newContact) => {
+    // Refresh the contacts list
+    fetchContacts()
   }
 
   // Delete all contacts
@@ -362,6 +370,15 @@ export default function CRMPage() {
               Clear All
             </Button>
           )}
+          <Button
+            onClick={() => setIsAddContactModalOpen(true)}
+            disabled={scraping}
+            variant="outline"
+            size="lg"
+          >
+            <UserPlus className="mr-2 h-4 w-4" />
+            Add Contact
+          </Button>
           <Button
             onClick={handlePopulate}
             disabled={scraping}
@@ -610,6 +627,13 @@ export default function CRMPage() {
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
         onProfileEnriched={handleProfileEnriched}
+      />
+
+      {/* Add Contact Modal */}
+      <AddContactModal
+        isOpen={isAddContactModalOpen}
+        onClose={() => setIsAddContactModalOpen(false)}
+        onContactAdded={handleContactAdded}
       />
     </div>
   )
