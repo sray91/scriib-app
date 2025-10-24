@@ -1,6 +1,6 @@
 'use client'
 
-import { GalleryVerticalEnd, LayoutList, Calendar, Users, Lightbulb, Search, Settings, LogOut, Menu, X, PenTool, Image as ImageIcon, LayoutDashboard, BarChart3, Zap } from 'lucide-react'
+import { GalleryVerticalEnd, LayoutList, Calendar, Users, Lightbulb, Search, Settings, LogOut, Menu, X, PenTool, Image as ImageIcon, LayoutDashboard, BarChart3, Zap, Contact } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
@@ -28,6 +28,7 @@ const betaNavigation = [
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { name: 'CRM', href: '/crm', icon: Contact },
   { name: 'Spark', href: '/spark', icon: Zap },
   { name: 'Swipe File', href: '/viral', icon: Search },
   { name: 'CoCreate', href: '/cocreate', icon: Lightbulb },
