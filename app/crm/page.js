@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, RefreshCw, Search, User, Briefcase, Mail, Linkedin } from 'lucide-react'
+import { Loader2, RefreshCw, Search, User, Briefcase, Mail, Linkedin, X } from 'lucide-react'
+import PostScraperProgress from '@/components/crm/PostScraperProgress'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
   Table,
   TableBody,
@@ -21,6 +23,9 @@ export default function CRMPage() {
   const [loading, setLoading] = useState(false)
   const [scraping, setScraping] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [scrapingProgress, setScrapingProgress] = useState(null)
+  const [posts, setPosts] = useState([])
+  const [currentPost, setCurrentPost] = useState(-1)
   const supabase = createClientComponentClient()
   const { toast } = useToast()
 
@@ -55,9 +60,13 @@ export default function CRMPage() {
     fetchContacts()
   }, [fetchContacts])
 
-  // Handle populate button click - triggers Apify scraping
+  // Handle populate button click - triggers Apify scraping with SSE
   const handlePopulate = async () => {
     setScraping(true)
+    setPosts([])
+    setCurrentPost(-1)
+    setScrapingProgress({ message: 'Initializing...' })
+
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
@@ -66,6 +75,8 @@ export default function CRMPage() {
           description: 'You must be logged in to populate CRM',
           variant: 'destructive'
         })
+        setScraping(false)
+        setScrapingProgress(null)
         return
       }
 
@@ -84,35 +95,124 @@ export default function CRMPage() {
           variant: 'destructive'
         })
         setScraping(false)
+        setScrapingProgress(null)
         return
       }
 
-      toast({
-        title: 'Starting LinkedIn Scrape',
-        description: 'Fetching your recent posts and engagement data...',
-      })
+      // Connect to SSE endpoint
+      const eventSource = new EventSource('/api/crm/scrape-linkedin-stream')
 
-      // Call API route to trigger Apify scraping
-      const response = await fetch('/api/crm/scrape-linkedin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data)
 
-      const result = await response.json()
+        switch (data.type) {
+          case 'status':
+            setScrapingProgress({ message: data.message })
+            break
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to scrape LinkedIn data')
+          case 'posts_found':
+            // Initialize posts array
+            const initialPosts = Array.from({ length: data.count }, (_, i) => ({
+              status: 'pending',
+              likersProgress: 0,
+              commentersProgress: 0,
+              totalContacts: 0
+            }))
+            setPosts(initialPosts)
+            setScrapingProgress({ message: `Found ${data.count} posts. Starting to scrape engagements...` })
+            break
+
+          case 'post_start':
+            setCurrentPost(data.postIndex)
+            setPosts(prev => {
+              const updated = [...prev]
+              updated[data.postIndex] = {
+                ...updated[data.postIndex],
+                status: 'processing',
+                likersProgress: 0,
+                commentersProgress: 0
+              }
+              return updated
+            })
+            break
+
+          case 'engagement_start':
+            setScrapingProgress({
+              message: `Post ${data.postIndex + 1}: Scraping ${data.engagementType}...`
+            })
+            break
+
+          case 'engagement_complete':
+            setPosts(prev => {
+              const updated = [...prev]
+              const field = data.engagementType === 'likers' ? 'likersProgress' : 'commentersProgress'
+              updated[data.postIndex] = {
+                ...updated[data.postIndex],
+                [field]: 100
+              }
+              return updated
+            })
+            break
+
+          case 'post_complete':
+            setPosts(prev => {
+              const updated = [...prev]
+              updated[data.postIndex] = {
+                ...updated[data.postIndex],
+                status: 'completed',
+                totalContacts: data.totalContacts
+              }
+              return updated
+            })
+            break
+
+          case 'enrichment_start':
+            setScrapingProgress({ message: data.message })
+            break
+
+          case 'enrichment_progress':
+            setScrapingProgress({
+              message: `Enriching profiles: ${data.current} / ${data.total}`
+            })
+            break
+
+          case 'complete':
+            eventSource.close()
+            setScraping(false)
+            setScrapingProgress(null)
+            toast({
+              title: 'Success!',
+              description: `Added ${data.contactsAdded} contacts and enriched ${data.profilesEnriched} profiles`,
+            })
+            // Refresh contacts list
+            fetchContacts()
+            break
+
+          case 'error':
+            eventSource.close()
+            setScraping(false)
+            setScrapingProgress(null)
+            toast({
+              title: 'Error',
+              description: data.message,
+              variant: 'destructive'
+            })
+            break
+        }
       }
 
-      toast({
-        title: 'Success!',
-        description: `Added ${result.contactsAdded || 0} contacts and enriched ${result.profilesEnriched || 0} profiles with detailed job info`,
-      })
+      eventSource.onerror = (error) => {
+        console.error('EventSource error:', error)
+        eventSource.close()
+        setScraping(false)
+        setScrapingProgress(null)
+        toast({
+          title: 'Error',
+          description: 'Connection to scraping service lost',
+          variant: 'destructive'
+        })
+      }
 
-      // Refresh contacts list
-      await fetchContacts()
     } catch (error) {
       console.error('Error populating CRM:', error)
       toast({
@@ -120,8 +220,8 @@ export default function CRMPage() {
         description: error.message || 'Failed to populate CRM',
         variant: 'destructive'
       })
-    } finally {
       setScraping(false)
+      setScrapingProgress(null)
     }
   }
 
@@ -165,6 +265,50 @@ export default function CRMPage() {
           )}
         </Button>
       </div>
+
+      {/* Progress Modal/Overlay */}
+      <AnimatePresence>
+        {scraping && scrapingProgress && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={(e) => {
+              // Prevent closing while scraping
+              e.preventDefault()
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-background border rounded-lg shadow-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold">Scraping Progress</h2>
+                <div className="text-sm text-muted-foreground">
+                  Please don&apos;t close this window
+                </div>
+              </div>
+
+              {posts.length > 0 ? (
+                <PostScraperProgress
+                  posts={posts}
+                  currentPost={currentPost}
+                  overallProgress={scrapingProgress}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Loader2 className="h-12 w-12 animate-spin text-blue-500 mb-4" />
+                  <p className="text-lg font-medium">{scrapingProgress.message}</p>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <Card>
         <CardHeader>
