@@ -293,10 +293,20 @@ export default function CRMPage() {
         eventSource.close()
         setScraping(false)
         setScrapingProgress(null)
+
+        // Provide more helpful error message
+        let errorMessage = 'Connection to scraping service lost'
+
+        // Check if it's a timeout issue (common on Vercel Hobby plan)
+        if (error.target?.readyState === EventSource.CLOSED) {
+          errorMessage = 'The scraping process is taking longer than expected. This may be due to server timeout limits. Please try again or contact support if the issue persists.'
+        }
+
         toast({
           title: 'Error',
-          description: 'Connection to scraping service lost',
-          variant: 'destructive'
+          description: errorMessage,
+          variant: 'destructive',
+          duration: 10000 // Show for longer
         })
       }
 

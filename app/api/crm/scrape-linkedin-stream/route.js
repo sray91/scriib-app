@@ -1,14 +1,33 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 
+// Configure longer timeout for this route (in seconds)
+// Vercel Hobby: max 10s, Pro: max 300s (5 min)
+export const maxDuration = 300
+// Use Node.js runtime for better timeout support
+export const runtime = 'nodejs'
+
 export async function GET(request) {
   const encoder = new TextEncoder()
+  let keepaliveInterval = null
 
   const stream = new ReadableStream({
     async start(controller) {
       const sendEvent = (data) => {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
       }
+
+      // Send keepalive comment every 15 seconds to prevent timeout
+      keepaliveInterval = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(': keepalive\n\n'))
+        } catch (err) {
+          // Controller may be closed, clear interval
+          if (keepaliveInterval) {
+            clearInterval(keepaliveInterval)
+          }
+        }
+      }, 15000)
 
       try {
         const supabase = createRouteHandlerClient({ cookies })
@@ -17,6 +36,7 @@ export async function GET(request) {
         const { data: { user }, error: authError } = await supabase.auth.getUser()
         if (authError || !user) {
           sendEvent({ type: 'error', message: 'Unauthorized' })
+          clearInterval(keepaliveInterval)
           controller.close()
           return
         }
@@ -31,6 +51,7 @@ export async function GET(request) {
 
         if (accountError || !linkedInAccount) {
           sendEvent({ type: 'error', message: 'LinkedIn account not connected. Please connect your LinkedIn account in Settings.' })
+          clearInterval(keepaliveInterval)
           controller.close()
           return
         }
@@ -71,6 +92,7 @@ export async function GET(request) {
 
         if (!linkedinUrl) {
           sendEvent({ type: 'error', message: 'Unable to determine LinkedIn profile URL. Please add your LinkedIn profile URL in Settings.' })
+          clearInterval(keepaliveInterval)
           controller.close()
           return
         }
@@ -78,6 +100,7 @@ export async function GET(request) {
         const apifyToken = process.env.APIFY_API_TOKEN
         if (!apifyToken) {
           sendEvent({ type: 'error', message: 'Apify API token not configured' })
+          clearInterval(keepaliveInterval)
           controller.close()
           return
         }
@@ -85,6 +108,7 @@ export async function GET(request) {
         const usernameMatch = linkedinUrl.match(/linkedin\.com\/in\/([^\/?\s]+)/)
         if (!usernameMatch) {
           sendEvent({ type: 'error', message: 'Could not extract username from LinkedIn URL: ' + linkedinUrl })
+          clearInterval(keepaliveInterval)
           controller.close()
           return
         }
@@ -112,8 +136,8 @@ export async function GET(request) {
         )
 
         if (!postsRunResponse.ok) {
-          const errorData = await postsRunResponse.json()
           sendEvent({ type: 'error', message: 'Failed to start LinkedIn posts scraper' })
+          clearInterval(keepaliveInterval)
           controller.close()
           return
         }
@@ -140,6 +164,7 @@ export async function GET(request) {
             postsDatasetId = statusData.data.defaultDatasetId
           } else if (statusData.data.status === 'FAILED') {
             sendEvent({ type: 'error', message: 'LinkedIn posts scraper failed' })
+            clearInterval(keepaliveInterval)
             controller.close()
             return
           }
@@ -149,6 +174,7 @@ export async function GET(request) {
 
         if (!postsDatasetId) {
           sendEvent({ type: 'error', message: 'Timeout waiting for LinkedIn posts scraper' })
+          clearInterval(keepaliveInterval)
           controller.close()
           return
         }
@@ -325,6 +351,7 @@ export async function GET(request) {
           if (insertError) {
             console.error('Insert error details:', insertError)
             sendEvent({ type: 'error', message: 'Error inserting contacts: ' + insertError.message })
+            clearInterval(keepaliveInterval)
             controller.close()
             return
           }
@@ -443,14 +470,22 @@ export async function GET(request) {
           profilesEnriched
         })
 
+        clearInterval(keepaliveInterval)
         controller.close()
 
       } catch (error) {
         console.error('Error in LinkedIn scraping:', error)
         sendEvent({ type: 'error', message: error.message || 'Failed to scrape LinkedIn data' })
+        clearInterval(keepaliveInterval)
         controller.close()
       }
     },
+    cancel() {
+      // Clean up when client disconnects
+      if (keepaliveInterval) {
+        clearInterval(keepaliveInterval)
+      }
+    }
   })
 
   return new Response(stream, {
