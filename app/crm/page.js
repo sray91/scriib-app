@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, RefreshCw, Search, User, Briefcase, Mail, Linkedin, X, Trash2, UserPlus } from 'lucide-react'
+import { Loader2, RefreshCw, Search, User, Briefcase, Mail, Linkedin, X, Trash2, UserPlus, Workflow } from 'lucide-react'
 import PostScraperProgress from '@/components/crm/PostScraperProgress'
 import ProfileModal from '@/components/crm/ProfileModal'
 import AddContactModal from '@/components/crm/AddContactModal'
+import PipelineBuilder from '@/components/crm/PipelineBuilder'
+import PipelineAssignment from '@/components/crm/PipelineAssignment'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Table,
@@ -44,6 +46,7 @@ export default function CRMPage() {
   const [selectedContact, setSelectedContact] = useState(null)
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
   const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false)
+  const [isPipelineBuilderOpen, setIsPipelineBuilderOpen] = useState(false)
   const supabase = createClientComponentClient()
   const { toast } = useToast()
 
@@ -358,45 +361,14 @@ export default function CRMPage() {
             Manage your LinkedIn engagement contacts
           </p>
         </div>
-        <div className="flex gap-2">
-          {contacts.length > 0 && (
-            <Button
-              onClick={() => setShowDeleteAllDialog(true)}
-              disabled={scraping || deleting}
-              variant="outline"
-              size="lg"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Clear All
-            </Button>
-          )}
-          <Button
-            onClick={() => setIsAddContactModalOpen(true)}
-            disabled={scraping}
-            variant="outline"
-            size="lg"
-          >
-            <UserPlus className="mr-2 h-4 w-4" />
-            Add Contact
-          </Button>
-          <Button
-            onClick={handlePopulate}
-            disabled={scraping}
-            size="lg"
-          >
-            {scraping ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Scraping LinkedIn...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Populate from LinkedIn
-              </>
-            )}
-          </Button>
-        </div>
+        <Button
+          onClick={() => setIsPipelineBuilderOpen(true)}
+          variant="outline"
+          size="lg"
+        >
+          <Workflow className="mr-2 h-4 w-4" />
+          Pipeline Builder
+        </Button>
       </div>
 
       {/* Progress Modal/Overlay */}
@@ -446,19 +418,58 @@ export default function CRMPage() {
       <Card>
         <CardHeader>
           <CardTitle>Contacts</CardTitle>
-          <div className="flex items-center gap-4 pt-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Search contacts..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4">
+            <div className="flex items-center gap-4 flex-1 w-full sm:w-auto">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search contacts..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <div className="text-sm text-muted-foreground whitespace-nowrap">
+                {filteredContacts.length} contact{filteredContacts.length !== 1 ? 's' : ''}
+              </div>
             </div>
-            <div className="text-sm text-muted-foreground">
-              {filteredContacts.length} contact{filteredContacts.length !== 1 ? 's' : ''}
+            <div className="flex gap-2 w-full sm:w-auto">
+              {contacts.length > 0 && (
+                <Button
+                  onClick={() => setShowDeleteAllDialog(true)}
+                  disabled={scraping || deleting}
+                  variant="outline"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Clear All
+                </Button>
+              )}
+              <Button
+                onClick={() => setIsAddContactModalOpen(true)}
+                disabled={scraping}
+                variant="outline"
+              >
+                <UserPlus className="mr-2 h-4 w-4" />
+                Add Contact
+              </Button>
+              <Button
+                onClick={handlePopulate}
+                disabled={scraping}
+                className="bg-[#fb2e01] hover:bg-[#e02a01]"
+              >
+                {scraping ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Scraping LinkedIn...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Populate from LinkedIn
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -487,6 +498,7 @@ export default function CRMPage() {
                     <TableHead>Engagement Type</TableHead>
                     <TableHead>Source Post</TableHead>
                     <TableHead>Profile</TableHead>
+                    <TableHead>Pipeline</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -540,6 +552,12 @@ export default function CRMPage() {
                             </Button>
                           </a>
                         ) : '-'}
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <PipelineAssignment
+                          contactId={contact.id}
+                          contactName={contact.name}
+                        />
                       </TableCell>
                       <TableCell>
                         <Button
@@ -634,6 +652,15 @@ export default function CRMPage() {
         isOpen={isAddContactModalOpen}
         onClose={() => setIsAddContactModalOpen(false)}
         onContactAdded={handleContactAdded}
+      />
+
+      {/* Pipeline Builder Modal */}
+      <PipelineBuilder
+        isOpen={isPipelineBuilderOpen}
+        onClose={() => setIsPipelineBuilderOpen(false)}
+        onPipelineCreated={() => {
+          // Refresh any pipeline-related data if needed
+        }}
       />
     </div>
   )
