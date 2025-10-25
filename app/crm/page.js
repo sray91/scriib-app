@@ -518,13 +518,19 @@ export default function CRMPage() {
                       <TableCell>{contact.job_title || '-'}</TableCell>
                       <TableCell>{contact.company || '-'}</TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          contact.engagement_type === 'like'
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-green-100 text-green-700'
-                        }`}>
-                          {contact.engagement_type || 'unknown'}
-                        </span>
+                        <div className="flex gap-1 flex-wrap">
+                          {(contact.engagement_type || 'unknown').split(',').map((type, idx) => (
+                            <span key={idx} className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                              type.trim() === 'like'
+                                ? 'bg-blue-100 text-blue-700'
+                                : type.trim() === 'comment'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}>
+                              {type.trim()}
+                            </span>
+                          ))}
+                        </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {contact.post_url ? (

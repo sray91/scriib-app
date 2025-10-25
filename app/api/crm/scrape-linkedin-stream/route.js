@@ -326,12 +326,21 @@ export async function GET(request) {
 
         // Insert contacts - deduplicate first to avoid conflicts within batch
         if (allContacts.length > 0) {
-          // Deduplicate by profile_url, keeping the most recent engagement (last in array)
+          // Deduplicate by profile_url, combining engagement types
           const contactsMap = new Map()
           allContacts.forEach(contact => {
             const key = contact.profile_url
-            // Keep the latest occurrence
-            contactsMap.set(key, contact)
+            if (contactsMap.has(key)) {
+              // Person already exists - combine engagement types
+              const existing = contactsMap.get(key)
+              const existingTypes = existing.engagement_type.split(',')
+              if (!existingTypes.includes(contact.engagement_type)) {
+                existing.engagement_type = [...existingTypes, contact.engagement_type].sort().join(',')
+              }
+            } else {
+              // New person - add to map
+              contactsMap.set(key, contact)
+            }
           })
 
           const uniqueContacts = Array.from(contactsMap.values())
@@ -341,9 +350,42 @@ export async function GET(request) {
             message: `Saving ${uniqueContacts.length} unique contacts...`
           })
 
+          // Fetch existing contacts to merge engagement types
+          const profileUrls = uniqueContacts.map(c => c.profile_url)
+          const { data: existingContacts } = await supabase
+            .from('crm_contacts')
+            .select('profile_url, engagement_type')
+            .eq('user_id', user.id)
+            .in('profile_url', profileUrls)
+
+          // Create a map of existing engagement types
+          const existingEngagementMap = new Map()
+          if (existingContacts) {
+            existingContacts.forEach(contact => {
+              existingEngagementMap.set(contact.profile_url, contact.engagement_type)
+            })
+          }
+
+          // Merge engagement types with existing records
+          const contactsToUpsert = uniqueContacts.map(contact => {
+            if (existingEngagementMap.has(contact.profile_url)) {
+              const existingType = existingEngagementMap.get(contact.profile_url)
+              const existingTypes = existingType.split(',')
+              const newTypes = contact.engagement_type.split(',')
+
+              // Combine and deduplicate types
+              const allTypes = [...new Set([...existingTypes, ...newTypes])].sort()
+              return {
+                ...contact,
+                engagement_type: allTypes.join(',')
+              }
+            }
+            return contact
+          })
+
           const { error: insertError } = await supabase
             .from('crm_contacts')
-            .upsert(uniqueContacts, {
+            .upsert(contactsToUpsert, {
               onConflict: 'user_id,profile_url',
               ignoreDuplicates: false,
             })

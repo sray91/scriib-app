@@ -160,6 +160,100 @@ export async function POST(request) {
       return NextResponse.json({ success: true, message: 'All contacts deleted' })
     }
 
+    // Check if this is a "merge duplicates" request
+    if (body.action === 'merge_duplicates') {
+      // Get all contacts for the user
+      const { data: allContacts, error: fetchError } = await supabase
+        .from('crm_contacts')
+        .select('*')
+        .eq('user_id', user.id)
+
+      if (fetchError) {
+        console.error('Error fetching contacts:', fetchError)
+        return NextResponse.json(
+          { error: 'Failed to fetch contacts' },
+          { status: 500 }
+        )
+      }
+
+      // Group contacts by profile_url
+      const contactsByProfile = new Map()
+      allContacts.forEach(contact => {
+        if (!contactsByProfile.has(contact.profile_url)) {
+          contactsByProfile.set(contact.profile_url, [])
+        }
+        contactsByProfile.get(contact.profile_url).push(contact)
+      })
+
+      // Find duplicates and merge them
+      const contactsToKeep = []
+      const idsToDelete = []
+
+      contactsByProfile.forEach((contacts, profileUrl) => {
+        if (contacts.length > 1) {
+          // Multiple contacts for same profile - merge them
+          const mergedContact = contacts[0] // Keep the first one
+          const allEngagementTypes = new Set()
+
+          contacts.forEach(contact => {
+            // Collect all engagement types
+            if (contact.engagement_type) {
+              contact.engagement_type.split(',').forEach(type => {
+                allEngagementTypes.add(type.trim())
+              })
+            }
+            // Mark others for deletion
+            if (contact.id !== mergedContact.id) {
+              idsToDelete.push(contact.id)
+            }
+          })
+
+          // Update the merged contact with combined engagement types
+          mergedContact.engagement_type = Array.from(allEngagementTypes).sort().join(',')
+          contactsToKeep.push(mergedContact)
+        }
+      })
+
+      let mergedCount = 0
+
+      // Update merged contacts
+      if (contactsToKeep.length > 0) {
+        for (const contact of contactsToKeep) {
+          const { error: updateError } = await supabase
+            .from('crm_contacts')
+            .update({ engagement_type: contact.engagement_type })
+            .eq('id', contact.id)
+
+          if (updateError) {
+            console.error('Error updating contact:', updateError)
+          } else {
+            mergedCount++
+          }
+        }
+      }
+
+      // Delete duplicate contacts
+      if (idsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('crm_contacts')
+          .delete()
+          .in('id', idsToDelete)
+
+        if (deleteError) {
+          console.error('Error deleting duplicates:', deleteError)
+          return NextResponse.json(
+            { error: 'Failed to delete duplicate contacts' },
+            { status: 500 }
+          )
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Merged ${mergedCount} contacts, removed ${idsToDelete.length} duplicates`
+      })
+    }
+
     return NextResponse.json(
       { error: 'Invalid action' },
       { status: 400 }
