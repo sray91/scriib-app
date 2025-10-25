@@ -117,6 +117,19 @@ export async function POST(request) {
       .single()
 
     if (existing) {
+      // Get old and new stage info for activity logging
+      const { data: oldStage } = await supabase
+        .from('pipeline_stages')
+        .select('name')
+        .eq('id', existing.stage_id)
+        .single()
+
+      const { data: newStage } = await supabase
+        .from('pipeline_stages')
+        .select('name')
+        .eq('id', stage_id)
+        .single()
+
       // Update the existing record to move to new stage
       const { data: updated, error: updateError } = await supabase
         .from('pipeline_contacts')
@@ -150,6 +163,25 @@ export async function POST(request) {
       if (updateError) {
         console.error('Error updating pipeline contact:', updateError)
         return NextResponse.json({ error: 'Failed to update contact in pipeline' }, { status: 500 })
+      }
+
+      // Log stage change activity
+      if (existing.stage_id !== stage_id) {
+        await supabase
+          .from('crm_contact_activities')
+          .insert({
+            user_id: user.id,
+            contact_id,
+            activity_type: 'stage_changed',
+            description: `Moved to ${newStage?.name || 'new stage'} in ${updated.pipelines.name}`,
+            metadata: {
+              pipeline_id,
+              pipeline_name: updated.pipelines.name,
+              old_stage: oldStage?.name || 'unknown',
+              new_stage: newStage?.name || 'unknown',
+              stage_id
+            }
+          })
       }
 
       return NextResponse.json({ pipeline_contact: updated, updated: true })
@@ -192,6 +224,22 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Failed to add contact to pipeline' }, { status: 500 })
     }
 
+    // Log activity for adding contact to pipeline
+    await supabase
+      .from('crm_contact_activities')
+      .insert({
+        user_id: user.id,
+        contact_id,
+        activity_type: 'added_to_pipeline',
+        description: `Added to ${pipelineContact.pipelines.name} pipeline (${pipelineContact.pipeline_stages.name})`,
+        metadata: {
+          pipeline_id,
+          pipeline_name: pipelineContact.pipelines.name,
+          stage_id,
+          stage_name: pipelineContact.pipeline_stages.name
+        }
+      })
+
     return NextResponse.json({ pipeline_contact: pipelineContact }, { status: 201 })
   } catch (error) {
     console.error('Error in POST /api/pipelines/contacts:', error)
@@ -216,6 +264,18 @@ export async function PUT(request) {
     if (!id) {
       return NextResponse.json({ error: 'Pipeline contact ID is required' }, { status: 400 })
     }
+
+    // Get the current pipeline contact to check for stage changes
+    const { data: currentContact } = await supabase
+      .from('pipeline_contacts')
+      .select(`
+        stage_id,
+        contact_id,
+        pipeline_stages!inner(name)
+      `)
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .single()
 
     const updateData = {}
     if (stage_id !== undefined) updateData.stage_id = stage_id
@@ -252,6 +312,25 @@ export async function PUT(request) {
     if (updateError) {
       console.error('Error updating pipeline contact:', updateError)
       return NextResponse.json({ error: 'Failed to update pipeline contact' }, { status: 500 })
+    }
+
+    // Log stage change activity if stage was changed
+    if (stage_id !== undefined && currentContact && currentContact.stage_id !== stage_id) {
+      await supabase
+        .from('crm_contact_activities')
+        .insert({
+          user_id: user.id,
+          contact_id: currentContact.contact_id,
+          activity_type: 'stage_changed',
+          description: `Moved to ${pipelineContact.pipeline_stages.name} in ${pipelineContact.pipelines.name}`,
+          metadata: {
+            pipeline_id: pipelineContact.pipeline_id,
+            pipeline_name: pipelineContact.pipelines.name,
+            old_stage: currentContact.pipeline_stages?.name || 'unknown',
+            new_stage: pipelineContact.pipeline_stages.name,
+            stage_id
+          }
+        })
     }
 
     return NextResponse.json({ pipeline_contact: pipelineContact })
