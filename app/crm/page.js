@@ -31,6 +31,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 export default function CRMPage() {
   const [contacts, setContacts] = useState([])
@@ -47,6 +54,9 @@ export default function CRMPage() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
   const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false)
   const [isPipelineBuilderOpen, setIsPipelineBuilderOpen] = useState(false)
+  const [pipelines, setPipelines] = useState([])
+  const [selectedPipelineFilter, setSelectedPipelineFilter] = useState('all')
+  const [pipelineContacts, setPipelineContacts] = useState([])
   const supabase = createClientComponentClient()
   const { toast } = useToast()
 
@@ -77,9 +87,65 @@ export default function CRMPage() {
     }
   }, [supabase, toast])
 
+  // Fetch pipelines for the filter dropdown
+  const fetchPipelines = useCallback(async () => {
+    try {
+      const response = await fetch('/api/pipelines')
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch pipelines')
+      }
+
+      setPipelines(data.pipelines || [])
+    } catch (error) {
+      console.error('Error fetching pipelines:', error)
+    }
+  }, [])
+
+  // Fetch all pipeline contacts to determine which contacts are in which pipeline
+  const fetchPipelineContacts = useCallback(async () => {
+    try {
+      const response = await fetch('/api/pipelines/contacts')
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch pipeline contacts')
+      }
+
+      setPipelineContacts(data.pipeline_contacts || [])
+    } catch (error) {
+      console.error('Error fetching pipeline contacts:', error)
+    }
+  }, [])
+
   useEffect(() => {
     fetchContacts()
-  }, [fetchContacts])
+    fetchPipelines()
+    fetchPipelineContacts()
+
+    // Set up real-time subscription for pipeline_contacts changes
+    const channel = supabase
+      .channel('pipeline_contacts_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'pipeline_contacts'
+        },
+        () => {
+          // Refresh pipeline contacts when they change
+          fetchPipelineContacts()
+        }
+      )
+      .subscribe()
+
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [fetchContacts, fetchPipelines, fetchPipelineContacts, supabase])
 
   // Delete a single contact
   const handleDeleteContact = async () => {
@@ -339,17 +405,30 @@ export default function CRMPage() {
     }
   }
 
-  // Filter contacts based on search
+  // Filter contacts based on search and pipeline
   const filteredContacts = contacts.filter(contact => {
-    if (!searchTerm) return true
-    const search = searchTerm.toLowerCase()
-    return (
-      contact.name?.toLowerCase().includes(search) ||
-      contact.subtitle?.toLowerCase().includes(search) ||
-      contact.job_title?.toLowerCase().includes(search) ||
-      contact.company?.toLowerCase().includes(search) ||
-      contact.email?.toLowerCase().includes(search)
-    )
+    // Apply search filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase()
+      const matchesSearch = (
+        contact.name?.toLowerCase().includes(search) ||
+        contact.subtitle?.toLowerCase().includes(search) ||
+        contact.job_title?.toLowerCase().includes(search) ||
+        contact.company?.toLowerCase().includes(search) ||
+        contact.email?.toLowerCase().includes(search)
+      )
+      if (!matchesSearch) return false
+    }
+
+    // Apply pipeline filter
+    if (selectedPipelineFilter && selectedPipelineFilter !== 'all') {
+      const isInPipeline = pipelineContacts.some(
+        pc => pc.contact_id === contact.id && pc.pipeline_id === selectedPipelineFilter
+      )
+      if (!isInPipeline) return false
+    }
+
+    return true
   })
 
   return (
@@ -419,8 +498,8 @@ export default function CRMPage() {
         <CardHeader>
           <CardTitle>Contacts</CardTitle>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4">
-            <div className="flex items-center gap-4 flex-1 w-full sm:w-auto">
-              <div className="relative flex-1 max-w-sm">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-1 w-full sm:w-auto">
+              <div className="relative flex-1 max-w-sm w-full">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="text"
@@ -430,6 +509,19 @@ export default function CRMPage() {
                   className="pl-10"
                 />
               </div>
+              <Select value={selectedPipelineFilter} onValueChange={setSelectedPipelineFilter}>
+                <SelectTrigger className="w-full sm:w-[200px]">
+                  <SelectValue placeholder="All Pipelines" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Pipelines</SelectItem>
+                  {pipelines.map(pipeline => (
+                    <SelectItem key={pipeline.id} value={pipeline.id}>
+                      {pipeline.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <div className="text-sm text-muted-foreground whitespace-nowrap">
                 {filteredContacts.length} contact{filteredContacts.length !== 1 ? 's' : ''}
               </div>
@@ -665,7 +757,8 @@ export default function CRMPage() {
         isOpen={isPipelineBuilderOpen}
         onClose={() => setIsPipelineBuilderOpen(false)}
         onPipelineCreated={() => {
-          // Refresh any pipeline-related data if needed
+          // Refresh pipelines when a new one is created
+          fetchPipelines()
         }}
       />
     </div>
