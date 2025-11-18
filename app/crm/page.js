@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, RefreshCw, Search, User, Briefcase, Mail, Linkedin, X, Trash2, UserPlus, Workflow } from 'lucide-react'
+import { Loader2, RefreshCw, Search, User, Briefcase, Mail, Linkedin, X, Trash2, UserPlus, Workflow, Send } from 'lucide-react'
 import PostScraperProgress from '@/components/crm/PostScraperProgress'
 import ProfileModal from '@/components/crm/ProfileModal'
 import AddContactModal from '@/components/crm/AddContactModal'
 import PipelineBuilder from '@/components/crm/PipelineBuilder'
 import PipelineAssignment from '@/components/crm/PipelineAssignment'
+import AddToCampaignModal from '@/components/crm/AddToCampaignModal'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Table,
@@ -57,6 +58,8 @@ export default function CRMPage() {
   const [pipelines, setPipelines] = useState([])
   const [selectedPipelineFilter, setSelectedPipelineFilter] = useState('all')
   const [pipelineContacts, setPipelineContacts] = useState([])
+  const [selectedContacts, setSelectedContacts] = useState([])
+  const [isAddToCampaignModalOpen, setIsAddToCampaignModalOpen] = useState(false)
   const supabase = createClientComponentClient()
   const { toast } = useToast()
 
@@ -200,6 +203,29 @@ export default function CRMPage() {
   const handleContactAdded = (newContact) => {
     // Refresh the contacts list
     fetchContacts()
+  }
+
+  // Handle select all contacts
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      setSelectedContacts(filteredContacts.map(c => c.id))
+    } else {
+      setSelectedContacts([])
+    }
+  }
+
+  // Handle individual contact selection
+  const handleSelectContact = (contactId, checked) => {
+    if (checked) {
+      setSelectedContacts([...selectedContacts, contactId])
+    } else {
+      setSelectedContacts(selectedContacts.filter(id => id !== contactId))
+    }
+  }
+
+  // Handle add to campaign success
+  const handleAddToCampaignSuccess = () => {
+    setSelectedContacts([])
   }
 
   // Delete all contacts
@@ -527,6 +553,15 @@ export default function CRMPage() {
               </div>
             </div>
             <div className="flex gap-2 w-full sm:w-auto">
+              {selectedContacts.length > 0 && (
+                <Button
+                  onClick={() => setIsAddToCampaignModalOpen(true)}
+                  className="bg-[#fb2e01] hover:bg-[#e02a01]"
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  Add to Campaign ({selectedContacts.length})
+                </Button>
+              )}
               {contacts.length > 0 && (
                 <Button
                   onClick={() => setShowDeleteAllDialog(true)}
@@ -583,6 +618,14 @@ export default function CRMPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]">
+                      <input
+                        type="checkbox"
+                        checked={selectedContacts.length === filteredContacts.length && filteredContacts.length > 0}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                        className="rounded border-gray-300"
+                      />
+                    </TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Subtitle</TableHead>
                     <TableHead>Job Title</TableHead>
@@ -598,18 +641,25 @@ export default function CRMPage() {
                   {filteredContacts.map((contact) => (
                     <TableRow
                       key={contact.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleRowClick(contact)}
+                      className="hover:bg-muted/50"
                     >
-                      <TableCell className="font-medium">
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedContacts.includes(contact.id)}
+                          onChange={(e) => handleSelectContact(contact.id, e.target.checked)}
+                          className="rounded border-gray-300"
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium cursor-pointer" onClick={() => handleRowClick(contact)}>
                         {contact.name || 'Unknown'}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className="text-sm text-muted-foreground cursor-pointer" onClick={() => handleRowClick(contact)}>
                         {contact.subtitle || '-'}
                       </TableCell>
-                      <TableCell>{contact.job_title || '-'}</TableCell>
-                      <TableCell>{contact.company || '-'}</TableCell>
-                      <TableCell>
+                      <TableCell className="cursor-pointer" onClick={() => handleRowClick(contact)}>{contact.job_title || '-'}</TableCell>
+                      <TableCell className="cursor-pointer" onClick={() => handleRowClick(contact)}>{contact.company || '-'}</TableCell>
+                      <TableCell className="cursor-pointer" onClick={() => handleRowClick(contact)}>
                         <div className="flex gap-1 flex-wrap">
                           {(contact.engagement_type || 'unknown').split(',').map((type, idx) => (
                             <span key={idx} className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
@@ -760,6 +810,14 @@ export default function CRMPage() {
           // Refresh pipelines when a new one is created
           fetchPipelines()
         }}
+      />
+
+      {/* Add to Campaign Modal */}
+      <AddToCampaignModal
+        isOpen={isAddToCampaignModalOpen}
+        onClose={() => setIsAddToCampaignModalOpen(false)}
+        selectedContactIds={selectedContacts}
+        onSuccess={handleAddToCampaignSuccess}
       />
     </div>
   )
