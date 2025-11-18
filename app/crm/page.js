@@ -6,13 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, RefreshCw, Search, User, Briefcase, Mail, Linkedin, X, Trash2, UserPlus, Workflow, Send } from 'lucide-react'
+import { Loader2, RefreshCw, Search, User, Briefcase, Mail, Linkedin, X, Trash2, UserPlus, Workflow, Send, Download, Upload } from 'lucide-react'
 import PostScraperProgress from '@/components/crm/PostScraperProgress'
 import ProfileModal from '@/components/crm/ProfileModal'
 import AddContactModal from '@/components/crm/AddContactModal'
 import PipelineBuilder from '@/components/crm/PipelineBuilder'
 import PipelineAssignment from '@/components/crm/PipelineAssignment'
 import AddToCampaignModal from '@/components/crm/AddToCampaignModal'
+import { contactsToCSV, downloadCSV, parseCSV } from '@/lib/csv-utils'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Table,
@@ -60,6 +61,8 @@ export default function CRMPage() {
   const [pipelineContacts, setPipelineContacts] = useState([])
   const [selectedContacts, setSelectedContacts] = useState([])
   const [isAddToCampaignModalOpen, setIsAddToCampaignModalOpen] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const supabase = createClientComponentClient()
   const { toast } = useToast()
 
@@ -226,6 +229,97 @@ export default function CRMPage() {
   // Handle add to campaign success
   const handleAddToCampaignSuccess = () => {
     setSelectedContacts([])
+  }
+
+  // Handle CSV export
+  const handleExportCSV = async () => {
+    setExporting(true)
+    try {
+      if (contacts.length === 0) {
+        toast({
+          title: 'No Contacts',
+          description: 'There are no contacts to export',
+          variant: 'destructive'
+        })
+        return
+      }
+
+      const csvContent = contactsToCSV(contacts)
+      const timestamp = new Date().toISOString().split('T')[0]
+      downloadCSV(csvContent, `crm-contacts-${timestamp}.csv`)
+
+      toast({
+        title: 'Success',
+        description: `Exported ${contacts.length} contacts to CSV`,
+      })
+    } catch (error) {
+      console.error('Error exporting CSV:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to export contacts',
+        variant: 'destructive'
+      })
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  // Handle CSV import
+  const handleImportCSV = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setImporting(true)
+    try {
+      const text = await file.text()
+      const parsedContacts = parseCSV(text)
+
+      if (parsedContacts.length === 0) {
+        toast({
+          title: 'No Contacts',
+          description: 'No valid contacts found in CSV file',
+          variant: 'destructive'
+        })
+        return
+      }
+
+      // Send to API
+      const response = await fetch('/api/crm/contacts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'import_csv',
+          contacts: parsedContacts
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to import contacts')
+      }
+
+      toast({
+        title: 'Success',
+        description: data.message || `Imported ${data.imported} contacts`,
+      })
+
+      // Refresh contacts list
+      fetchContacts()
+    } catch (error) {
+      console.error('Error importing CSV:', error)
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to import contacts',
+        variant: 'destructive'
+      })
+    } finally {
+      setImporting(false)
+      // Reset file input
+      event.target.value = ''
+    }
   }
 
   // Delete all contacts
@@ -552,7 +646,7 @@ export default function CRMPage() {
                 {filteredContacts.length} contact{filteredContacts.length !== 1 ? 's' : ''}
               </div>
             </div>
-            <div className="flex gap-2 w-full sm:w-auto">
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
               {selectedContacts.length > 0 && (
                 <Button
                   onClick={() => setIsAddToCampaignModalOpen(true)}
@@ -563,15 +657,48 @@ export default function CRMPage() {
                 </Button>
               )}
               {contacts.length > 0 && (
-                <Button
-                  onClick={() => setShowDeleteAllDialog(true)}
-                  disabled={scraping || deleting}
-                  variant="outline"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Clear All
-                </Button>
+                <>
+                  <Button
+                    onClick={handleExportCSV}
+                    disabled={scraping || exporting}
+                    variant="outline"
+                  >
+                    {exporting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="mr-2 h-4 w-4" />
+                    )}
+                    Export CSV
+                  </Button>
+                  <Button
+                    onClick={() => setShowDeleteAllDialog(true)}
+                    disabled={scraping || deleting}
+                    variant="outline"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Clear All
+                  </Button>
+                </>
               )}
+              <Button
+                onClick={() => document.getElementById('csv-import-input').click()}
+                disabled={scraping || importing}
+                variant="outline"
+              >
+                {importing ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="mr-2 h-4 w-4" />
+                )}
+                Import CSV
+              </Button>
+              <input
+                id="csv-import-input"
+                type="file"
+                accept=".csv"
+                onChange={handleImportCSV}
+                className="hidden"
+              />
               <Button
                 onClick={() => setIsAddContactModalOpen(true)}
                 disabled={scraping}

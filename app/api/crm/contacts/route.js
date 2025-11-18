@@ -160,6 +160,62 @@ export async function POST(request) {
       return NextResponse.json({ success: true, message: 'All contacts deleted' })
     }
 
+    // Check if this is an "import CSV" request
+    if (body.action === 'import_csv') {
+      const { contacts: csvContacts } = body
+
+      if (!csvContacts || !Array.isArray(csvContacts) || csvContacts.length === 0) {
+        return NextResponse.json(
+          { error: 'No contacts provided' },
+          { status: 400 }
+        )
+      }
+
+      // Validate and prepare contacts for insertion
+      const contactsToInsert = csvContacts.map(contact => ({
+        user_id: user.id,
+        name: contact.name || null,
+        profile_url: contact.profile_url || null,
+        subtitle: contact.subtitle || null,
+        job_title: contact.job_title || null,
+        company: contact.company || null,
+        email: contact.email || null,
+        engagement_type: contact.engagement_type || null,
+        post_url: contact.post_url || null,
+        scraped_at: new Date().toISOString()
+      })).filter(contact => contact.name && contact.profile_url) // Only include valid contacts
+
+      if (contactsToInsert.length === 0) {
+        return NextResponse.json(
+          { error: 'No valid contacts found in CSV (name and profile_url are required)' },
+          { status: 400 }
+        )
+      }
+
+      // Insert contacts with upsert to handle duplicates
+      const { data: insertedContacts, error: insertError } = await supabase
+        .from('crm_contacts')
+        .upsert(contactsToInsert, {
+          onConflict: 'user_id,profile_url',
+          ignoreDuplicates: false
+        })
+        .select()
+
+      if (insertError) {
+        console.error('Error importing contacts:', insertError)
+        return NextResponse.json(
+          { error: 'Failed to import contacts' },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Successfully imported ${insertedContacts?.length || contactsToInsert.length} contacts`,
+        imported: insertedContacts?.length || contactsToInsert.length
+      })
+    }
+
     // Check if this is a "merge duplicates" request
     if (body.action === 'merge_duplicates') {
       // Get all contacts for the user
@@ -189,7 +245,7 @@ export async function POST(request) {
       const contactsToKeep = []
       const idsToDelete = []
 
-      contactsByProfile.forEach((contacts, profileUrl) => {
+      contactsByProfile.forEach((contacts, _profileUrl) => {
         if (contacts.length > 1) {
           // Multiple contacts for same profile - merge them
           const mergedContact = contacts[0] // Keep the first one
