@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, Linkedin, Sparkles, Plus, Trash2, Edit2, Save, X, Clock } from 'lucide-react'
+import { Loader2, Linkedin, Sparkles, Plus, Trash2, Edit2, Save, X, Clock, Send } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import AddToCampaignModal from './AddToCampaignModal'
 
 export default function ProfileModal({ contact, isOpen, onClose, onProfileEnriched }) {
   const [enriching, setEnriching] = useState(false)
@@ -26,6 +27,7 @@ export default function ProfileModal({ contact, isOpen, onClose, onProfileEnrich
   const [loadingNotes, setLoadingNotes] = useState(false)
   const [loadingActivities, setLoadingActivities] = useState(false)
   const [savingNote, setSavingNote] = useState(false)
+  const [isAddToCampaignModalOpen, setIsAddToCampaignModalOpen] = useState(false)
   const { toast } = useToast()
 
   // Fetch notes and activities when modal opens or contact changes
@@ -345,27 +347,43 @@ export default function ProfileModal({ contact, isOpen, onClose, onProfileEnrich
             </div>
 
             {/* Enrich Profile Button */}
-            <div className="pt-4 border-t">
-              <Button
-                onClick={handleEnrich}
-                disabled={enriching}
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-              >
-                {enriching ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Enriching Profile...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Enrich Profile Data
-                  </>
-                )}
-              </Button>
-              <p className="text-xs text-muted-foreground text-center mt-2">
-                Fetch detailed job title and company information from LinkedIn
-              </p>
+            <div className="pt-4 border-t space-y-3">
+              <div>
+                <Button
+                  onClick={handleEnrich}
+                  disabled={enriching}
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                >
+                  {enriching ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Enriching Profile...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Enrich Profile Data
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  Fetch detailed job title and company information from LinkedIn
+                </p>
+              </div>
+
+              {/* Add to Campaign Button */}
+              <div>
+                <Button
+                  onClick={() => setIsAddToCampaignModalOpen(true)}
+                  className="w-full bg-[#fb2e01] hover:bg-[#e02a01]"
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  Add to Campaign
+                </Button>
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  Add this contact to an outreach campaign
+                </p>
+              </div>
             </div>
           </TabsContent>
 
@@ -533,6 +551,20 @@ export default function ProfileModal({ contact, isOpen, onClose, onProfileEnrich
             </ScrollArea>
           </TabsContent>
         </Tabs>
+
+        {/* Add to Campaign Modal */}
+        <AddToCampaignModal
+          isOpen={isAddToCampaignModalOpen}
+          onClose={() => setIsAddToCampaignModalOpen(false)}
+          selectedContactIds={contact ? [contact.id] : []}
+          onSuccess={() => {
+            setIsAddToCampaignModalOpen(false)
+            toast({
+              title: 'Success',
+              description: 'Contact added to campaign',
+            })
+          }}
+        />
       </DialogContent>
     </Dialog>
   )
