@@ -46,6 +46,12 @@ This document lists all environment variables used in the Scriib App and explain
 - `TWILIO_AUTH_TOKEN` - Twilio Auth Token
 - `TWILIO_FROM_NUMBER` - Your Twilio phone number in E.164 format (e.g., +14155550123)
 
+### Unipile (LinkedIn Outreach)
+- `UNIPILE_API_KEY` - Your Unipile API key for LinkedIn outreach campaigns
+- `UNIPILE_API_BASE_URL` - Your Unipile API base URL (format: `https://{subdomain}.unipile.com:{port}/api/v1`)
+  - Example: `https://api1.unipile.com:13111/api/v1`
+  - **IMPORTANT**: This URL is unique to your Unipile account. You can find it in your Unipile dashboard under API settings or in the API documentation provided when you created your account.
+
 ### Email Notifications
 Choose one of the following email service options:
 
