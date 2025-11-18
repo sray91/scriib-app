@@ -4,15 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, Linkedin, Plus, Trash2, RefreshCw, CheckCircle, XCircle } from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
+import { Loader2, Linkedin, Plus, Trash2, CheckCircle, XCircle } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,8 +15,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Table,
   TableBody,
@@ -37,15 +27,9 @@ import { Badge } from '@/components/ui/badge'
 
 export default function LinkedInAccountManager() {
   const [accounts, setAccounts] = useState([])
-  const [unipileAccounts, setUnipileAccounts] = useState([])
   const [loading, setLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [deleteAccountId, setDeleteAccountId] = useState(null)
-  const [selectedUnipileAccount, setSelectedUnipileAccount] = useState(null)
-  const [accountName, setAccountName] = useState('')
-  const [dailyLimit, setDailyLimit] = useState(20)
-  const [saving, setSaving] = useState(false)
   const { toast } = useToast()
 
   // Fetch connected accounts
@@ -72,83 +56,51 @@ export default function LinkedInAccountManager() {
     }
   }
 
-  // Sync accounts from Unipile
-  const syncUnipileAccounts = async () => {
+  // Open hosted auth flow to connect LinkedIn account
+  const connectLinkedInAccount = async () => {
     setSyncing(true)
     try {
-      const response = await fetch('/api/outreach/accounts/sync')
+      const response = await fetch('/api/outreach/accounts/connect', {
+        method: 'POST',
+      })
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to sync accounts')
+        throw new Error(data.error || 'Failed to create auth link')
       }
 
-      setUnipileAccounts(data.accounts || [])
-      setIsAddDialogOpen(true)
+      // Open Unipile hosted auth in a popup window
+      const popup = window.open(
+        data.url,
+        'unipile-auth',
+        'width=600,height=700,scrollbars=yes'
+      )
+
+      // Poll for popup close or redirect
+      const checkPopup = setInterval(() => {
+        if (popup?.closed) {
+          clearInterval(checkPopup)
+          // Refresh accounts after popup closes
+          setTimeout(() => {
+            fetchAccounts()
+          }, 1000)
+        }
+      }, 500)
+
+      toast({
+        title: 'Opening authentication window',
+        description: 'Please complete the LinkedIn authentication in the popup window',
+      })
+
     } catch (error) {
-      console.error('Error syncing accounts:', error)
+      console.error('Error connecting account:', error)
       toast({
         title: 'Error',
-        description: error.message || 'Failed to sync Unipile accounts',
+        description: error.message || 'Failed to connect LinkedIn account',
         variant: 'destructive'
       })
     } finally {
       setSyncing(false)
-    }
-  }
-
-  // Add account
-  const handleAddAccount = async () => {
-    if (!selectedUnipileAccount || !accountName.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please select an account and provide a name',
-        variant: 'destructive'
-      })
-      return
-    }
-
-    setSaving(true)
-    try {
-      const response = await fetch('/api/outreach/accounts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          account_name: accountName,
-          unipile_account_id: selectedUnipileAccount.id,
-          email: selectedUnipileAccount.email,
-          profile_name: selectedUnipileAccount.name || selectedUnipileAccount.display_name,
-          daily_connection_limit: dailyLimit,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to add account')
-      }
-
-      toast({
-        title: 'Success',
-        description: 'LinkedIn account added successfully',
-      })
-
-      setIsAddDialogOpen(false)
-      setSelectedUnipileAccount(null)
-      setAccountName('')
-      setDailyLimit(20)
-      fetchAccounts()
-    } catch (error) {
-      console.error('Error adding account:', error)
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to add account',
-        variant: 'destructive'
-      })
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -223,6 +175,27 @@ export default function LinkedInAccountManager() {
 
   useEffect(() => {
     fetchAccounts()
+
+    // Check for auth success/error in URL params
+    const params = new URLSearchParams(window.location.search)
+    const status = params.get('status')
+
+    if (status === 'success') {
+      toast({
+        title: 'Success',
+        description: 'LinkedIn account connected successfully',
+      })
+      // Clear URL params
+      window.history.replaceState({}, '', window.location.pathname)
+    } else if (status === 'error') {
+      toast({
+        title: 'Error',
+        description: 'Failed to connect LinkedIn account. Please try again.',
+        variant: 'destructive'
+      })
+      // Clear URL params
+      window.history.replaceState({}, '', window.location.pathname)
+    }
   }, [])
 
   return (
@@ -236,14 +209,14 @@ export default function LinkedInAccountManager() {
             </CardDescription>
           </div>
           <Button
-            onClick={syncUnipileAccounts}
+            onClick={connectLinkedInAccount}
             disabled={syncing}
             className="bg-[#fb2e01] hover:bg-[#e02a01]"
           >
             {syncing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Syncing...
+                Connecting...
               </>
             ) : (
               <>
@@ -267,14 +240,14 @@ export default function LinkedInAccountManager() {
               Connect a LinkedIn account via Unipile to start outreach campaigns
             </p>
             <Button
-              onClick={syncUnipileAccounts}
+              onClick={connectLinkedInAccount}
               disabled={syncing}
               className="bg-[#fb2e01] hover:bg-[#e02a01]"
             >
               {syncing ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Syncing...
+                  Connecting...
                 </>
               ) : (
                 <>
@@ -353,128 +326,6 @@ export default function LinkedInAccountManager() {
           </div>
         )}
       </CardContent>
-
-      {/* Add Account Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Connect LinkedIn Account</DialogTitle>
-            <DialogDescription>
-              Select a LinkedIn account from Unipile to use for outreach campaigns
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {unipileAccounts.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-sm text-muted-foreground mb-4">
-                  No LinkedIn accounts found in Unipile. Please add accounts in your Unipile dashboard first.
-                </p>
-                <Button
-                  variant="outline"
-                  onClick={() => window.open('https://app.unipile.com', '_blank')}
-                >
-                  Open Unipile Dashboard
-                </Button>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  <Label>Select Account</Label>
-                  <div className="space-y-2 max-h-60 overflow-y-auto border rounded-md p-2">
-                    {unipileAccounts.map((account) => (
-                      <div
-                        key={account.id}
-                        className={`p-3 border rounded-md cursor-pointer transition-colors ${
-                          selectedUnipileAccount?.id === account.id
-                            ? 'border-[#fb2e01] bg-[#fb2e01]/5'
-                            : 'hover:bg-muted'
-                        } ${account.is_connected ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        onClick={() => !account.is_connected && setSelectedUnipileAccount(account)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Linkedin className="h-5 w-5 text-[#0077b5]" />
-                            <div>
-                              <p className="font-medium">
-                                {account.name || account.display_name || account.email}
-                              </p>
-                              <p className="text-sm text-muted-foreground">{account.email}</p>
-                            </div>
-                          </div>
-                          {account.is_connected && (
-                            <Badge variant="secondary">Already Connected</Badge>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {selectedUnipileAccount && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="account-name">Account Name</Label>
-                      <Input
-                        id="account-name"
-                        placeholder="e.g., Personal LinkedIn, Work Account"
-                        value={accountName}
-                        onChange={(e) => setAccountName(e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Give this account a friendly name to identify it
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="daily-limit">Daily Connection Limit</Label>
-                      <Input
-                        id="daily-limit"
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={dailyLimit}
-                        onChange={(e) => setDailyLimit(parseInt(e.target.value))}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Maximum connection requests per day (recommended: 20)
-                      </p>
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsAddDialogOpen(false)
-                setSelectedUnipileAccount(null)
-                setAccountName('')
-                setDailyLimit(20)
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleAddAccount}
-              disabled={!selectedUnipileAccount || !accountName.trim() || saving}
-              className="bg-[#fb2e01] hover:bg-[#e02a01]"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Adding...
-                </>
-              ) : (
-                'Add Account'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deleteAccountId} onOpenChange={(open) => !open && setDeleteAccountId(null)}>

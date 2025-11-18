@@ -1,11 +1,14 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { getUnipileClient } from '@/lib/unipile-client'
 
 /**
  * Unipile Webhook Handler
- * Receives events from Unipile about connection acceptances, messages, etc.
- * Events: connection.accepted, connection.rejected, message.received
+ * Receives events from Unipile about:
+ * - Account creation (hosted auth)
+ * - Connection acceptances/rejections
+ * - Messages received
  */
 export async function POST(request) {
   try {
@@ -14,6 +17,13 @@ export async function POST(request) {
 
     console.log('Received Unipile webhook:', JSON.stringify(body, null, 2))
 
+    // Handle hosted auth account creation callback
+    if (body.status === 'CREATION_SUCCESS') {
+      await handleAccountCreation(supabase, body)
+      return NextResponse.json({ success: true })
+    }
+
+    // Handle standard webhook events
     const { event, data } = body
 
     switch (event) {
@@ -45,10 +55,75 @@ export async function POST(request) {
 }
 
 /**
+ * Handle hosted auth account creation success
+ */
+async function handleAccountCreation(supabase, data) {
+  const { account_id, name: userId, status } = data
+
+  if (status !== 'CREATION_SUCCESS' || !account_id || !userId) {
+    console.log('Invalid account creation webhook data:', data)
+    return
+  }
+
+  try {
+    // Fetch account details from Unipile
+    const unipile = getUnipileClient()
+    const accountDetails = await unipile.getAccount(account_id)
+
+    // Extract LinkedIn account information
+    const name = accountDetails.name || accountDetails.connection_params?.im?.username || 'LinkedIn Account'
+    const email = accountDetails.connection_params?.im?.email || null
+    const publicIdentifier = accountDetails.connection_params?.im?.publicIdentifier || null
+    const profileUrl = publicIdentifier ? `https://www.linkedin.com/in/${publicIdentifier}` : null
+
+    // Check if account already exists
+    const { data: existingAccount } = await supabase
+      .from('linkedin_outreach_accounts')
+      .select('id')
+      .eq('unipile_account_id', account_id)
+      .eq('user_id', userId)
+      .single()
+
+    if (existingAccount) {
+      console.log('Account already exists:', account_id)
+      return
+    }
+
+    // Create the LinkedIn outreach account
+    const { data: newAccount, error } = await supabase
+      .from('linkedin_outreach_accounts')
+      .insert({
+        user_id: userId,
+        unipile_account_id: account_id,
+        account_name: name,
+        profile_name: name,
+        email: email,
+        profile_url: profileUrl,
+        unipile_provider_data: accountDetails.connection_params,
+        daily_connection_limit: 20, // Default limit
+        is_active: true,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error creating LinkedIn account:', error)
+      throw error
+    }
+
+    console.log('LinkedIn account created successfully:', newAccount)
+
+  } catch (error) {
+    console.error('Error in handleAccountCreation:', error)
+    throw error
+  }
+}
+
+/**
  * Handle connection accepted event
  */
 async function handleConnectionAccepted(supabase, data) {
-  const { account_id, profile_url, connection_id } = data
+  const { account_id, profile_url } = data
 
   // Find the campaign contact by profile URL and account
   const { data: account } = await supabase

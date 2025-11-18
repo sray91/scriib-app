@@ -26,7 +26,7 @@ export async function GET(request) {
 
       // Filter only LinkedIn accounts
       const linkedInAccounts = (unipileAccounts.items || []).filter(
-        account => account.provider === 'LINKEDIN'
+        account => account.type === 'LINKEDIN'
       )
 
       // Get existing accounts from database to mark which are already connected
