@@ -52,6 +52,13 @@ This document lists all environment variables used in the Scriib App and explain
   - Example: `https://api1.unipile.com:13111/api/v1`
   - **IMPORTANT**: This URL is unique to your Unipile account. You can find it in your Unipile dashboard under API settings or in the API documentation provided when you created your account.
 
+### Campaign Automation (Cron Jobs)
+- `CRON_SECRET` - Secret token to authenticate cron job requests for campaign execution
+  - **IMPORTANT**: This is required for outreach campaigns to run automatically
+  - Generate a secure random string (e.g., using `openssl rand -base64 32`)
+  - Example: `your-secure-random-string-here`
+  - Used by Vercel Cron Jobs to trigger campaign execution every hour
+
 ### Email Notifications
 Choose one of the following email service options:
 
@@ -96,6 +103,9 @@ TWITTER_REDIRECT_URI=http://localhost:3000/api/auth/twitter/callback
 LINKEDIN_CLIENT_ID=your-linkedin-client-id
 LINKEDIN_CLIENT_SECRET=your-linkedin-client-secret
 LINKEDIN_REDIRECT_URI=http://localhost:3000/api/auth/linkedin/callback
+
+# Cron Jobs
+CRON_SECRET=your-secure-random-string
 ```
 
 ### Production Environment Variables (Vercel/Hosting Platform)
@@ -119,6 +129,9 @@ TWITTER_REDIRECT_URI=https://app.scriib.ai/api/auth/twitter/callback
 LINKEDIN_CLIENT_ID=your-linkedin-client-id
 LINKEDIN_CLIENT_SECRET=your-linkedin-client-secret
 LINKEDIN_REDIRECT_URI=https://app.scriib.ai/api/auth/linkedin/callback
+
+# Cron Jobs
+CRON_SECRET=your-secure-random-string
 ```
 
 ## Troubleshooting
