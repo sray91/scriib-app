@@ -416,9 +416,17 @@ async function processFollowUps(supabase, unipile, campaign) {
 
   // Get contacts who accepted connection and are due for follow-up
   const followUpDate = new Date()
-  followUpDate.setDate(followUpDate.getDate() - (campaign.follow_up_delay_days || 3))
+  const delay = campaign.follow_up_delay_days !== undefined && campaign.follow_up_delay_days !== null
+    ? campaign.follow_up_delay_days
+    : 3
+  followUpDate.setDate(followUpDate.getDate() - delay)
 
-  const { data: followUpContacts } = await supabase
+  console.log(`processFollowUps: Checking for follow-ups`)
+  console.log(`  Campaign: ${campaign.name}`)
+  console.log(`  Follow-up delay: ${campaign.follow_up_delay_days} days`)
+  console.log(`  Follow-up cutoff date: ${followUpDate.toISOString()}`)
+
+  const { data: followUpContacts, error: followUpError } = await supabase
     .from('campaign_contacts')
     .select('*, crm_contacts(*)')
     .eq('campaign_id', campaign.id)
@@ -426,9 +434,17 @@ async function processFollowUps(supabase, unipile, campaign) {
     .lte('connection_accepted_at', followUpDate.toISOString())
     .is('follow_up_sent_at', null)
 
+  console.log(`  Query returned ${followUpContacts?.length || 0} contacts`)
+  if (followUpError) {
+    console.error(`  Error fetching follow-up contacts:`, followUpError)
+  }
+
   if (!followUpContacts || followUpContacts.length === 0) {
+    console.log(`  No contacts eligible for follow-up`)
     return result
   }
+
+  console.log(`  Found ${followUpContacts.length} contacts eligible for follow-up`)
 
   const unipileAccountId = campaign.linkedin_outreach_accounts.unipile_account_id
 
@@ -443,15 +459,24 @@ async function processFollowUps(supabase, unipile, campaign) {
       message = message.replace(/\{company\}/gi, contact.company || '')
       message = message.replace(/\{job_title\}/gi, contact.job_title || '')
 
-      // Get or create chat with the contact
-      let chatId = campaignContact.unipile_chat_id
-      if (!chatId) {
-        const chatResponse = await unipile.startChat(unipileAccountId, contact.profile_url)
-        chatId = chatResponse.id
+      // Get provider ID from profile URL
+      // Extract public identifier from LinkedIn URL (e.g., "ryancahalane" from linkedin.com/in/ryancahalane/)
+      const linkedinUrlMatch = contact.profile_url.match(/linkedin\.com\/in\/([^/]+)/)
+      let providerId = contact.profile_url // Default to profile_url
+
+      if (linkedinUrlMatch && linkedinUrlMatch[1]) {
+        const publicIdentifier = linkedinUrlMatch[1]
+        // Fetch profile to get provider_id
+        const profileData = await unipile.getLinkedInProfile(unipileAccountId, publicIdentifier)
+        providerId = profileData.provider_id
       }
 
-      // Send follow-up message
-      const messageResponse = await unipile.sendMessage(unipileAccountId, chatId, message)
+      // Send direct message (creates chat if needed)
+      const messageResponse = await unipile.sendDirectMessage(
+        unipileAccountId,
+        providerId,
+        message
+      )
 
       // Update campaign contact
       await supabase
@@ -460,7 +485,7 @@ async function processFollowUps(supabase, unipile, campaign) {
           status: 'follow_up_sent',
           follow_up_sent_at: new Date().toISOString(),
           follow_up_message_id: messageResponse.id || null,
-          unipile_chat_id: chatId,
+          unipile_chat_id: messageResponse.chat_id || messageResponse.id,
         })
         .eq('id', campaignContact.id)
 
