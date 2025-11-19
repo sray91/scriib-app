@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
@@ -39,7 +38,6 @@ export default function OutreachPage() {
   const [selectedStatus, setSelectedStatus] = useState('all')
   const [deleteCampaignId, setDeleteCampaignId] = useState(null)
   const [controllingCampaign, setControllingCampaign] = useState(null)
-  const supabase = createClientComponentClient()
   const { toast } = useToast()
 
   // Fetch campaigns
@@ -329,20 +327,20 @@ export default function OutreachPage() {
                             </Button>
                           </Link>
                           {campaign.status === 'draft' && (
-                            <>
-                              <Link href={`/outreach/${campaign.id}/edit`}>
-                                <Button variant="ghost" size="sm">
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                              </Link>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setDeleteCampaignId(campaign.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
+                            <Link href={`/outreach/${campaign.id}/edit`}>
+                              <Button variant="ghost" size="sm">
+                                <Pencil className="h-4 w-4" />
                               </Button>
-                            </>
+                            </Link>
+                          )}
+                          {(campaign.status === 'draft' || campaign.status === 'stopped') && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setDeleteCampaignId(campaign.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
                           )}
                         </div>
                       </TableCell>

@@ -341,12 +341,6 @@ export default function CampaignDetailPage() {
                 )}
                 Start Campaign
               </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setDeleteCampaignDialog(true)}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
             </>
           )}
 
@@ -392,6 +386,15 @@ export default function CampaignDetailPage() {
                 Stop
               </Button>
             </>
+          )}
+
+          {(campaign.status === 'draft' || campaign.status === 'stopped') && (
+            <Button
+              variant="ghost"
+              onClick={() => setDeleteCampaignDialog(true)}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
           )}
         </div>
       </div>
