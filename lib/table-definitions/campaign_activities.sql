@@ -25,6 +25,7 @@ ALTER TABLE public.campaign_activities ENABLE ROW LEVEL SECURITY;
 -- RLS Policies
 DROP POLICY IF EXISTS "Users can view activities for their campaigns" ON public.campaign_activities;
 DROP POLICY IF EXISTS "Users can insert activities for their campaigns" ON public.campaign_activities;
+DROP POLICY IF EXISTS "Users can delete activities for their campaigns" ON public.campaign_activities;
 
 CREATE POLICY "Users can view activities for their campaigns"
     ON public.campaign_activities
@@ -41,6 +42,17 @@ CREATE POLICY "Users can insert activities for their campaigns"
     ON public.campaign_activities
     FOR INSERT
     WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.campaigns
+            WHERE campaigns.id = campaign_activities.campaign_id
+            AND campaigns.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Users can delete activities for their campaigns"
+    ON public.campaign_activities
+    FOR DELETE
+    USING (
         EXISTS (
             SELECT 1 FROM public.campaigns
             WHERE campaigns.id = campaign_activities.campaign_id
