@@ -113,6 +113,22 @@ export async function POST(request, { params }) {
           message: `Campaign "${campaign.name}" started`,
         })
 
+      // Trigger immediate campaign execution (don't wait for the hourly cron)
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || `${request.headers.get('x-forwarded-proto') || 'http'}://${request.headers.get('host')}`
+        await fetch(`${baseUrl}/api/outreach/campaigns/execute`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.CRON_SECRET}`,
+            'Content-Type': 'application/json',
+          },
+        })
+      } catch (executeError) {
+        console.error('Error triggering immediate campaign execution:', executeError)
+        // Don't fail the start operation if immediate execution fails
+        // The hourly cron will pick it up
+      }
+
       return NextResponse.json({
         success: true,
         message: 'Campaign started successfully',
