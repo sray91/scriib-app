@@ -33,12 +33,24 @@ export async function GET(request, { params }) {
       )
     }
 
+    // First, fetch campaign contacts without join to debug
+    const { data: basicContacts, error: basicError } = await supabase
+      .from('campaign_contacts')
+      .select('*')
+      .eq('campaign_id', campaignId)
+
+    console.log('Basic query result:', {
+      count: basicContacts?.length || 0,
+      error: basicError,
+      contacts: basicContacts
+    })
+
     // Fetch campaign contacts with contact details
     const { data: campaignContacts, error: dbError } = await supabase
       .from('campaign_contacts')
       .select(`
         *,
-        crm_contacts!campaign_contacts_contact_id_fkey (
+        crm_contacts (
           id,
           name,
           subtitle,
@@ -65,6 +77,7 @@ export async function GET(request, { params }) {
     }
 
     console.log(`Fetched ${campaignContacts?.length || 0} contacts for campaign ${campaignId}`)
+    console.log('Contacts with join:', campaignContacts)
 
     return NextResponse.json({ contacts: campaignContacts || [] })
 
