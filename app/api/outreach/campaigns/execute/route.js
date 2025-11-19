@@ -185,16 +185,56 @@ async function processCampaign(supabase, unipile, campaign, today) {
       console.log(`Successfully sent connection request to ${campaignContact.crm_contacts?.name}`)
     } catch (error) {
       console.error(`Error sending connection request to ${campaignContact.crm_contacts?.name}:`, error)
-      result.errors++
 
-      // Log the error
-      await supabase
-        .from('campaign_contacts')
-        .update({
-          status: 'failed',
-          error_message: error.message,
-        })
-        .eq('id', campaignContact.id)
+      // Check if error indicates user is already connected
+      const alreadyConnectedErrors = [
+        'already connected',
+        'already in your network',
+        'connection already exists',
+        'user is already a connection',
+        'already sent',
+      ]
+
+      const isAlreadyConnected = alreadyConnectedErrors.some(msg =>
+        error.message?.toLowerCase().includes(msg)
+      )
+
+      if (isAlreadyConnected) {
+        console.log(`Contact ${campaignContact.crm_contacts?.name} is already connected - marking as connected`)
+
+        // Mark as already connected so they get follow-up messages
+        await supabase
+          .from('campaign_contacts')
+          .update({
+            status: 'connected',
+            connection_accepted_at: new Date().toISOString(),
+            error_message: 'Already connected on LinkedIn',
+          })
+          .eq('id', campaignContact.id)
+
+        // Log activity
+        await supabase
+          .from('campaign_activities')
+          .insert({
+            campaign_id: campaign.id,
+            contact_id: campaignContact.crm_contacts.id,
+            campaign_contact_id: campaignContact.id,
+            activity_type: 'already_connected',
+            message: `Contact was already connected on LinkedIn`,
+          })
+
+        result.connections_sent++ // Count as success
+      } else {
+        // Different error - mark as failed
+        result.errors++
+        await supabase
+          .from('campaign_contacts')
+          .update({
+            status: 'failed',
+            error_message: error.message,
+          })
+          .eq('id', campaignContact.id)
+      }
     }
   }
 
