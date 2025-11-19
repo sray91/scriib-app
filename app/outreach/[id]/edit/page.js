@@ -30,7 +30,7 @@ export default function EditCampaignPage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [linkedinAccountId, setLinkedinAccountId] = useState('')
-  const [pipelineId, setPipelineId] = useState('')
+  const [pipelineId, setPipelineId] = useState('none')
   const [connectionMessage, setConnectionMessage] = useState('')
   const [followUpMessage, setFollowUpMessage] = useState('')
   const [followUpDelayDays, setFollowUpDelayDays] = useState(3)
@@ -74,7 +74,7 @@ export default function EditCampaignPage() {
         setName(campaignInfo.name)
         setDescription(campaignInfo.description || '')
         setLinkedinAccountId(campaignInfo.linkedin_outreach_account_id || '')
-        setPipelineId(campaignInfo.pipeline_id || '')
+        setPipelineId(campaignInfo.pipeline_id || 'none')
         setConnectionMessage(campaignInfo.connection_message || '')
         setFollowUpMessage(campaignInfo.follow_up_message || '')
         setFollowUpDelayDays(campaignInfo.follow_up_delay_days || 3)
@@ -183,7 +183,7 @@ export default function EditCampaignPage() {
           name: name.trim(),
           description: description.trim() || null,
           linkedin_outreach_account_id: linkedinAccountId,
-          pipeline_id: pipelineId || null,
+          pipeline_id: pipelineId === 'none' ? null : pipelineId,
           connection_message: connectionMessage.trim(),
           follow_up_message: followUpMessage.trim() || '',
           follow_up_delay_days: followUpDelayDays,
@@ -308,7 +308,7 @@ export default function EditCampaignPage() {
                     <SelectValue placeholder="No pipeline" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No pipeline</SelectItem>
+                    <SelectItem value="none">No pipeline</SelectItem>
                     {pipelines.map((pipeline) => (
                       <SelectItem key={pipeline.id} value={pipeline.id}>
                         {pipeline.name}

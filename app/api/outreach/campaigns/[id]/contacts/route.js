@@ -33,18 +33,6 @@ export async function GET(request, { params }) {
       )
     }
 
-    // First, fetch campaign contacts without join to debug
-    const { data: basicContacts, error: basicError } = await supabase
-      .from('campaign_contacts')
-      .select('*')
-      .eq('campaign_id', campaignId)
-
-    console.log('Basic query result:', {
-      count: basicContacts?.length || 0,
-      error: basicError,
-      contacts: basicContacts
-    })
-
     // Fetch campaign contacts with contact details
     const { data: campaignContacts, error: dbError } = await supabase
       .from('campaign_contacts')
@@ -61,8 +49,7 @@ export async function GET(request, { params }) {
         ),
         pipeline_stages (
           id,
-          name,
-          order_index
+          name
         )
       `)
       .eq('campaign_id', campaignId)
@@ -75,9 +62,6 @@ export async function GET(request, { params }) {
         { status: 500 }
       )
     }
-
-    console.log(`Fetched ${campaignContacts?.length || 0} contacts for campaign ${campaignId}`)
-    console.log('Contacts with join:', campaignContacts)
 
     return NextResponse.json({ contacts: campaignContacts || [] })
 
@@ -168,8 +152,6 @@ export async function POST(request, { params }) {
       )
     }
 
-    console.log(`Successfully inserted ${insertedContacts?.length || 0} contacts into campaign ${campaignId}`)
-
     // Update campaign total_contacts count
     const { count, error: countError } = await supabase
       .from('campaign_contacts')
@@ -179,8 +161,6 @@ export async function POST(request, { params }) {
     if (countError) {
       console.error('Error counting campaign contacts:', countError)
     }
-
-    console.log(`Total contacts in campaign ${campaignId}: ${count}`)
 
     const { error: updateError } = await supabase
       .from('campaigns')

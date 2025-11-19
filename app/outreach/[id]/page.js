@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
 import { Label } from '@/components/ui/label'
-import { Loader2, ArrowLeft, Play, Pause, Square, Pencil, Trash2, UserPlus, TrendingUp, Users, CheckCircle, Send, MessageSquare } from 'lucide-react'
+import { Loader2, ArrowLeft, Play, Pause, Square, Pencil, Trash2, UserPlus, TrendingUp, Users, CheckCircle, Send, MessageSquare, X } from 'lucide-react'
 import Link from 'next/link'
 import {
   Table,
@@ -48,6 +48,9 @@ export default function CampaignDetailPage() {
   const [loading, setLoading] = useState(true)
   const [controllingCampaign, setControllingCampaign] = useState(false)
   const [deleteCampaignDialog, setDeleteCampaignDialog] = useState(false)
+  const [removeContactDialog, setRemoveContactDialog] = useState(false)
+  const [contactToRemove, setContactToRemove] = useState(null)
+  const [removingContact, setRemovingContact] = useState(false)
 
   // Fetch campaign data
   const fetchCampaign = useCallback(async () => {
@@ -192,6 +195,47 @@ export default function CampaignDetailPage() {
       })
     } finally {
       setDeleteCampaignDialog(false)
+    }
+  }
+
+  // Remove contact from campaign
+  const handleRemoveContact = async () => {
+    if (!contactToRemove) return
+
+    setRemovingContact(true)
+    try {
+      const response = await fetch(
+        `/api/outreach/campaigns/${campaignId}/contacts?contact_id=${contactToRemove.contact_id}`,
+        {
+          method: 'DELETE',
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to remove contact')
+      }
+
+      toast({
+        title: 'Success',
+        description: 'Contact removed from campaign',
+      })
+
+      // Refresh data
+      fetchContacts()
+      fetchCampaign()
+    } catch (error) {
+      console.error('Error removing contact:', error)
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to remove contact',
+        variant: 'destructive'
+      })
+    } finally {
+      setRemovingContact(false)
+      setRemoveContactDialog(false)
+      setContactToRemove(null)
     }
   }
 
@@ -461,6 +505,7 @@ export default function CampaignDetailPage() {
                         <TableHead>Connection Sent</TableHead>
                         <TableHead>Accepted</TableHead>
                         <TableHead>Follow-up Sent</TableHead>
+                        <TableHead className="w-[50px]"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -491,6 +536,19 @@ export default function CampaignDetailPage() {
                             {contact.follow_up_sent_at
                               ? new Date(contact.follow_up_sent_at).toLocaleDateString()
                               : '-'}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setContactToRemove(contact)
+                                setRemoveContactDialog(true)
+                              }}
+                              disabled={removingContact}
+                            >
+                              <X className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -582,7 +640,7 @@ export default function CampaignDetailPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Campaign Confirmation Dialog */}
       <AlertDialog open={deleteCampaignDialog} onOpenChange={setDeleteCampaignDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -598,6 +656,40 @@ export default function CampaignDetailPage() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Remove Contact Confirmation Dialog */}
+      <AlertDialog open={removeContactDialog} onOpenChange={setRemoveContactDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Contact from Campaign</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove {contactToRemove?.crm_contacts?.name || 'this contact'} from the campaign?
+              {contactToRemove?.status !== 'pending' && (
+                <span className="block mt-2 text-yellow-600">
+                  Warning: This contact has already been contacted. Consider stopping the campaign first.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removingContact}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRemoveContact}
+              disabled={removingContact}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {removingContact ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Removing...
+                </>
+              ) : (
+                'Remove'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
