@@ -38,7 +38,7 @@ export async function GET(request, { params }) {
       .from('campaign_contacts')
       .select(`
         *,
-        crm_contacts (
+        crm_contacts!campaign_contacts_contact_id_fkey (
           id,
           name,
           subtitle,
@@ -59,10 +59,12 @@ export async function GET(request, { params }) {
     if (dbError) {
       console.error('Error fetching campaign contacts:', dbError)
       return NextResponse.json(
-        { error: 'Failed to fetch campaign contacts' },
+        { error: 'Failed to fetch campaign contacts', details: dbError.message },
         { status: 500 }
       )
     }
+
+    console.log(`Fetched ${campaignContacts?.length || 0} contacts for campaign ${campaignId}`)
 
     return NextResponse.json({ contacts: campaignContacts || [] })
 
@@ -148,21 +150,33 @@ export async function POST(request, { params }) {
     if (insertError) {
       console.error('Error adding contacts to campaign:', insertError)
       return NextResponse.json(
-        { error: 'Failed to add contacts to campaign' },
+        { error: 'Failed to add contacts to campaign', details: insertError.message },
         { status: 500 }
       )
     }
 
+    console.log(`Successfully inserted ${insertedContacts?.length || 0} contacts into campaign ${campaignId}`)
+
     // Update campaign total_contacts count
-    const { data: countData } = await supabase
+    const { count, error: countError } = await supabase
       .from('campaign_contacts')
-      .select('id', { count: 'exact', head: true })
+      .select('*', { count: 'exact', head: true })
       .eq('campaign_id', campaignId)
 
-    await supabase
+    if (countError) {
+      console.error('Error counting campaign contacts:', countError)
+    }
+
+    console.log(`Total contacts in campaign ${campaignId}: ${count}`)
+
+    const { error: updateError } = await supabase
       .from('campaigns')
-      .update({ total_contacts: countData?.count || 0 })
+      .update({ total_contacts: count || 0 })
       .eq('id', campaignId)
+
+    if (updateError) {
+      console.error('Error updating campaign total_contacts:', updateError)
+    }
 
     // Log activity
     await supabase
@@ -261,15 +275,23 @@ export async function DELETE(request, { params }) {
     }
 
     // Update campaign total_contacts count
-    const { data: countData } = await supabase
+    const { count, error: countError } = await supabase
       .from('campaign_contacts')
-      .select('id', { count: 'exact', head: true })
+      .select('*', { count: 'exact', head: true })
       .eq('campaign_id', campaignId)
 
-    await supabase
+    if (countError) {
+      console.error('Error counting campaign contacts:', countError)
+    }
+
+    const { error: updateError } = await supabase
       .from('campaigns')
-      .update({ total_contacts: countData?.count || 0 })
+      .update({ total_contacts: count || 0 })
       .eq('id', campaignId)
+
+    if (updateError) {
+      console.error('Error updating campaign total_contacts:', updateError)
+    }
 
     return NextResponse.json({ success: true })
 
