@@ -56,6 +56,36 @@ export default function LinkedInAccountManager() {
     }
   }
 
+  // Sync accounts from Unipile and auto-create new ones
+  const syncAccountsFromUnipile = async () => {
+    try {
+      const response = await fetch('/api/outreach/accounts/auto-sync', {
+        method: 'POST',
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to sync accounts')
+      }
+
+      if (data.created > 0) {
+        toast({
+          title: 'Success',
+          description: `${data.created} LinkedIn account${data.created > 1 ? 's' : ''} connected successfully`,
+        })
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error syncing accounts:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to sync LinkedIn accounts',
+        variant: 'destructive'
+      })
+    }
+  }
+
   // Open hosted auth flow to connect LinkedIn account
   const connectLinkedInAccount = async () => {
     setSyncing(true)
@@ -80,8 +110,9 @@ export default function LinkedInAccountManager() {
       const checkPopup = setInterval(() => {
         if (popup?.closed) {
           clearInterval(checkPopup)
-          // Refresh accounts after popup closes
-          setTimeout(() => {
+          // Auto-sync accounts from Unipile after popup closes
+          setTimeout(async () => {
+            await syncAccountsFromUnipile()
             fetchAccounts()
           }, 1000)
         }
