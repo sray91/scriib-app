@@ -44,9 +44,9 @@ export async function POST(request, { params }) {
 
     // Validate action based on current status
     if (action === 'start') {
-      if (!['draft', 'paused'].includes(campaign.status)) {
+      if (!['draft', 'paused', 'stopped'].includes(campaign.status)) {
         return NextResponse.json(
-          { error: 'Campaign can only be started from draft or paused status' },
+          { error: 'Campaign can only be started from draft, paused, or stopped status' },
           { status: 400 }
         )
       }
@@ -88,11 +88,13 @@ export async function POST(request, { params }) {
       }
 
       // Update campaign status to active
+      const isRestart = campaign.status === 'stopped'
       const { error: updateError } = await supabase
         .from('campaigns')
         .update({
           status: 'active',
           started_at: campaign.started_at || new Date().toISOString(),
+          completed_at: null, // Clear completed_at when restarting
         })
         .eq('id', campaignId)
 
@@ -109,8 +111,8 @@ export async function POST(request, { params }) {
         .from('campaign_activities')
         .insert({
           campaign_id: campaignId,
-          activity_type: 'campaign_started',
-          message: `Campaign "${campaign.name}" started`,
+          activity_type: isRestart ? 'campaign_restarted' : 'campaign_started',
+          message: `Campaign "${campaign.name}" ${isRestart ? 'restarted' : 'started'}`,
         })
 
       // Trigger immediate campaign execution (don't wait for the hourly cron)

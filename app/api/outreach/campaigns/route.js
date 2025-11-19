@@ -290,10 +290,10 @@ export async function DELETE(request) {
       )
     }
 
-    // Prevent deletion of active campaigns
-    if (campaign.status === 'active') {
+    // Only allow deletion of draft or stopped campaigns
+    if (!['draft', 'stopped'].includes(campaign.status)) {
       return NextResponse.json(
-        { error: 'Cannot delete an active campaign. Please pause it first.' },
+        { error: 'Only draft or stopped campaigns can be deleted. Please stop the campaign first.' },
         { status: 400 }
       )
     }
