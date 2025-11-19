@@ -67,12 +67,12 @@ export async function POST(request, { params }) {
       }
 
       // Check if campaign has contacts
-      const { data: contactsCount } = await supabase
+      const { count } = await supabase
         .from('campaign_contacts')
         .select('id', { count: 'exact', head: true })
         .eq('campaign_id', campaignId)
 
-      if (!contactsCount || contactsCount.count === 0) {
+      if (!count || count === 0) {
         return NextResponse.json(
           { error: 'Campaign must have at least one contact' },
           { status: 400 }
