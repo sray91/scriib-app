@@ -186,7 +186,9 @@ async function processCampaign(supabase, unipile, campaign, today) {
     } catch (error) {
       console.error(`Error sending connection request to ${campaignContact.crm_contacts?.name}:`, error)
 
-      // Check if error indicates user is already connected
+      // FALLBACK: Check if error indicates user is already connected
+      // Note: Most cases should be caught by the precheck in sendConnectionRequest()
+      // This is a safety net for edge cases where the precheck didn't catch it
       const alreadyConnectedErrors = [
         'already connected',
         'already in your network',
@@ -200,7 +202,7 @@ async function processCampaign(supabase, unipile, campaign, today) {
       )
 
       if (isAlreadyConnected) {
-        console.log(`Contact ${campaignContact.crm_contacts?.name} is already connected - marking as connected`)
+        console.log(`Contact ${campaignContact.crm_contacts?.name} is already connected (fallback detection) - marking as connected`)
 
         // Mark as already connected so they get follow-up messages
         await supabase
@@ -208,7 +210,7 @@ async function processCampaign(supabase, unipile, campaign, today) {
           .update({
             status: 'connected',
             connection_accepted_at: new Date().toISOString(),
-            error_message: 'Already connected on LinkedIn',
+            error_message: 'Already connected on LinkedIn (fallback)',
           })
           .eq('id', campaignContact.id)
 
@@ -220,7 +222,7 @@ async function processCampaign(supabase, unipile, campaign, today) {
             contact_id: campaignContact.crm_contacts.id,
             campaign_contact_id: campaignContact.id,
             activity_type: 'already_connected',
-            message: `Contact was already connected on LinkedIn`,
+            message: `Contact was already connected on LinkedIn (detected via fallback error handling)`,
           })
 
         result.connections_sent++ // Count as success
@@ -287,11 +289,13 @@ async function sendConnectionRequest(supabase, unipile, campaign, campaignContac
   // The provider_id is LinkedIn's internal ID (e.g., "ACoAAAcDMMQBODyLwZrRcgYhrkCafURGqva0U4E")
   // which is different from the public identifier
   let providerId
+  let profileData
   try {
     console.log(`Fetching LinkedIn profile for: ${publicIdentifier}`)
-    const profileData = await unipile.getLinkedInProfile(unipileAccountId, publicIdentifier)
+    profileData = await unipile.getLinkedInProfile(unipileAccountId, publicIdentifier)
     providerId = profileData.provider_id
     console.log(`Successfully retrieved provider_id: ${providerId}`)
+    console.log(`Connection status - network_distance: ${profileData.network_distance}, is_relationship: ${profileData.is_relationship}, pending_invitation: ${profileData.pending_invitation}`)
 
     if (!providerId) {
       throw new Error('Profile response did not include provider_id')
@@ -299,6 +303,65 @@ async function sendConnectionRequest(supabase, unipile, campaign, campaignContac
   } catch (profileError) {
     console.error(`Failed to fetch LinkedIn profile:`, profileError)
     throw new Error(`Could not retrieve LinkedIn provider_id: ${profileError.message}`)
+  }
+
+  // PRECHECK: Check if already connected or invitation already sent
+  // If already connected, mark as connected and skip sending request
+  if (profileData.network_distance === 'FIRST_DEGREE' || profileData.is_relationship === true) {
+    console.log(`Contact ${contact.name} is already a 1st degree connection - marking as connected`)
+
+    // Mark as already connected so they get follow-up messages
+    await supabase
+      .from('campaign_contacts')
+      .update({
+        status: 'connected',
+        connection_accepted_at: new Date().toISOString(),
+        error_message: 'Already connected on LinkedIn (precheck)',
+      })
+      .eq('id', campaignContact.id)
+
+    // Log activity
+    await supabase
+      .from('campaign_activities')
+      .insert({
+        campaign_id: campaign.id,
+        contact_id: contact.id,
+        campaign_contact_id: campaignContact.id,
+        activity_type: 'already_connected',
+        message: `Contact was already a 1st degree connection on LinkedIn (detected via precheck)`,
+      })
+
+    // Return early - don't send connection request
+    return
+  }
+
+  // PRECHECK: Check if invitation already pending
+  if (profileData.pending_invitation === true) {
+    console.log(`Contact ${contact.name} already has a pending invitation - marking as connection_sent`)
+
+    // Mark as connection already sent
+    await supabase
+      .from('campaign_contacts')
+      .update({
+        status: 'connection_sent',
+        connection_sent_at: new Date().toISOString(),
+        error_message: 'Connection request already pending (precheck)',
+      })
+      .eq('id', campaignContact.id)
+
+    // Log activity
+    await supabase
+      .from('campaign_activities')
+      .insert({
+        campaign_id: campaign.id,
+        contact_id: contact.id,
+        campaign_contact_id: campaignContact.id,
+        activity_type: 'connection_already_sent',
+        message: `Connection request was already pending for ${contact.name} (detected via precheck)`,
+      })
+
+    // Return early - don't send duplicate request
+    return
   }
 
   // Personalize message if needed (simple variable replacement)
