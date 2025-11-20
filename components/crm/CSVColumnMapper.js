@@ -36,7 +36,7 @@ export default function CSVColumnMapper({ isOpen, onClose, csvHeaders, previewDa
   // Define the field configuration
   const fields = [
     { key: 'name', label: 'Name', required: true, description: 'Contact full name' },
-    { key: 'profile_url', label: 'Profile URL', required: true, description: 'LinkedIn profile URL' },
+    { key: 'profile_url', label: 'Profile URL', required: false, description: 'LinkedIn profile URL' },
     { key: 'subtitle', label: 'Subtitle', required: false, description: 'Profile subtitle/headline' },
     { key: 'job_title', label: 'Job Title', required: false, description: 'Current job title' },
     { key: 'company', label: 'Company', required: false, description: 'Current company' },

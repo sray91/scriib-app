@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, RefreshCw, Search, User, Briefcase, Mail, Linkedin, X, Trash2, UserPlus, Workflow, Send, Download, Upload } from 'lucide-react'
+import { Loader2, RefreshCw, Search, User, Briefcase, Mail, Linkedin, X, Trash2, UserPlus, Workflow, Send, Download, Upload, MoreVertical } from 'lucide-react'
 import PostScraperProgress from '@/components/crm/PostScraperProgress'
 import ProfileModal from '@/components/crm/ProfileModal'
 import AddContactModal from '@/components/crm/AddContactModal'
@@ -41,6 +41,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 export default function CRMPage() {
   const [contacts, setContacts] = useState([])
@@ -692,7 +698,7 @@ export default function CRMPage() {
                 {filteredContacts.length} contact{filteredContacts.length !== 1 ? 's' : ''}
               </div>
             </div>
-            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            <div className="flex flex-wrap gap-3 w-full sm:w-auto">
               {selectedContacts.length > 0 && (
                 <Button
                   onClick={() => setIsAddToCampaignModalOpen(true)}
@@ -702,12 +708,20 @@ export default function CRMPage() {
                   Add to Campaign ({selectedContacts.length})
                 </Button>
               )}
-              {contacts.length > 0 && (
-                <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <Button
-                    onClick={handleExportCSV}
-                    disabled={scraping || exporting}
                     variant="outline"
+                    size="icon"
+                    disabled={scraping}
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={handleExportCSV}
+                    disabled={scraping || exporting || contacts.length === 0}
                   >
                     {exporting ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -715,29 +729,28 @@ export default function CRMPage() {
                       <Download className="mr-2 h-4 w-4" />
                     )}
                     Export CSV
-                  </Button>
-                  <Button
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => document.getElementById('csv-import-input').click()}
+                    disabled={scraping || importing}
+                  >
+                    {importing ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="mr-2 h-4 w-4" />
+                    )}
+                    Import CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
                     onClick={() => setShowDeleteAllDialog(true)}
-                    disabled={scraping || deleting}
-                    variant="outline"
+                    disabled={scraping || deleting || contacts.length === 0}
+                    className="text-red-600 focus:text-red-600"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Clear All
-                  </Button>
-                </>
-              )}
-              <Button
-                onClick={() => document.getElementById('csv-import-input').click()}
-                disabled={scraping || importing}
-                variant="outline"
-              >
-                {importing ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Upload className="mr-2 h-4 w-4" />
-                )}
-                Import CSV
-              </Button>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <input
                 id="csv-import-input"
                 type="file"
