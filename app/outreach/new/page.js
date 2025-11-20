@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, ArrowLeft, Linkedin, AlertCircle } from 'lucide-react'
+import { Loader2, ArrowLeft, Linkedin, AlertCircle, Sparkles } from 'lucide-react'
 import Link from 'next/link'
 import {
   Select,
@@ -23,6 +23,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert"
+import { Switch } from "@/components/ui/switch"
 
 export default function NewCampaignPage() {
   const router = useRouter()
@@ -38,6 +39,14 @@ export default function NewCampaignPage() {
   const [followUpMessage, setFollowUpMessage] = useState('')
   const [followUpDelayDays, setFollowUpDelayDays] = useState(3)
   const [dailyConnectionLimit, setDailyConnectionLimit] = useState(20)
+
+  // AI personalization state
+  const [useAiPersonalization, setUseAiPersonalization] = useState(false)
+  const [aiInstructions, setAiInstructions] = useState('')
+  const [aiTone, setAiTone] = useState('professional')
+  const [aiMaxLength, setAiMaxLength] = useState(200)
+  const [followUpUseAi, setFollowUpUseAi] = useState(false)
+  const [followUpAiInstructions, setFollowUpAiInstructions] = useState('')
 
   // Data state
   const [linkedinAccounts, setLinkedinAccounts] = useState([])
@@ -136,10 +145,30 @@ export default function NewCampaignPage() {
       return
     }
 
-    if (!connectionMessage.trim()) {
+    if (useAiPersonalization) {
+      if (!aiInstructions.trim()) {
+        toast({
+          title: 'Error',
+          description: 'Please enter AI instructions for personalizing messages',
+          variant: 'destructive'
+        })
+        return
+      }
+    } else {
+      if (!connectionMessage.trim()) {
+        toast({
+          title: 'Error',
+          description: 'Please enter a connection message',
+          variant: 'destructive'
+        })
+        return
+      }
+    }
+
+    if (followUpUseAi && !followUpAiInstructions.trim()) {
       toast({
         title: 'Error',
-        description: 'Please enter a connection message',
+        description: 'Please enter AI instructions for follow-up messages',
         variant: 'destructive'
       })
       return
@@ -158,10 +187,16 @@ export default function NewCampaignPage() {
           description: description.trim() || null,
           linkedin_outreach_account_id: linkedinAccountId,
           pipeline_id: pipelineId === 'none' ? null : pipelineId,
-          connection_message: connectionMessage.trim(),
-          follow_up_message: followUpMessage.trim() || '',
+          connection_message: useAiPersonalization ? '' : connectionMessage.trim(),
+          follow_up_message: followUpUseAi ? '' : followUpMessage.trim(),
           follow_up_delay_days: followUpDelayDays,
           daily_connection_limit: dailyConnectionLimit,
+          use_ai_personalization: useAiPersonalization,
+          ai_instructions: useAiPersonalization ? aiInstructions.trim() : null,
+          ai_tone: useAiPersonalization ? aiTone : null,
+          ai_max_length: useAiPersonalization ? aiMaxLength : null,
+          follow_up_use_ai: followUpUseAi,
+          follow_up_ai_instructions: followUpUseAi ? followUpAiInstructions.trim() : null,
         }),
       })
 
@@ -347,79 +382,167 @@ export default function NewCampaignPage() {
           {/* Connection Message */}
           <Card>
             <CardHeader>
-              <CardTitle>Connection Request Message *</CardTitle>
-              <CardDescription>
-                Message sent with connection requests. Use variables to personalize.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="connection-message">Message</Label>
-                <Textarea
-                  id="connection-message"
-                  placeholder="Hi {name}, I noticed..."
-                  value={connectionMessage}
-                  onChange={(e) => setConnectionMessage(e.target.value)}
-                  rows={5}
-                  required
-                />
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      const textarea = document.getElementById('connection-message')
-                      insertVariable(textarea, '{name}', setConnectionMessage)
-                    }}
-                  >
-                    + Name
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      const textarea = document.getElementById('connection-message')
-                      insertVariable(textarea, '{first_name}', setConnectionMessage)
-                    }}
-                  >
-                    + First Name
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      const textarea = document.getElementById('connection-message')
-                      insertVariable(textarea, '{company}', setConnectionMessage)
-                    }}
-                  >
-                    + Company
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      const textarea = document.getElementById('connection-message')
-                      insertVariable(textarea, '{job_title}', setConnectionMessage)
-                    }}
-                  >
-                    + Job Title
-                  </Button>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Connection Request Message *</CardTitle>
+                  <CardDescription>
+                    {useAiPersonalization
+                      ? 'AI will personalize each message based on the contact\'s LinkedIn profile'
+                      : 'Message sent with connection requests. Use variables to personalize.'
+                    }
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Sparkles className={`h-4 w-4 ${useAiPersonalization ? 'text-purple-600' : 'text-gray-400'}`} />
+                  <Switch
+                    checked={useAiPersonalization}
+                    onCheckedChange={setUseAiPersonalization}
+                  />
+                  <Label className="text-sm font-normal">AI Mode</Label>
                 </div>
               </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {useAiPersonalization ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="ai-instructions">AI Instructions *</Label>
+                    <Textarea
+                      id="ai-instructions"
+                      placeholder="Example: Write a friendly message mentioning their recent post about AI. Focus on finding common ground and offering value."
+                      value={aiInstructions}
+                      onChange={(e) => setAiInstructions(e.target.value)}
+                      rows={5}
+                      required={useAiPersonalization}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Describe how AI should personalize messages. The AI will analyze each contact's profile and recent activity.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="ai-tone">Tone</Label>
+                      <Select value={aiTone} onValueChange={setAiTone}>
+                        <SelectTrigger id="ai-tone">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="professional">Professional</SelectItem>
+                          <SelectItem value="casual">Casual</SelectItem>
+                          <SelectItem value="friendly">Friendly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="ai-max-length">Max Length</Label>
+                      <Select value={aiMaxLength.toString()} onValueChange={(val) => setAiMaxLength(parseInt(val))}>
+                        <SelectTrigger id="ai-max-length">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="100">Short (50-100 chars)</SelectItem>
+                          <SelectItem value="200">Medium (100-200 chars)</SelectItem>
+                          <SelectItem value="300">Long (200-300 chars)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <Alert className="border-purple-200 bg-purple-50">
+                    <Sparkles className="h-4 w-4 text-purple-600" />
+                    <AlertDescription className="text-purple-900">
+                      AI will access: {'{name}'}, {'{company}'}, {'{job_title}'}, recent posts, profile summary, and more to craft personalized messages.
+                    </AlertDescription>
+                  </Alert>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="connection-message">Message</Label>
+                    <Textarea
+                      id="connection-message"
+                      placeholder="Hi {name}, I noticed..."
+                      value={connectionMessage}
+                      onChange={(e) => setConnectionMessage(e.target.value)}
+                      rows={5}
+                      required={!useAiPersonalization}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          const textarea = document.getElementById('connection-message')
+                          insertVariable(textarea, '{name}', setConnectionMessage)
+                        }}
+                      >
+                        + Name
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          const textarea = document.getElementById('connection-message')
+                          insertVariable(textarea, '{first_name}', setConnectionMessage)
+                        }}
+                      >
+                        + First Name
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          const textarea = document.getElementById('connection-message')
+                          insertVariable(textarea, '{company}', setConnectionMessage)
+                        }}
+                      >
+                        + Company
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          const textarea = document.getElementById('connection-message')
+                          insertVariable(textarea, '{job_title}', setConnectionMessage)
+                        }}
+                      >
+                        + Job Title
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
           {/* Follow-up Message */}
           <Card>
             <CardHeader>
-              <CardTitle>Follow-up Message</CardTitle>
-              <CardDescription>
-                Message sent after connection is accepted (optional but recommended)
-              </CardDescription>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Follow-up Message</CardTitle>
+                  <CardDescription>
+                    {followUpUseAi
+                      ? 'AI will personalize follow-up messages based on conversation context'
+                      : 'Message sent after connection is accepted (optional but recommended)'
+                    }
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Sparkles className={`h-4 w-4 ${followUpUseAi ? 'text-purple-600' : 'text-gray-400'}`} />
+                  <Switch
+                    checked={followUpUseAi}
+                    onCheckedChange={setFollowUpUseAi}
+                  />
+                  <Label className="text-sm font-normal">AI Mode</Label>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -437,62 +560,88 @@ export default function NewCampaignPage() {
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="follow-up-message">Message</Label>
-                <Textarea
-                  id="follow-up-message"
-                  placeholder="Thanks for connecting, {first_name}! I wanted to..."
-                  value={followUpMessage}
-                  onChange={(e) => setFollowUpMessage(e.target.value)}
-                  rows={5}
-                />
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      const textarea = document.getElementById('follow-up-message')
-                      insertVariable(textarea, '{name}', setFollowUpMessage)
-                    }}
-                  >
-                    + Name
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      const textarea = document.getElementById('follow-up-message')
-                      insertVariable(textarea, '{first_name}', setFollowUpMessage)
-                    }}
-                  >
-                    + First Name
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      const textarea = document.getElementById('follow-up-message')
-                      insertVariable(textarea, '{company}', setFollowUpMessage)
-                    }}
-                  >
-                    + Company
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      const textarea = document.getElementById('follow-up-message')
-                      insertVariable(textarea, '{job_title}', setFollowUpMessage)
-                    }}
-                  >
-                    + Job Title
-                  </Button>
+              {followUpUseAi ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="follow-up-ai-instructions">AI Instructions</Label>
+                    <Textarea
+                      id="follow-up-ai-instructions"
+                      placeholder="Example: Reference our initial connection and offer to schedule a quick call to discuss their content strategy."
+                      value={followUpAiInstructions}
+                      onChange={(e) => setFollowUpAiInstructions(e.target.value)}
+                      rows={5}
+                      required={followUpUseAi}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Describe how AI should craft follow-up messages. AI will use conversation history and profile data.
+                    </p>
+                  </div>
+
+                  <Alert className="border-purple-200 bg-purple-50">
+                    <Sparkles className="h-4 w-4 text-purple-600" />
+                    <AlertDescription className="text-purple-900">
+                      AI will personalize using the same tone ({aiTone}) as connection messages.
+                    </AlertDescription>
+                  </Alert>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="follow-up-message">Message</Label>
+                  <Textarea
+                    id="follow-up-message"
+                    placeholder="Thanks for connecting, {first_name}! I wanted to..."
+                    value={followUpMessage}
+                    onChange={(e) => setFollowUpMessage(e.target.value)}
+                    rows={5}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        const textarea = document.getElementById('follow-up-message')
+                        insertVariable(textarea, '{name}', setFollowUpMessage)
+                      }}
+                    >
+                      + Name
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        const textarea = document.getElementById('follow-up-message')
+                        insertVariable(textarea, '{first_name}', setFollowUpMessage)
+                      }}
+                    >
+                      + First Name
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        const textarea = document.getElementById('follow-up-message')
+                        insertVariable(textarea, '{company}', setFollowUpMessage)
+                      }}
+                    >
+                      + Company
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        const textarea = document.getElementById('follow-up-message')
+                        insertVariable(textarea, '{job_title}', setFollowUpMessage)
+                      }}
+                    >
+                      + Job Title
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 

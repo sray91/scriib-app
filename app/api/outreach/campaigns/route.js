@@ -114,6 +114,12 @@ export async function POST(request) {
       connection_message: body.connection_message || '',
       follow_up_message: body.follow_up_message || '',
       follow_up_delay_days: body.follow_up_delay_days || 3,
+      use_ai_personalization: body.use_ai_personalization || false,
+      ai_instructions: body.ai_instructions || null,
+      ai_tone: body.ai_tone || 'professional',
+      ai_max_length: body.ai_max_length || 200,
+      follow_up_use_ai: body.follow_up_use_ai || false,
+      follow_up_ai_instructions: body.follow_up_ai_instructions || null,
     }
 
     // Insert the campaign
@@ -210,6 +216,12 @@ export async function PATCH(request) {
     if (body.follow_up_message !== undefined) updateData.follow_up_message = body.follow_up_message
     if (body.follow_up_delay_days !== undefined) updateData.follow_up_delay_days = body.follow_up_delay_days
     if (body.pipeline_id !== undefined) updateData.pipeline_id = body.pipeline_id
+    if (body.use_ai_personalization !== undefined) updateData.use_ai_personalization = body.use_ai_personalization
+    if (body.ai_instructions !== undefined) updateData.ai_instructions = body.ai_instructions
+    if (body.ai_tone !== undefined) updateData.ai_tone = body.ai_tone
+    if (body.ai_max_length !== undefined) updateData.ai_max_length = body.ai_max_length
+    if (body.follow_up_use_ai !== undefined) updateData.follow_up_use_ai = body.follow_up_use_ai
+    if (body.follow_up_ai_instructions !== undefined) updateData.follow_up_ai_instructions = body.follow_up_ai_instructions
 
     // Update the campaign
     const { data: campaign, error: updateError } = await supabase

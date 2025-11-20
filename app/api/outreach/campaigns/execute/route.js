@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { getUnipileClient } from '@/lib/unipile-client'
+import { generatePersonalizedMessage, generateFallbackMessage } from '@/lib/ai/personalize-message'
 
 /**
  * Campaign Execution Endpoint
@@ -364,12 +365,78 @@ async function sendConnectionRequest(supabase, unipile, campaign, campaignContac
     return
   }
 
-  // Personalize message if needed (simple variable replacement)
-  let message = campaign.connection_message
-  message = message.replace(/\{name\}/gi, contact.name || '')
-  message = message.replace(/\{first_name\}/gi, contact.name?.split(' ')[0] || '')
-  message = message.replace(/\{company\}/gi, contact.company || '')
-  message = message.replace(/\{job_title\}/gi, contact.job_title || '')
+  // Personalize message
+  let message
+
+  if (campaign.use_ai_personalization) {
+    // Use AI to generate personalized message
+    try {
+      console.log(`Generating AI-personalized message for ${contact.name}`)
+
+      // Prepare contact data for AI
+      const contactData = {
+        name: contact.name,
+        first_name: contact.name?.split(' ')[0],
+        company: contact.company,
+        job_title: contact.job_title,
+        profile_summary: profileData.description || profileData.summary,
+        headline: profileData.headline,
+        location: profileData.location,
+        recent_posts: profileData.recent_posts || [],
+      }
+
+      message = await generatePersonalizedMessage({
+        instructions: campaign.ai_instructions,
+        tone: campaign.ai_tone || 'professional',
+        maxLength: campaign.ai_max_length || 200,
+        contactData,
+        messageType: 'connection',
+      })
+
+      console.log(`AI-generated message: "${message}"`)
+
+      // Log that AI was used
+      await supabase
+        .from('campaign_activities')
+        .insert({
+          campaign_id: campaign.id,
+          contact_id: contact.id,
+          campaign_contact_id: campaignContact.id,
+          activity_type: 'ai_message_generated',
+          message: `AI generated personalized message for ${contact.name}`,
+        })
+
+    } catch (aiError) {
+      console.error(`AI personalization failed, falling back to template:`, aiError)
+
+      // Fallback to template if AI fails
+      message = generateFallbackMessage(campaign.connection_message, {
+        name: contact.name,
+        first_name: contact.name?.split(' ')[0],
+        company: contact.company,
+        job_title: contact.job_title,
+      })
+
+      // Log the AI failure
+      await supabase
+        .from('campaign_activities')
+        .insert({
+          campaign_id: campaign.id,
+          contact_id: contact.id,
+          campaign_contact_id: campaignContact.id,
+          activity_type: 'ai_generation_failed',
+          message: `AI personalization failed: ${aiError.message}. Used template fallback.`,
+        })
+    }
+  } else {
+    // Use template with simple variable replacement
+    message = generateFallbackMessage(campaign.connection_message, {
+      name: contact.name,
+      first_name: contact.name?.split(' ')[0],
+      company: contact.company,
+      job_title: contact.job_title,
+    })
+  }
 
   console.log(`Sending connection request via Unipile with provider_id: ${providerId}`)
 
@@ -452,23 +519,96 @@ async function processFollowUps(supabase, unipile, campaign) {
     try {
       const contact = campaignContact.crm_contacts
 
-      // Personalize follow-up message
-      let message = campaign.follow_up_message
-      message = message.replace(/\{name\}/gi, contact.name || '')
-      message = message.replace(/\{first_name\}/gi, contact.name?.split(' ')[0] || '')
-      message = message.replace(/\{company\}/gi, contact.company || '')
-      message = message.replace(/\{job_title\}/gi, contact.job_title || '')
-
-      // Get provider ID from profile URL
+      // Get provider ID from profile URL first (needed for AI context too)
       // Extract public identifier from LinkedIn URL (e.g., "ryancahalane" from linkedin.com/in/ryancahalane/)
       const linkedinUrlMatch = contact.profile_url.match(/linkedin\.com\/in\/([^/]+)/)
       let providerId = contact.profile_url // Default to profile_url
+      let profileData = null
 
       if (linkedinUrlMatch && linkedinUrlMatch[1]) {
         const publicIdentifier = linkedinUrlMatch[1]
         // Fetch profile to get provider_id
-        const profileData = await unipile.getLinkedInProfile(unipileAccountId, publicIdentifier)
+        profileData = await unipile.getLinkedInProfile(unipileAccountId, publicIdentifier)
         providerId = profileData.provider_id
+      }
+
+      // Personalize follow-up message
+      let message
+
+      if (campaign.follow_up_use_ai && campaign.follow_up_ai_instructions) {
+        // Use AI to generate personalized follow-up message
+        try {
+          console.log(`Generating AI-personalized follow-up for ${contact.name}`)
+
+          // Prepare contact data for AI
+          const contactData = {
+            name: contact.name,
+            first_name: contact.name?.split(' ')[0],
+            company: contact.company,
+            job_title: contact.job_title,
+            profile_summary: profileData?.description || profileData?.summary,
+            headline: profileData?.headline,
+            location: profileData?.location,
+            recent_posts: profileData?.recent_posts || [],
+          }
+
+          // Get the original connection message for context
+          const connectionMessage = campaignContact.connection_request_id
+            ? await getOriginalConnectionMessage(supabase, campaignContact)
+            : null
+
+          message = await generatePersonalizedMessage({
+            instructions: campaign.follow_up_ai_instructions,
+            tone: campaign.ai_tone || 'professional',
+            maxLength: 1000, // Follow-up messages can be longer
+            contactData,
+            messageType: 'follow_up',
+            previousMessage: connectionMessage,
+          })
+
+          console.log(`AI-generated follow-up: "${message}"`)
+
+          // Log that AI was used
+          await supabase
+            .from('campaign_activities')
+            .insert({
+              campaign_id: campaign.id,
+              contact_id: contact.id,
+              campaign_contact_id: campaignContact.id,
+              activity_type: 'ai_followup_generated',
+              message: `AI generated personalized follow-up for ${contact.name}`,
+            })
+
+        } catch (aiError) {
+          console.error(`AI follow-up generation failed, falling back to template:`, aiError)
+
+          // Fallback to template
+          message = generateFallbackMessage(campaign.follow_up_message, {
+            name: contact.name,
+            first_name: contact.name?.split(' ')[0],
+            company: contact.company,
+            job_title: contact.job_title,
+          })
+
+          // Log the AI failure
+          await supabase
+            .from('campaign_activities')
+            .insert({
+              campaign_id: campaign.id,
+              contact_id: contact.id,
+              campaign_contact_id: campaignContact.id,
+              activity_type: 'ai_generation_failed',
+              message: `AI follow-up generation failed: ${aiError.message}. Used template fallback.`,
+            })
+        }
+      } else {
+        // Use template with simple variable replacement
+        message = generateFallbackMessage(campaign.follow_up_message, {
+          name: contact.name,
+          first_name: contact.name?.split(' ')[0],
+          company: contact.company,
+          job_title: contact.job_title,
+        })
       }
 
       // Send direct message (creates chat if needed)
@@ -550,5 +690,31 @@ async function updateCampaignTotals(supabase, campaignId) {
       .from('campaigns')
       .update(totals)
       .eq('id', campaignId)
+  }
+}
+
+/**
+ * Get the original connection message sent to a contact (for follow-up context)
+ */
+async function getOriginalConnectionMessage(supabase, campaignContact) {
+  try {
+    // Try to get the original message from campaign activities
+    const { data: activities } = await supabase
+      .from('campaign_activities')
+      .select('message, metadata')
+      .eq('campaign_contact_id', campaignContact.id)
+      .in('activity_type', ['connection_sent', 'ai_message_generated'])
+      .order('created_at', { ascending: true })
+      .limit(1)
+
+    if (activities && activities.length > 0 && activities[0].metadata?.message) {
+      return activities[0].metadata.message
+    }
+
+    // Fallback: Return null if we can't find the original message
+    return null
+  } catch (error) {
+    console.error('Error fetching original connection message:', error)
+    return null
   }
 }

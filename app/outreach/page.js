@@ -326,7 +326,7 @@ export default function OutreachPage() {
                               <Eye className="h-4 w-4" />
                             </Button>
                           </Link>
-                          {campaign.status === 'draft' && (
+                          {campaign.status !== 'completed' && (
                             <Link href={`/outreach/${campaign.id}/edit`}>
                               <Button variant="ghost" size="sm">
                                 <Pencil className="h-4 w-4" />
