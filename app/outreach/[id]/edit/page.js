@@ -368,7 +368,7 @@ export default function EditCampaignPage() {
           <AlertCircle className="h-4 w-4 text-blue-600" />
           <AlertTitle className="text-blue-900">Campaign is Active</AlertTitle>
           <AlertDescription className="text-blue-800">
-            This campaign is currently running. Message changes will only affect new connection requests that haven't been sent yet.
+            This campaign is currently running. Message changes will only affect new connection requests that haven&apos;t been sent yet.
             Already sent requests will not be affected.
           </AlertDescription>
         </Alert>
@@ -379,7 +379,7 @@ export default function EditCampaignPage() {
           <AlertCircle className="h-4 w-4 text-yellow-600" />
           <AlertTitle className="text-yellow-900">Campaign is {campaign.status}</AlertTitle>
           <AlertDescription className="text-yellow-800">
-            You can edit this campaign's settings. Changes will take effect when you resume the campaign.
+            You can edit this campaign&apos;s settings. Changes will take effect when you resume the campaign.
           </AlertDescription>
         </Alert>
       )}
@@ -514,7 +514,7 @@ export default function EditCampaignPage() {
                       required={useAiPersonalization}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Describe how AI should personalize messages. The AI will analyze each contact's profile and recent activity.
+                      Describe how AI should personalize messages. The AI will analyze each contact&apos;s profile and recent activity.
                     </p>
                   </div>
 

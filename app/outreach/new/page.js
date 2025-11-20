@@ -416,7 +416,7 @@ export default function NewCampaignPage() {
                       required={useAiPersonalization}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Describe how AI should personalize messages. The AI will analyze each contact's profile and recent activity.
+                      Describe how AI should personalize messages. The AI will analyze each contact&apos;s profile and recent activity.
                     </p>
                   </div>
 
