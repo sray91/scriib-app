@@ -4,6 +4,69 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+// Helper function to transform LinkedIn API post to our format
+function transformLinkedInPost(post, startDate, endDate) {
+  try {
+    // Extract timestamp
+    let publishedAt = null;
+    if (post.created?.time) {
+      publishedAt = new Date(post.created.time);
+    } else if (post.createdAt) {
+      publishedAt = new Date(post.createdAt);
+    } else if (post.created) {
+      publishedAt = new Date(post.created);
+    } else {
+      publishedAt = new Date();
+    }
+
+    // Filter by date range
+    if (publishedAt < startDate || publishedAt > endDate) {
+      return null;
+    }
+
+    // Extract content
+    let content = 'No content available';
+    if (post.text?.text) {
+      content = post.text.text;
+    } else if (post.commentary?.text) {
+      content = post.commentary.text;
+    } else if (post.specificContent?.['com.linkedin.ugc.ShareContent']?.shareCommentary?.text) {
+      content = post.specificContent['com.linkedin.ugc.ShareContent'].shareCommentary.text;
+    } else if (post.content?.description) {
+      content = post.content.description;
+    }
+
+    // Extract metrics
+    const socialCounts = post.totalSocialActivityCounts || {};
+    const metrics = {
+      likes: socialCounts.numLikes || socialCounts.likes || 0,
+      comments: socialCounts.numComments || socialCounts.comments || 0,
+      shares: socialCounts.numShares || socialCounts.shares || 0,
+      views: socialCounts.numViews || 0,
+      impressions: socialCounts.numImpressions || socialCounts.numViews || 0,
+      reactions: socialCounts.numLikes || 0
+    };
+
+    // Build post URL
+    let postUrl = null;
+    if (post.id) {
+      const postId = post.id.replace('urn:li:share:', '').replace('urn:li:ugcPost:', '');
+      postUrl = `https://www.linkedin.com/feed/update/${postId}/`;
+    }
+
+    return {
+      id: post.id || `post_${Date.now()}`,
+      content,
+      published_at: publishedAt.toISOString(),
+      post_url: postUrl,
+      metrics
+    };
+  } catch (error) {
+    console.error('Error transforming LinkedIn post:', error);
+    return null;
+  }
+}
+
 export async function GET(request) {
   const supabase = createRouteHandlerClient({ cookies });
   
@@ -49,129 +112,193 @@ export async function GET(request) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - parseInt(timeRange));
 
-    let analyticsData = {};
+    // Fetch real-time data from LinkedIn Member Data Portability API
+    let profileData = null;
+    let linkedInPosts = [];
 
     try {
-      // Note: LinkedIn's official API has limited analytics access
-      // For personal profiles, we can only get basic profile info
-      // Company page analytics require special permissions
-      
       // Get basic profile information
-      const profileResponse = await fetch('https://api.linkedin.com/v2/people/~:(id,firstName,lastName)', {
+      const profileResponse = await fetch('https://api.linkedin.com/v2/me', {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
-          'cache-control': 'no-cache',
           'X-Restli-Protocol-Version': '2.0.0'
         }
       });
 
-      if (!profileResponse.ok) {
-        throw new Error(`LinkedIn API error: ${profileResponse.status}`);
+      if (profileResponse.ok) {
+        const profile = await profileResponse.json();
+        profileData = {
+          id: profile.id,
+          name: `${profile.localizedFirstName || ''} ${profile.localizedLastName || ''}`.trim()
+        };
       }
 
-      const profileData = await profileResponse.json();
-      
-      // Since personal profile analytics aren't available through LinkedIn API,
-      // we'll return mock data with a note about limitations
-      analyticsData = {
-        profile: {
-          id: profileData.id,
-          name: `${profileData.firstName?.localized?.en_US || ''} ${profileData.lastName?.localized?.en_US || ''}`.trim(),
-        },
-        metrics: {
-          // Note: These would be real metrics if we had access to LinkedIn's analytics API
-          // For now, we return structured mock data that matches the expected format
-          totalViews: 64100,
-          totalImpressions: 68300,
-          totalReactions: 1024,
-          totalComments: 145,
-          totalShares: 89,
-          averageEngagement: 2.1,
-          profileViews: 1250,
-          searchAppearances: 89
-        },
-        posts: [
+      // Fetch posts using Member Data Portability API
+      console.log('Fetching LinkedIn posts via Member Data Portability API...');
+
+      // Try Member Snapshot API for posts
+      const snapshotResponse = await fetch(
+        'https://api.linkedin.com/v2/memberSnapshot?q=member&domains=POSTS',
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'X-Restli-Protocol-Version': '2.0.0',
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (snapshotResponse.ok) {
+        const snapshotData = await snapshotResponse.json();
+        console.log('Member Snapshot API successful');
+
+        // Extract posts from snapshot data
+        if (snapshotData.POSTS?.elements) {
+          linkedInPosts = snapshotData.POSTS.elements;
+        } else if (snapshotData.elements) {
+          linkedInPosts = snapshotData.elements.filter(item =>
+            item.type === 'POST' || item.domain === 'POSTS'
+          );
+        }
+      } else {
+        console.log(`Member Snapshot API returned ${snapshotResponse.status}, trying alternative...`);
+
+        // Try ugcPosts API as fallback
+        const ugcResponse = await fetch(
+          `https://api.linkedin.com/v2/ugcPosts?q=authors&authors=List(urn:li:person:${profileData?.id})&count=100`,
           {
-            id: 'post_1',
-            content: 'Real LinkedIn post content would be here',
-            publishedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-            metrics: {
-              views: 12400,
-              impressions: 13200,
-              reactions: 156,
-              comments: 23,
-              shares: 12,
-              engagement: 1.4
-            }
-          },
-          {
-            id: 'post_2', 
-            content: 'Another real LinkedIn post would be here',
-            publishedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-            metrics: {
-              views: 8900,
-              impressions: 9500,
-              reactions: 89,
-              comments: 15,
-              shares: 8,
-              engagement: 1.2
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'X-Restli-Protocol-Version': '2.0.0'
             }
           }
-        ],
-        timeRange: {
-          start: startDate.toISOString(),
-          end: endDate.toISOString(),
-          days: parseInt(timeRange)
-        },
-        apiLimitation: {
-          message: "LinkedIn's API has limited analytics access for personal profiles. Company page analytics require special permissions and approval from LinkedIn.",
-          availableData: "Basic profile information and mock analytics data for demonstration purposes.",
-          upgradeInfo: "To get real analytics data, you would need LinkedIn Marketing API access or Company Page Admin permissions."
+        );
+
+        if (ugcResponse.ok) {
+          const ugcData = await ugcResponse.json();
+          linkedInPosts = ugcData.elements || [];
+          console.log('UGC Posts API successful');
         }
-      };
-
-      // Update last used timestamp
-      await supabase
-        .from('social_accounts')
-        .update({ last_used_at: new Date() })
-        .eq('id', linkedinAccount.id);
-
+      }
     } catch (apiError) {
       console.error('LinkedIn API error:', apiError);
-      
-      // Return mock data with error information
-      analyticsData = {
-        error: 'LinkedIn API access limited',
-        message: apiError.message,
-        mockData: true,
-        metrics: {
-          totalViews: 64100,
-          totalImpressions: 68300,
-          totalReactions: 1024,
-          totalComments: 145,
-          totalShares: 89,
-          averageEngagement: 2.1,
-          profileViews: 1250,
-          searchAppearances: 89
-        },
-        posts: [
-          {
-            id: 'mock_post_1',
-            content: 'This is mock data - LinkedIn API access is limited for personal profiles',
-            publishedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-            metrics: {
-              views: 12400,
-              impressions: 13200,
-              reactions: 156,
-              comments: 23,
-              shares: 12,
-              engagement: 1.4
-            }
-          }
-        ],
-        apiLimitation: "LinkedIn's personal profile analytics are not publicly available through their API. Real analytics would require LinkedIn Marketing API access or Company Page permissions."
-      };
+      // Fall back to database if API fails
     }
+
+    // If we got posts from LinkedIn API, use those; otherwise fall back to database
+    let pastPosts = [];
+    if (linkedInPosts.length > 0) {
+      // Transform LinkedIn API posts to our format
+      pastPosts = linkedInPosts.map(post => transformLinkedInPost(post, startDate, endDate))
+        .filter(post => post !== null); // Filter out posts outside date range
+
+      console.log(`Using ${pastPosts.length} posts from LinkedIn API`);
+    } else {
+      // Fallback: fetch from database
+      console.log('Falling back to database posts');
+      const { data: dbPosts, error: postsError } = await supabase
+        .from('past_posts')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('platform', 'linkedin')
+        .gte('published_at', startDate.toISOString())
+        .lte('published_at', endDate.toISOString())
+        .order('published_at', { ascending: false });
+
+      if (!postsError) {
+        pastPosts = dbPosts || [];
+      }
+    }
+
+    // Calculate aggregate metrics from stored posts
+    let totalViews = 0;
+    let totalImpressions = 0;
+    let totalReactions = 0;
+    let totalComments = 0;
+    let totalShares = 0;
+    let postsWithEngagement = 0;
+    let totalEngagement = 0;
+
+    const transformedPosts = pastPosts.map(post => {
+      const metrics = post.metrics || {};
+      const views = metrics.views || 0;
+      const impressions = metrics.impressions || 0;
+      const reactions = metrics.likes || metrics.reactions || 0;
+      const comments = metrics.comments || 0;
+      const shares = metrics.shares || 0;
+
+      // Calculate engagement rate for this post
+      let engagement = 0;
+      if (impressions > 0) {
+        engagement = ((reactions + comments + shares) / impressions) * 100;
+        postsWithEngagement++;
+        totalEngagement += engagement;
+      }
+
+      totalViews += views;
+      totalImpressions += impressions;
+      totalReactions += reactions;
+      totalComments += comments;
+      totalShares += shares;
+
+      return {
+        id: post.id,
+        content: post.content,
+        publishedAt: post.published_at,
+        postUrl: post.post_url,
+        metrics: {
+          views,
+          impressions,
+          reactions,
+          comments,
+          shares,
+          engagement: engagement
+        }
+      };
+    });
+
+    const averageEngagement = postsWithEngagement > 0
+      ? totalEngagement / postsWithEngagement
+      : 0;
+
+    const analyticsData = {
+      profile: profileData,
+      metrics: {
+        totalViews,
+        totalImpressions,
+        totalReactions,
+        totalComments,
+        totalShares,
+        averageEngagement,
+        postsCount: pastPosts.length
+      },
+      posts: transformedPosts,
+      timeRange: {
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+        days: parseInt(timeRange)
+      },
+      dataSource: linkedInPosts.length > 0 ? 'linkedin_api' : 'database',
+      apiLimitation: pastPosts.length === 0 ? {
+        message: "No LinkedIn posts found for this time range.",
+        availableData: "Click 'Sync Posts' to fetch your recent LinkedIn posts and their engagement metrics.",
+        upgradeInfo: "Data is fetched from LinkedIn's Member Data Portability API."
+      } : linkedInPosts.length > 0 ? {
+        message: "Showing real-time analytics from LinkedIn Member Data Portability API.",
+        availableData: `Displaying ${pastPosts.length} posts with live engagement metrics.`,
+        upgradeInfo: "Data refreshes each time you visit this page."
+      } : {
+        message: "Showing analytics from your synced LinkedIn posts (database).",
+        availableData: `Displaying ${pastPosts.length} posts from your database. Click 'Sync Posts' to refresh with latest data from LinkedIn.`,
+        upgradeInfo: "For real-time analytics, ensure your LinkedIn account is properly connected."
+      }
+    };
+
+    // Update last used timestamp
+    await supabase
+      .from('social_accounts')
+      .update({ last_used_at: new Date() })
+      .eq('id', linkedinAccount.id);
 
     return NextResponse.json(analyticsData);
 

@@ -50,6 +50,7 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [timeRange, setTimeRange] = useState('30')
+  const [syncing, setSyncing] = useState(false)
 
   // Fetch LinkedIn analytics data
   useEffect(() => {
@@ -57,14 +58,14 @@ export default function AnalyticsPage() {
       try {
         setLoading(true)
         setError(null)
-        
+
         const response = await fetch(`/api/linkedin/analytics?timeRange=${timeRange}`)
         const data = await response.json()
-        
+
         if (!response.ok) {
           throw new Error(data.error || 'Failed to fetch analytics data')
         }
-        
+
         setAnalyticsData(data)
       } catch (err) {
         console.error('Analytics fetch error:', err)
@@ -76,6 +77,42 @@ export default function AnalyticsPage() {
 
     fetchAnalyticsData()
   }, [timeRange])
+
+  // Sync LinkedIn posts
+  const handleSyncPosts = async () => {
+    try {
+      setSyncing(true)
+      const response = await fetch('/api/linkedin/posts/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ count: 50 })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to sync posts')
+      }
+
+      // Refresh analytics data after sync
+      setLoading(true)
+      const analyticsResponse = await fetch(`/api/linkedin/analytics?timeRange=${timeRange}`)
+      const analyticsData = await analyticsResponse.json()
+
+      if (analyticsResponse.ok) {
+        setAnalyticsData(analyticsData)
+      }
+
+    } catch (err) {
+      console.error('Sync error:', err)
+      setError(err.message)
+    } finally {
+      setSyncing(false)
+      setLoading(false)
+    }
+  }
 
   // Calculate aggregate metrics from API data
   const metrics = analyticsData?.metrics || {
@@ -233,6 +270,16 @@ export default function AnalyticsPage() {
             <Button
               variant="outline"
               size="sm"
+              onClick={handleSyncPosts}
+              disabled={syncing}
+              className="gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Syncing...' : 'Sync Posts'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => window.location.reload()}
               className="gap-2"
             >
@@ -349,8 +396,24 @@ export default function AnalyticsPage() {
                   <TableBody>
                     {sortedPosts.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-gray-500">
-                          No posts data available
+                        <TableCell colSpan={7} className="text-center py-12">
+                          <div className="flex flex-col items-center gap-3">
+                            <BarChart3 className="w-12 h-12 text-gray-400" />
+                            <div>
+                              <p className="text-gray-900 font-medium mb-1">No posts found</p>
+                              <p className="text-sm text-gray-500 mb-3">
+                                Sync your LinkedIn posts to see analytics data
+                              </p>
+                              <Button
+                                onClick={handleSyncPosts}
+                                disabled={syncing}
+                                className="gap-2"
+                              >
+                                <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+                                {syncing ? 'Syncing Posts...' : 'Sync LinkedIn Posts'}
+                              </Button>
+                            </div>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -360,15 +423,30 @@ export default function AnalyticsPage() {
                             <div className="flex items-start gap-3">
                               <Avatar className="w-10 h-10 flex-shrink-0">
                                 <AvatarImage src="/placeholder-avatar.jpg" />
-                                <AvatarFallback>YP</AvatarFallback>
+                                <AvatarFallback>
+                                  {analyticsData?.profile?.name?.split(' ').map(n => n[0]).join('') || 'YP'}
+                                </AvatarFallback>
                               </Avatar>
                               <div className="min-w-0 flex-1">
                                 <p className="text-sm text-gray-900 line-clamp-2">
                                   {post.content}
                                 </p>
-                                <p className="text-xs text-gray-500 mt-1">
-                                  {new Date(post.publishedAt).toLocaleDateString()}
-                                </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <p className="text-xs text-gray-500">
+                                    {new Date(post.publishedAt).toLocaleDateString()}
+                                  </p>
+                                  {post.postUrl && (
+                                    <a
+                                      href={post.postUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                                    >
+                                      View on LinkedIn
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </TableCell>
