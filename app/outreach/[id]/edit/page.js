@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, ArrowLeft, AlertCircle, Sparkles } from 'lucide-react'
+import { Loader2, ArrowLeft, AlertCircle, Sparkles, Plus, X } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import Link from 'next/link'
@@ -34,8 +34,13 @@ export default function EditCampaignPage() {
   const [linkedinAccountId, setLinkedinAccountId] = useState('')
   const [pipelineId, setPipelineId] = useState('none')
   const [connectionMessage, setConnectionMessage] = useState('')
-  const [followUpMessage, setFollowUpMessage] = useState('')
-  const [followUpDelayDays, setFollowUpDelayDays] = useState(3)
+  const [followUps, setFollowUps] = useState([
+    {
+      delayDays: 3,
+      message: '',
+      aiInstructions: ''
+    }
+  ])
   const [dailyConnectionLimit, setDailyConnectionLimit] = useState(20)
 
   // AI personalization state
@@ -44,7 +49,6 @@ export default function EditCampaignPage() {
   const [aiTone, setAiTone] = useState('professional')
   const [aiMaxLength, setAiMaxLength] = useState(200)
   const [followUpUseAi, setFollowUpUseAi] = useState(false)
-  const [followUpAiInstructions, setFollowUpAiInstructions] = useState('')
 
   // Data state
   const [linkedinAccounts, setLinkedinAccounts] = useState([])
@@ -86,8 +90,6 @@ export default function EditCampaignPage() {
         setLinkedinAccountId(campaignInfo.linkedin_outreach_account_id || '')
         setPipelineId(campaignInfo.pipeline_id || 'none')
         setConnectionMessage(campaignInfo.connection_message || '')
-        setFollowUpMessage(campaignInfo.follow_up_message || '')
-        setFollowUpDelayDays(campaignInfo.follow_up_delay_days || 3)
         setDailyConnectionLimit(campaignInfo.daily_connection_limit || 20)
 
         // Set AI personalization values
@@ -96,7 +98,24 @@ export default function EditCampaignPage() {
         setAiTone(campaignInfo.ai_tone || 'professional')
         setAiMaxLength(campaignInfo.ai_max_length || 200)
         setFollowUpUseAi(campaignInfo.follow_up_use_ai || false)
-        setFollowUpAiInstructions(campaignInfo.follow_up_ai_instructions || '')
+
+        // Load follow-up messages (support both old single message and new multiple messages)
+        if (campaignInfo.follow_up_messages && Array.isArray(campaignInfo.follow_up_messages)) {
+          setFollowUps(campaignInfo.follow_up_messages)
+        } else if (campaignInfo.follow_up_message || campaignInfo.follow_up_ai_instructions) {
+          // Legacy: convert old single message to array format
+          setFollowUps([{
+            delayDays: campaignInfo.follow_up_delay_days || 3,
+            message: campaignInfo.follow_up_message || '',
+            aiInstructions: campaignInfo.follow_up_ai_instructions || ''
+          }])
+        } else {
+          setFollowUps([{
+            delayDays: 3,
+            message: '',
+            aiInstructions: ''
+          }])
+        }
 
         // Fetch LinkedIn accounts
         const accountsResponse = await fetch('/api/outreach/accounts')
@@ -156,6 +175,42 @@ export default function EditCampaignPage() {
     }, 0)
   }
 
+  // Follow-up management functions
+  const addFollowUp = () => {
+    if (followUps.length < 5) {
+      setFollowUps([...followUps, {
+        delayDays: 3,
+        message: '',
+        aiInstructions: ''
+      }])
+    }
+  }
+
+  const removeFollowUp = (index) => {
+    if (followUps.length > 1) {
+      setFollowUps(followUps.filter((_, i) => i !== index))
+    }
+  }
+
+  const updateFollowUp = (index, field, value) => {
+    const updated = [...followUps]
+    updated[index] = { ...updated[index], [field]: value }
+    setFollowUps(updated)
+  }
+
+  const insertVariableIntoFollowUp = (textarea, variable, index, field) => {
+    const cursorPos = textarea.selectionStart
+    const textBefore = textarea.value.substring(0, cursorPos)
+    const textAfter = textarea.value.substring(cursorPos)
+    const newValue = textBefore + variable + textAfter
+    updateFollowUp(index, field, newValue)
+
+    setTimeout(() => {
+      textarea.selectionStart = textarea.selectionEnd = cursorPos + variable.length
+      textarea.focus()
+    }, 0)
+  }
+
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -199,13 +254,30 @@ export default function EditCampaignPage() {
       }
     }
 
-    if (followUpUseAi && !followUpAiInstructions.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter AI instructions for follow-up messages',
-        variant: 'destructive'
-      })
-      return
+    // Validate follow-up messages
+    if (followUps.length > 0) {
+      for (let i = 0; i < followUps.length; i++) {
+        const followUp = followUps[i]
+        if (followUpUseAi) {
+          if (!followUp.aiInstructions.trim()) {
+            toast({
+              title: 'Error',
+              description: `Please enter AI instructions for follow-up message ${i + 1}`,
+              variant: 'destructive'
+            })
+            return
+          }
+        } else {
+          if (!followUp.message.trim()) {
+            toast({
+              title: 'Error',
+              description: `Please enter a message for follow-up ${i + 1}`,
+              variant: 'destructive'
+            })
+            return
+          }
+        }
+      }
     }
 
     setSaving(true)
@@ -223,15 +295,17 @@ export default function EditCampaignPage() {
           linkedin_outreach_account_id: linkedinAccountId,
           pipeline_id: pipelineId === 'none' ? null : pipelineId,
           connection_message: useAiPersonalization ? '' : connectionMessage.trim(),
-          follow_up_message: followUpUseAi ? '' : followUpMessage.trim(),
-          follow_up_delay_days: followUpDelayDays,
           daily_connection_limit: dailyConnectionLimit,
           use_ai_personalization: useAiPersonalization,
           ai_instructions: useAiPersonalization ? aiInstructions.trim() : null,
           ai_tone: useAiPersonalization ? aiTone : null,
           ai_max_length: useAiPersonalization ? aiMaxLength : null,
           follow_up_use_ai: followUpUseAi,
-          follow_up_ai_instructions: followUpUseAi ? followUpAiInstructions.trim() : null,
+          follow_up_messages: followUps.map(fu => ({
+            delayDays: fu.delayDays,
+            message: followUpUseAi ? '' : fu.message.trim(),
+            aiInstructions: followUpUseAi ? fu.aiInstructions.trim() : ''
+          })),
         }),
       })
 
@@ -545,16 +619,16 @@ export default function EditCampaignPage() {
             </CardContent>
           </Card>
 
-          {/* Follow-up Message */}
+          {/* Follow-up Messages */}
           <Card>
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div>
-                  <CardTitle>Follow-up Message</CardTitle>
+                  <CardTitle>Follow-up Messages</CardTitle>
                   <CardDescription>
                     {followUpUseAi
                       ? 'AI will personalize follow-up messages based on conversation context'
-                      : 'Message sent after connection is accepted (optional but recommended)'
+                      : 'Messages sent after connection is accepted (optional but recommended)'
                     }
                   </CardDescription>
                 </div>
@@ -568,103 +642,137 @@ export default function EditCampaignPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="follow-up-delay">Days to Wait Before Follow-up</Label>
-                <Input
-                  id="follow-up-delay"
-                  type="number"
-                  min="1"
-                  max="30"
-                  value={followUpDelayDays}
-                  onChange={(e) => setFollowUpDelayDays(parseInt(e.target.value))}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Wait this many days after connection is accepted before sending follow-up
-                </p>
-              </div>
+            <CardContent className="space-y-6">
+              {followUps.map((followUp, index) => (
+                <div key={index} className="relative border rounded-lg p-4 space-y-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-sm">Follow-up Message {index + 1}</h4>
+                    {followUps.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeFollowUp(index)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
 
-              {followUpUseAi ? (
-                <>
                   <div className="space-y-2">
-                    <Label htmlFor="follow-up-ai-instructions">AI Instructions</Label>
-                    <Textarea
-                      id="follow-up-ai-instructions"
-                      placeholder="Example: Reference our initial connection and offer to schedule a quick call to discuss their content strategy."
-                      value={followUpAiInstructions}
-                      onChange={(e) => setFollowUpAiInstructions(e.target.value)}
-                      rows={5}
-                      required={followUpUseAi}
+                    <Label htmlFor={`follow-up-delay-${index}`}>Days to Wait Before Follow-up</Label>
+                    <Input
+                      id={`follow-up-delay-${index}`}
+                      type="number"
+                      min="1"
+                      max="30"
+                      value={followUp.delayDays}
+                      onChange={(e) => updateFollowUp(index, 'delayDays', parseInt(e.target.value))}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Describe how AI should craft follow-up messages. AI will use conversation history and profile data.
+                      {index === 0
+                        ? 'Wait this many days after connection is accepted before sending'
+                        : `Wait this many days after follow-up ${index} before sending`
+                      }
                     </p>
                   </div>
 
-                  <Alert className="border-purple-200 bg-purple-50">
-                    <Sparkles className="h-4 w-4 text-purple-600" />
-                    <AlertDescription className="text-purple-900">
-                      AI will personalize using the same tone ({aiTone}) as connection messages.
-                    </AlertDescription>
-                  </Alert>
-                </>
-              ) : (
-                <div className="space-y-2">
-                  <Label htmlFor="follow-up-message">Message</Label>
-                  <Textarea
-                    id="follow-up-message"
-                    placeholder="Thanks for connecting, {first_name}! I wanted to..."
-                    value={followUpMessage}
-                    onChange={(e) => setFollowUpMessage(e.target.value)}
-                    rows={5}
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const textarea = document.getElementById('follow-up-message')
-                        insertVariable(textarea, '{name}', setFollowUpMessage)
-                      }}
-                    >
-                      + Name
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const textarea = document.getElementById('follow-up-message')
-                        insertVariable(textarea, '{first_name}', setFollowUpMessage)
-                      }}
-                    >
-                      + First Name
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const textarea = document.getElementById('follow-up-message')
-                        insertVariable(textarea, '{company}', setFollowUpMessage)
-                      }}
-                    >
-                      + Company
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const textarea = document.getElementById('follow-up-message')
-                        insertVariable(textarea, '{job_title}', setFollowUpMessage)
-                      }}
-                    >
-                      + Job Title
-                    </Button>
-                  </div>
+                  {followUpUseAi ? (
+                    <div className="space-y-2">
+                      <Label htmlFor={`follow-up-ai-${index}`}>AI Instructions</Label>
+                      <Textarea
+                        id={`follow-up-ai-${index}`}
+                        placeholder="Example: Reference our initial connection and offer to schedule a quick call to discuss their content strategy."
+                        value={followUp.aiInstructions}
+                        onChange={(e) => updateFollowUp(index, 'aiInstructions', e.target.value)}
+                        rows={5}
+                        required={followUpUseAi}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Describe how AI should craft this follow-up message. AI will use conversation history and profile data.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label htmlFor={`follow-up-message-${index}`}>Message</Label>
+                      <Textarea
+                        id={`follow-up-message-${index}`}
+                        placeholder="Thanks for connecting, {first_name}! I wanted to..."
+                        value={followUp.message}
+                        onChange={(e) => updateFollowUp(index, 'message', e.target.value)}
+                        rows={5}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const textarea = document.getElementById(`follow-up-message-${index}`)
+                            insertVariableIntoFollowUp(textarea, '{name}', index, 'message')
+                          }}
+                        >
+                          + Name
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const textarea = document.getElementById(`follow-up-message-${index}`)
+                            insertVariableIntoFollowUp(textarea, '{first_name}', index, 'message')
+                          }}
+                        >
+                          + First Name
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const textarea = document.getElementById(`follow-up-message-${index}`)
+                            insertVariableIntoFollowUp(textarea, '{company}', index, 'message')
+                          }}
+                        >
+                          + Company
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const textarea = document.getElementById(`follow-up-message-${index}`)
+                            insertVariableIntoFollowUp(textarea, '{job_title}', index, 'message')
+                          }}
+                        >
+                          + Job Title
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
+              ))}
+
+              {followUps.length < 5 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addFollowUp}
+                  className="w-full"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Follow-up Message ({followUps.length}/5)
+                </Button>
+              )}
+
+              {followUpUseAi && (
+                <Alert className="border-purple-200 bg-purple-50">
+                  <Sparkles className="h-4 w-4 text-purple-600" />
+                  <AlertDescription className="text-purple-900">
+                    AI will personalize using the same tone ({aiTone}) as connection messages.
+                  </AlertDescription>
+                </Alert>
               )}
             </CardContent>
           </Card>
