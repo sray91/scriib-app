@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
 import { Label } from '@/components/ui/label'
-import { Loader2, ArrowLeft, Play, Pause, Square, Pencil, Trash2, UserPlus, TrendingUp, Users, CheckCircle, Send, MessageSquare, X } from 'lucide-react'
+import { Loader2, ArrowLeft, Play, Pause, Square, Pencil, Trash2, UserPlus, TrendingUp, Users, CheckCircle, Send, MessageSquare, X, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import {
   Table,
@@ -51,6 +51,7 @@ export default function CampaignDetailPage() {
   const [removeContactDialog, setRemoveContactDialog] = useState(false)
   const [contactToRemove, setContactToRemove] = useState(null)
   const [removingContact, setRemovingContact] = useState(false)
+  const [refreshingStats, setRefreshingStats] = useState(false)
 
   // Fetch campaign data
   const fetchCampaign = useCallback(async () => {
@@ -195,6 +196,43 @@ export default function CampaignDetailPage() {
       })
     } finally {
       setDeleteCampaignDialog(false)
+    }
+  }
+
+  // Refresh campaign stats
+  const handleRefreshStats = async () => {
+    setRefreshingStats(true)
+    try {
+      const response = await fetch('/api/outreach/campaigns/refresh-totals', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ campaignId }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to refresh stats')
+      }
+
+      toast({
+        title: 'Success',
+        description: 'Campaign statistics refreshed',
+      })
+
+      // Refresh campaign data
+      fetchCampaign()
+    } catch (error) {
+      console.error('Error refreshing stats:', error)
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to refresh stats',
+        variant: 'destructive'
+      })
+    } finally {
+      setRefreshingStats(false)
     }
   }
 
@@ -400,6 +438,27 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Metrics */}
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-lg font-semibold">Campaign Metrics</h2>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefreshStats}
+          disabled={refreshingStats}
+        >
+          {refreshingStats ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Refreshing...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh Stats
+            </>
+          )}
+        </Button>
+      </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

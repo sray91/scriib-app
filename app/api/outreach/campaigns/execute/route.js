@@ -539,6 +539,7 @@ async function updateCampaignTotals(supabase, campaignId) {
 
   if (counts) {
     const totals = {
+      total_contacts: counts.length,
       connections_sent: counts.filter(c => ['connection_sent', 'connected', 'follow_up_sent', 'replied'].includes(c.status)).length,
       connections_accepted: counts.filter(c => ['connected', 'follow_up_sent', 'replied'].includes(c.status)).length,
       messages_sent: counts.filter(c => ['follow_up_sent', 'replied'].includes(c.status)).length,
