@@ -13,7 +13,8 @@ import AddContactModal from '@/components/crm/AddContactModal'
 import PipelineBuilder from '@/components/crm/PipelineBuilder'
 import PipelineAssignment from '@/components/crm/PipelineAssignment'
 import AddToCampaignModal from '@/components/crm/AddToCampaignModal'
-import { contactsToCSV, downloadCSV, parseCSV } from '@/lib/csv-utils'
+import CSVColumnMapper from '@/components/crm/CSVColumnMapper'
+import { contactsToCSV, downloadCSV, parseCSV, getCSVHeaders, getCSVPreview } from '@/lib/csv-utils'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Table,
@@ -63,6 +64,10 @@ export default function CRMPage() {
   const [isAddToCampaignModalOpen, setIsAddToCampaignModalOpen] = useState(false)
   const [importing, setImporting] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [isColumnMapperOpen, setIsColumnMapperOpen] = useState(false)
+  const [csvData, setCsvData] = useState(null)
+  const [csvHeaders, setCsvHeaders] = useState([])
+  const [csvPreview, setCsvPreview] = useState([])
   const supabase = createClientComponentClient()
   const { toast } = useToast()
 
@@ -264,15 +269,46 @@ export default function CRMPage() {
     }
   }
 
-  // Handle CSV import
+  // Handle CSV file selection - show column mapper
   const handleImportCSV = async (event) => {
     const file = event.target.files?.[0]
     if (!file) return
 
-    setImporting(true)
     try {
       const text = await file.text()
-      const parsedContacts = parseCSV(text)
+
+      // Extract headers and preview data
+      const headers = getCSVHeaders(text)
+      const preview = getCSVPreview(text)
+
+      // Store CSV data for later processing
+      setCsvData(text)
+      setCsvHeaders(headers)
+      setCsvPreview(preview)
+
+      // Open the column mapper modal
+      setIsColumnMapperOpen(true)
+    } catch (error) {
+      console.error('Error reading CSV:', error)
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to read CSV file',
+        variant: 'destructive'
+      })
+    } finally {
+      // Reset file input
+      event.target.value = ''
+    }
+  }
+
+  // Handle confirmed column mapping and import
+  const handleColumnMappingConfirm = async (columnMapping) => {
+    setImporting(true)
+    setIsColumnMapperOpen(false)
+
+    try {
+      // Parse CSV with the column mapping
+      const parsedContacts = parseCSV(csvData, columnMapping)
 
       if (parsedContacts.length === 0) {
         toast({
@@ -317,9 +353,19 @@ export default function CRMPage() {
       })
     } finally {
       setImporting(false)
-      // Reset file input
-      event.target.value = ''
+      // Clear CSV data
+      setCsvData(null)
+      setCsvHeaders([])
+      setCsvPreview([])
     }
+  }
+
+  // Handle column mapper close
+  const handleColumnMapperClose = () => {
+    setIsColumnMapperOpen(false)
+    setCsvData(null)
+    setCsvHeaders([])
+    setCsvPreview([])
   }
 
   // Delete all contacts
@@ -945,6 +991,15 @@ export default function CRMPage() {
         onClose={() => setIsAddToCampaignModalOpen(false)}
         selectedContactIds={selectedContacts}
         onSuccess={handleAddToCampaignSuccess}
+      />
+
+      {/* CSV Column Mapper Modal */}
+      <CSVColumnMapper
+        isOpen={isColumnMapperOpen}
+        onClose={handleColumnMapperClose}
+        csvHeaders={csvHeaders}
+        previewData={csvPreview}
+        onConfirm={handleColumnMappingConfirm}
       />
     </div>
   )
