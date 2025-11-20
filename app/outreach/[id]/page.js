@@ -199,11 +199,12 @@ export default function CampaignDetailPage() {
     }
   }
 
-  // Refresh campaign stats
+  // Refresh campaign stats (includes checking for replies)
   const handleRefreshStats = async () => {
     setRefreshingStats(true)
     try {
-      const response = await fetch('/api/outreach/campaigns/refresh-totals', {
+      // First, check for replies
+      const repliesResponse = await fetch('/api/outreach/campaigns/check-replies', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -211,19 +212,39 @@ export default function CampaignDetailPage() {
         body: JSON.stringify({ campaignId }),
       })
 
-      const data = await response.json()
+      const repliesData = await repliesResponse.json()
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to refresh stats')
+      // Then refresh totals
+      const statsResponse = await fetch('/api/outreach/campaigns/refresh-totals', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ campaignId }),
+      })
+
+      const statsData = await statsResponse.json()
+
+      if (!statsResponse.ok) {
+        throw new Error(statsData.error || 'Failed to refresh stats')
       }
+
+      // Show appropriate message based on whether replies were found
+      const description = repliesData.repliesFound > 0
+        ? `Found ${repliesData.repliesFound} new ${repliesData.repliesFound === 1 ? 'reply' : 'replies'}. Stats refreshed.`
+        : 'Campaign statistics refreshed'
 
       toast({
         title: 'Success',
-        description: 'Campaign statistics refreshed',
+        description,
       })
 
-      // Refresh campaign data
-      fetchCampaign()
+      // Refresh all campaign data
+      await Promise.all([
+        fetchCampaign(),
+        fetchContacts(),
+        fetchActivities()
+      ])
     } catch (error) {
       console.error('Error refreshing stats:', error)
       toast({
@@ -567,6 +588,7 @@ export default function CampaignDetailPage() {
                         <TableHead>Connection Sent</TableHead>
                         <TableHead>Accepted</TableHead>
                         <TableHead>Follow-up Sent</TableHead>
+                        <TableHead>Replied</TableHead>
                         <TableHead className="w-[50px]"></TableHead>
                       </TableRow>
                     </TableHeader>
@@ -597,6 +619,11 @@ export default function CampaignDetailPage() {
                           <TableCell className="text-sm">
                             {contact.follow_up_sent_at
                               ? new Date(contact.follow_up_sent_at).toLocaleDateString()
+                              : '-'}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {contact.reply_received_at
+                              ? new Date(contact.reply_received_at).toLocaleDateString()
                               : '-'}
                           </TableCell>
                           <TableCell>

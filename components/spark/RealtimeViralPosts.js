@@ -51,6 +51,18 @@ export default function RealtimeViralPosts({
     }
   }, [filters, onPostsUpdate]);
 
+  // Helper function to determine if a post should be included based on current filters
+  const shouldIncludePost = useCallback((post) => {
+    // This is a simplified version - in practice you'd want to apply the same logic as the API
+    const minViralScore = parseFloat(filters.minViralScore) || 0;
+    const onlyViral = filters.onlyViral === 'true';
+
+    if (post.viral_score < minViralScore) return false;
+    if (onlyViral && !post.is_viral) return false;
+
+    return true;
+  }, [filters]);
+
   // Set up real-time subscription
   useEffect(() => {
     let channel;
@@ -141,18 +153,6 @@ export default function RealtimeViralPosts({
       }
     };
   }, [supabase, fetchPosts, shouldIncludePost]);
-
-  // Helper function to determine if a post should be included based on current filters
-  const shouldIncludePost = (post) => {
-    // This is a simplified version - in practice you'd want to apply the same logic as the API
-    const minViralScore = parseFloat(filters.minViralScore) || 0;
-    const onlyViral = filters.onlyViral === 'true';
-    
-    if (post.viral_score < minViralScore) return false;
-    if (onlyViral && !post.is_viral) return false;
-    
-    return true;
-  };
 
   // Format engagement numbers
   const formatCount = (count) => {

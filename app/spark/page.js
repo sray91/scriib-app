@@ -235,23 +235,6 @@ export default function SparkPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-6 space-y-6 max-w-7xl">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
-                  <Zap className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900">Spark</h1>
-                  <p className="text-gray-600">Your Mission Control for Trends - Data-Driven Viral Content Intelligence</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Error Alert */}
         {error && (
           <Alert variant="destructive">
