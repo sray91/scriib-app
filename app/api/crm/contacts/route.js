@@ -183,11 +183,11 @@ export async function POST(request) {
         engagement_type: contact.engagement_type || null,
         post_url: contact.post_url || null,
         scraped_at: new Date().toISOString()
-      })).filter(contact => contact.name && contact.profile_url) // Only include valid contacts
+      })).filter(contact => contact.name) // Only require name
 
       if (contactsToInsert.length === 0) {
         return NextResponse.json(
-          { error: 'No valid contacts found in CSV (name and profile_url are required)' },
+          { error: 'No valid contacts found in CSV. Each contact must have a name. Please check that your CSV columns are mapped correctly and contain data.' },
           { status: 400 }
         )
       }
