@@ -19,9 +19,9 @@ export async function PUT(request) {
     const body = await request.json()
 
     // Validate required fields
-    if (!body.name || !body.profile_url) {
+    if (!body.name) {
       return NextResponse.json(
-        { error: 'Name and LinkedIn Profile URL are required' },
+        { error: 'Name is required' },
         { status: 400 }
       )
     }
@@ -192,14 +192,44 @@ export async function POST(request) {
         )
       }
 
-      // Insert contacts with upsert to handle duplicates
-      const { data: insertedContacts, error: insertError } = await supabase
-        .from('crm_contacts')
-        .upsert(contactsToInsert, {
-          onConflict: 'user_id,profile_url',
-          ignoreDuplicates: false
-        })
-        .select()
+      // Insert contacts - use insert instead of upsert for contacts without profile_url
+      // Separate contacts with and without profile_url for proper duplicate handling
+      const contactsWithProfile = contactsToInsert.filter(c => c.profile_url)
+      const contactsWithoutProfile = contactsToInsert.filter(c => !c.profile_url)
+
+      let insertedCount = 0
+      let insertError = null
+
+      // Upsert contacts with profile_url (can dedupe on user_id, profile_url)
+      if (contactsWithProfile.length > 0) {
+        const { data, error } = await supabase
+          .from('crm_contacts')
+          .upsert(contactsWithProfile, {
+            onConflict: 'user_id,profile_url',
+            ignoreDuplicates: false
+          })
+          .select()
+
+        if (error) {
+          insertError = error
+        } else {
+          insertedCount += data?.length || contactsWithProfile.length
+        }
+      }
+
+      // Insert contacts without profile_url (no deduplication possible)
+      if (!insertError && contactsWithoutProfile.length > 0) {
+        const { data, error } = await supabase
+          .from('crm_contacts')
+          .insert(contactsWithoutProfile)
+          .select()
+
+        if (error) {
+          insertError = error
+        } else {
+          insertedCount += data?.length || contactsWithoutProfile.length
+        }
+      }
 
       if (insertError) {
         console.error('Error importing contacts:', insertError)
@@ -211,8 +241,8 @@ export async function POST(request) {
 
       return NextResponse.json({
         success: true,
-        message: `Successfully imported ${insertedContacts?.length || contactsToInsert.length} contacts`,
-        imported: insertedContacts?.length || contactsToInsert.length
+        message: `Successfully imported ${insertedCount} contacts`,
+        imported: insertedCount
       })
     }
 

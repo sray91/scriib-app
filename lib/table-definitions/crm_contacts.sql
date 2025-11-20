@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS public.crm_contacts (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    profile_url TEXT NOT NULL,
+    profile_url TEXT, -- Nullable to allow importing contacts without LinkedIn profiles
     name TEXT,
     job_title TEXT,
     company TEXT,
@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS public.crm_contacts (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 
     -- Prevent duplicate contacts per user (same profile URL)
+    -- Note: PostgreSQL allows multiple NULL values in unique constraints
     UNIQUE(user_id, profile_url)
 );
 
