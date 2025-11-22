@@ -26,52 +26,11 @@ export async function POST(request) {
       .single();
 
     if (accountError || !linkedinAccount) {
-      // For demo purposes, generate mock data without requiring authentication
-      // since Member Data Portability API has geographic restrictions
-      console.log('No LinkedIn account found, using demo data');
-      const mockPosts = generateMockLinkedInPosts(postsToFetch);
-      
-      // Store mock posts directly
-      const storedPosts = [];
-      for (const post of mockPosts) {
-        try {
-          const { data, error } = await supabase
-            .from('past_posts')
-            .upsert({
-              user_id: user.id,
-              platform: 'linkedin',
-              ...post
-            }, {
-              onConflict: 'platform_post_id,platform,user_id',
-              ignoreDuplicates: false
-            })
-            .select()
-            .single();
-
-          if (!error) {
-            storedPosts.push(data);
-          }
-        } catch (dbError) {
-          console.error('Database operation error:', dbError);
-        }
-      }
-
       return NextResponse.json({
-        success: true,
-        message: `Successfully synced ${storedPosts.length} LinkedIn posts (demo data - API restricted to EEA users)`,
-        data: {
-          synced_count: storedPosts.length,
-          total_fetched: mockPosts.length,
-          errors_count: 0,
-          demo_mode: true,
-          posts: storedPosts.map(p => ({
-            id: p.id,
-            content: p.content.substring(0, 100) + (p.content.length > 100 ? '...' : ''),
-            published_at: p.published_at,
-            post_type: p.post_type
-          }))
-        }
-      });
+        error: 'LinkedIn Portability account not connected. Please connect your LinkedIn account with Member Data Portability access first.',
+        needsAuth: true,
+        authUrl: `/api/auth/linkedin?mode=portability`
+      }, { status: 404 });
     }
 
     // Check if token is expired
@@ -84,16 +43,21 @@ export async function POST(request) {
     }
 
     const accessToken = linkedinAccount.access_token;
-    
+
+    console.log('=== LinkedIn Posts Sync Request ===');
+    console.log('Account platform:', linkedinAccount.platform);
+    console.log('Token exists:', !!accessToken);
+    console.log('Token preview:', accessToken?.substring(0, 20) + '...');
     console.log('Fetching LinkedIn posts using Member Data Portability API...');
-    
+
     // Fetch posts using LinkedIn Member Data Portability API
     // Note: The actual API endpoints may vary based on LinkedIn's current implementation
     let posts = [];
     let allPosts = [];
-    
+
     try {
       console.log('Using Member Data Portability API...');
+      console.log('Requesting', postsToFetch, 'posts');
       
       // Use Member Snapshot API to get member data including posts
       // This is the correct DMA API endpoint for accessing member data
@@ -109,8 +73,10 @@ export async function POST(request) {
       );
 
       if (!snapshotResponse.ok) {
-        console.log(`Member Snapshot API response: ${snapshotResponse.status}`);
-        
+        const snapshotError = await snapshotResponse.text();
+        console.error(`Member Snapshot API failed: ${snapshotResponse.status}`, snapshotError);
+        console.log('Trying Member Changelog API as alternative...');
+
         // Try Member Changelog API as alternative
         const changelogResponse = await fetch(
           `https://api.linkedin.com/v2/memberChangelog?q=member&count=${postsToFetch}`,
@@ -123,26 +89,37 @@ export async function POST(request) {
           }
         );
 
+        console.log('Member Changelog API status:', changelogResponse.status);
+
         if (!changelogResponse.ok) {
+          const changelogError = await changelogResponse.text();
+          console.error('Member Changelog API error:', changelogResponse.status, changelogError);
           throw new Error(`Both DMA APIs failed. Snapshot: ${snapshotResponse.status}, Changelog: ${changelogResponse.status}`);
         }
 
         const changelogData = await changelogResponse.json();
-        console.log('Using Member Changelog API data:', changelogData);
+        console.log('Using Member Changelog API data:', JSON.stringify(changelogData, null, 2));
         posts = changelogData.elements || [];
+        console.log(`Changelog API returned ${posts.length} posts`);
       } else {
         const snapshotData = await snapshotResponse.json();
-        console.log('Using Member Snapshot API data:', snapshotData);
-        
+        console.log('Member Snapshot API successful!');
+        console.log('Snapshot data:', JSON.stringify(snapshotData, null, 2));
+
         // Extract posts from snapshot data
         if (snapshotData.POSTS && snapshotData.POSTS.elements) {
           posts = snapshotData.POSTS.elements;
+          console.log(`Found ${posts.length} posts in POSTS.elements`);
         } else if (snapshotData.elements) {
           posts = snapshotData.elements.filter(item => item.type === 'POST' || item.domain === 'POSTS');
+          console.log(`Found ${posts.length} posts in elements array after filtering`);
         } else {
           posts = snapshotData.elements || [];
+          console.log(`Using raw elements array: ${posts.length} posts`);
         }
       }
+
+      console.log(`Total posts to process: ${posts.length}`);
 
       // Transform LinkedIn posts to our format
       for (const post of posts) {
@@ -168,12 +145,14 @@ export async function POST(request) {
 
     } catch (apiError) {
       console.error('LinkedIn API error:', apiError);
-      
-      // Since Member Data Portability API has user restrictions,
-      // generate realistic demo data for testing the feature
-      console.log('Using demo data due to API restrictions');
-      const mockPosts = generateMockLinkedInPosts(postsToFetch);
-      allPosts = mockPosts;
+      console.error('API error details:', apiError.message);
+      console.error('API error stack:', apiError.stack);
+
+      return NextResponse.json({
+        error: 'Failed to fetch posts from LinkedIn API',
+        details: apiError.message,
+        hint: 'Check that your LinkedIn Portability API access is properly configured and your token has the required scopes.'
+      }, { status: 500 });
     }
 
     // Store posts in database
@@ -292,46 +271,4 @@ function determinePostType(post) {
     if (media.type === 'IMAGE') return 'image';
   }
   return 'text';
-}
-
-function generateMockLinkedInPosts(count) {
-  const mockPosts = [];
-  const sampleContents = [
-    "Excited to share my thoughts on the future of AI in creative industries. The possibilities are endless!",
-    "Just wrapped up an amazing project with my team. Grateful for the opportunity to work with such talented people.",
-    "Attending the Tech Innovation Summit today. Looking forward to connecting with fellow entrepreneurs and innovators.",
-    "Reflecting on my journey in the tech industry. Every challenge has been a learning opportunity.",
-    "Happy to announce that our startup just reached a major milestone. Thank you to everyone who supported us!",
-    "The power of networking cannot be overstated. Some of my best opportunities came from unexpected connections.",
-    "Sharing some insights from my recent experience speaking at the Digital Marketing Conference.",
-    "Working remotely has taught me the importance of clear communication and setting boundaries.",
-    "Just finished reading an incredible book on leadership. Here are my key takeaways...",
-    "Collaboration is the key to innovation. When diverse minds come together, magic happens."
-  ];
-
-  for (let i = 0; i < count; i++) {
-    const daysAgo = Math.floor(Math.random() * 90) + 1; // Random date within last 90 days
-    const publishedAt = new Date();
-    publishedAt.setDate(publishedAt.getDate() - daysAgo);
-
-    mockPosts.push({
-      platform_post_id: `mock_post_${Date.now()}_${i}`,
-      content: sampleContents[i % sampleContents.length],
-      published_at: publishedAt.toISOString(),
-      post_url: `https://www.linkedin.com/feed/update/mock_post_${i}/`,
-      media_urls: Math.random() > 0.7 ? ['https://example.com/image.jpg'] : null,
-      metrics: {
-        likes: Math.floor(Math.random() * 200) + 10,
-        comments: Math.floor(Math.random() * 50) + 2,
-        shares: Math.floor(Math.random() * 30) + 1,
-        views: Math.floor(Math.random() * 2000) + 100,
-        impressions: Math.floor(Math.random() * 5000) + 500
-      },
-      post_type: ['text', 'image', 'video', 'article'][Math.floor(Math.random() * 4)],
-      visibility: 'PUBLIC',
-      raw_data: { mock: true, generated_at: new Date().toISOString() }
-    });
-  }
-
-  return mockPosts;
 } 

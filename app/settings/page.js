@@ -94,15 +94,16 @@ export default function SettingsPage() {
   }, [session, searchParams]);
 
   // Handle social account connections
-  const handleConnect = (platform) => {
+  const handleConnect = (platform, mode = 'standard') => {
     if (platform === 'twitter') {
       toast({
         title: 'Not implemented',
         description: 'Twitter connection is not implemented yet.',
       });
     } else if (platform === 'linkedin') {
-      // Use the unified LinkedIn auth (defaults to standard mode)
-      window.location.href = `/api/auth/linkedin`;
+      // Use the unified LinkedIn auth with specified mode
+      const modeParam = mode === 'portability' ? '?mode=portability' : '';
+      window.location.href = `/api/auth/linkedin${modeParam}`;
     }
   };
 
@@ -418,15 +419,23 @@ export default function SettingsPage() {
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                   <h2 className="text-xl font-bold tracking-tight">Connected Social Accounts</h2>
                   <div className="flex flex-wrap gap-3 w-full sm:w-auto">
-                    <Button 
+                    <Button
                       variant="outline"
-                      onClick={() => handleConnect('linkedin')}
+                      onClick={() => handleConnect('linkedin', 'standard')}
                       className="h-10 px-4 flex-1 sm:flex-none"
                     >
                       <Linkedin className="h-4 w-4 mr-2" />
                       Add LinkedIn
                     </Button>
-                    <Button 
+                    <Button
+                      variant="outline"
+                      onClick={() => handleConnect('linkedin', 'portability')}
+                      className="h-10 px-4 flex-1 sm:flex-none bg-blue-50 border-blue-200 hover:bg-blue-100"
+                    >
+                      <Linkedin className="h-4 w-4 mr-2 text-blue-600" />
+                      Add LinkedIn Analytics
+                    </Button>
+                    <Button
                       variant="outline"
                       onClick={() => handleConnect('twitter')}
                       className="h-10 px-4 flex-1 sm:flex-none"
@@ -447,16 +456,23 @@ export default function SettingsPage() {
                             <Linkedin className="h-5 w-5 text-blue-600" />
                           </div>
                           <div>
-                            <div className="font-medium">
-                              {account.screen_name || 'LinkedIn Account'}
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">
+                                {account.screen_name || 'LinkedIn Account'}
+                              </span>
+                              {account.platform === 'linkedin_portability' && (
+                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                                  Analytics
+                                </span>
+                              )}
                             </div>
                             <div className="text-sm text-muted-foreground">
                               Connected • Last used: {account.last_used_at ? new Date(account.last_used_at).toLocaleDateString() : 'Never'}
                             </div>
                           </div>
                         </div>
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                           className="text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600 self-end sm:self-auto"
                           onClick={() => handleDisconnect(account.id)}
