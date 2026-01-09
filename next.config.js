@@ -19,13 +19,7 @@ const nextConfig = {
     },
   },
 
-  // Global API routes configuration
-  api: {
-    bodyParser: {
-      sizeLimit: '100mb',
-    },
-    responseLimit: false,
-  },
+
 
 }
 

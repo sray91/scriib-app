@@ -21,23 +21,23 @@ export async function generatePostContentWithGPT4o(userMessage, currentDraft, ac
   try {
     // Analyze user's voice from past posts and training documents
     const voiceAnalysis = await analyzeUserVoice(pastPosts, userMessage, trainingDocuments);
-    
+
     // Analyze trending posts for patterns
     const trendingInsights = await analyzeTrendingPosts(trendingPosts);
-    
+
     // Build the comprehensive system prompt
     const systemPrompt = buildSystemPrompt(pastPosts, trendingPosts, voiceAnalysis, trendingInsights, userMessage, trainingDocuments, hooksKnowledge);
-    
+
     // Debug: Log which system prompt path is being used
     if (pastPosts && pastPosts.length > 0) {
       console.log('✅ Using AUTHENTIC VOICE prompt with past posts data');
     } else {
       console.log('⚠️ Using FALLBACK prompt - no past posts available');
     }
-    
+
     // Build the user prompt based on action
     const userPrompt = buildUserPrompt(userMessage, currentDraft, action);
-    
+
     // Call GPT-4o with better error handling and timeout
     let completion;
     try {
@@ -61,7 +61,7 @@ export async function generatePostContentWithGPT4o(userMessage, currentDraft, ac
       ]);
     } catch (openaiError) {
       console.error('OpenAI API Error:', openaiError);
-      
+
       // Handle specific OpenAI errors
       if (openaiError.status === 401) {
         throw new Error('OpenAI API key is invalid or missing. Please check your configuration.');
@@ -77,19 +77,19 @@ export async function generatePostContentWithGPT4o(userMessage, currentDraft, ac
         throw new Error(`OpenAI API error: ${openaiError.message || 'Unknown error'}`);
       }
     }
-    
+
     const assistantResponse = completion.choices[0].message.content;
-    
+
     // Parse the response to extract post content, hook type, and explanation
     const { postContent, explanation, hookType } = parseGPTResponse(assistantResponse);
-    
+
     // Determine if this is a significant update
-    const isSignificantUpdate = action === 'create' || 
+    const isSignificantUpdate = action === 'create' ||
       (currentDraft && calculateTextSimilarity(currentDraft, postContent) < 0.8);
-    
+
     // Generate dynamic processing steps based on what actually happened
     const dynamicSteps = [];
-    
+
     // Step 1: Past posts and documents analysis
     const totalContentSources = pastPosts.length + trainingDocuments.length;
     if (totalContentSources > 0) {
@@ -109,11 +109,11 @@ export async function generatePostContentWithGPT4o(userMessage, currentDraft, ac
     } else {
       dynamicSteps.push(`⚠️ No past posts or training documents found - using generic voice profile`);
     }
-    
+
     // Step 2: Content mode detection
     const personalKeywords = ['dad', 'father', 'mom', 'mother', 'parent', 'family', 'died', 'death', 'dying', 'passed away', 'funeral', 'grief', 'loss', 'mourning'];
     const isPersonalContent = personalKeywords.some(keyword => userMessage.toLowerCase().includes(keyword));
-    
+
     if (pastPosts.length > 0) {
       dynamicSteps.push(`🎭 Mode: AUTHENTIC VOICE (using your real writing patterns)`);
       if (isPersonalContent) {
@@ -124,7 +124,7 @@ export async function generatePostContentWithGPT4o(userMessage, currentDraft, ac
     } else {
       dynamicSteps.push(`💼 Mode: BUSINESS OPTIMIZATION (no past posts, professional content)`);
     }
-    
+
     // Step 3: Trending analysis (only if using optimization mode)
     if (pastPosts.length === 0 && !isPersonalContent) {
       dynamicSteps.push(`📈 Analyzed ${trendingPosts.length} trending posts for engagement patterns`);
@@ -132,14 +132,14 @@ export async function generatePostContentWithGPT4o(userMessage, currentDraft, ac
     } else {
       dynamicSteps.push(`🚫 Skipping engagement optimization - prioritizing authentic voice`);
     }
-    
+
     // Step 4: Content generation approach
     if (pastPosts.length > 0) {
       dynamicSteps.push(`✍️ Writing in YOUR voice: ${voiceAnalysis.avgLength} avg chars, ${voiceAnalysis.preferredFormats.join(', ')} format`);
     } else {
       dynamicSteps.push(`✍️ Generating with ${isPersonalContent ? 'authentic personal' : 'professional'} approach`);
     }
-    
+
     // Step 5: Hook selection (added after generation)
     if (hookType) {
       dynamicSteps.push(`🎣 Hook chosen: "${hookType}" (from hooks guide)`);
@@ -173,7 +173,7 @@ export async function generatePostContentWithGPT4o(userMessage, currentDraft, ac
         hookTypeChosen: hookType
       }
     };
-    
+
   } catch (error) {
     console.error('Error in generatePostContentWithGPT4o:', error);
     throw error;
@@ -196,7 +196,7 @@ export async function generatePostContentWithClaude(userMessage, currentDraft, a
     let contextGuide = null;
     if (targetUserId) {
       processingSteps.push(`📖 Fetching context guide for user ${targetUserId}...`);
-      
+
       const { data: prefsData, error: prefsError } = await supabase
         .from('user_preferences')
         .select('settings')
@@ -302,7 +302,7 @@ Return the complete post content as plain text. Do not include any JSON, formatt
 
     const message = await Promise.race([
       anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022",
+        model: process.env.NEXT_PUBLIC_ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929",
         max_tokens: 2000,
         messages: [{
           role: "user",
@@ -331,7 +331,7 @@ Return the complete post content as plain text. Do not include any JSON, formatt
 
   } catch (error) {
     console.error('Error in generatePostContentWithClaude:', error);
-    
+
     if (error.message.includes('timeout')) {
       throw new Error('Content generation is taking longer than expected. Please try with a shorter request.');
     } else if (error.message.includes('rate limit')) {

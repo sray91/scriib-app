@@ -16,15 +16,16 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Play } from 'lucide-react';
+import { Play, History } from 'lucide-react';
 import PostEditorDialog from '@/components/post-forge/PostEditorDialog';
+import HistoryDialog from '@/components/cocreate/HistoryDialog';
 import { useToast } from "@/components/ui/use-toast";
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 // Import our refactored modules
 import { useCanvasStore } from '@/lib/stores/canvasStore';
 import { nodeTypes } from '@/components/canvas-blocks';
-import { 
+import {
   useCanvasNodes,
   useCanvasKeyboardShortcuts,
   useCanvasEvents,
@@ -38,7 +39,7 @@ const CoCreateCanvas = () => {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedNodes, setSelectedNodes] = useState([]);
-  const { initializeSession } = useCanvasStore();
+  const { initializeSession, saveSession, loadSession } = useCanvasStore();
   const { toast } = useToast();
   const supabase = createClientComponentClient();
 
@@ -46,6 +47,10 @@ const CoCreateCanvas = () => {
   const [isPostEditorOpen, setIsPostEditorOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [isCreatingNewPost, setIsCreatingNewPost] = useState(false);
+
+  // History Dialog state
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [lastSaved, setLastSaved] = useState(null);
 
   // Track the last compiled post for re-editing
   const [lastCompiledPost, setLastCompiledPost] = useState(null);
@@ -56,12 +61,54 @@ const CoCreateCanvas = () => {
   const [availableUsers, setAvailableUsers] = useState([]);
   const [currentUserRole, setCurrentUserRole] = useState('ghostwriter');
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
-  
+
   // Use our custom hooks
   const { addNode, addConnectedBlock, removeNode } = useCanvasNodes(nodes, setNodes, edges, setEdges);
 
   // Custom compilation handler that opens the dialog instead of redirecting
   const { compilePost: originalCompilePost } = usePostCompilation();
+
+  // Auto-save effect
+  useEffect(() => {
+    const autoSaveInterval = setInterval(async () => {
+      if (nodes.length > 0) {
+        const result = await saveSession(nodes, edges, true);
+        if (result?.success) {
+          setLastSaved(new Date());
+        }
+      }
+    }, 30000); // Auto-save every 30 seconds
+
+    return () => clearInterval(autoSaveInterval);
+  }, [nodes, edges, saveSession]);
+
+  // Load session handler
+  const handleLoadSession = async (session) => {
+    setIsHistoryOpen(false);
+    setIsLoading(true);
+
+    // Save current before loading new? Maybe prompts user later.
+
+    const result = await loadSession(session.id);
+
+    if (result.success) {
+      setNodes(result.nodes || []);
+      setEdges(result.edges || []);
+
+      toast({
+        title: "Session loaded",
+        description: `Loaded "${session.name}"`,
+      });
+    } else {
+      toast({
+        title: "Load failed",
+        description: "Failed to load session data",
+        variant: "destructive"
+      });
+    }
+
+    setIsLoading(false);
+  };
 
   // Fetch users linked to current user
   const fetchAvailableUsers = async () => {
@@ -165,13 +212,13 @@ const CoCreateCanvas = () => {
       });
     }
   };
-  
+
   // Handle node selection
   const onSelectionChange = useCallback((elements) => {
     const nodeIds = elements.nodes.map(node => node.id);
     setSelectedNodes(nodeIds);
   }, []);
-  
+
   const onConnect = useCallback((params) => {
     setEdges((eds) => addEdge({
       ...params,
@@ -186,49 +233,52 @@ const CoCreateCanvas = () => {
       },
     }, eds));
   }, [setEdges]);
-  
+
   // Custom compilation function that opens the editor dialog
   const handleCompilePost = async () => {
     setIsLoading(true);
-    
+
     const { session } = useCanvasStore.getState();
-    
+
     // Check if we have content to compile
     const hasContent = session?.dynamicContext && (
       (session.dynamicContext.ideas?.length > 0) ||
       (session.dynamicContext.hooks?.length > 0) ||
       (session.dynamicContext.generatedContent?.length > 0)
     );
-    
+
     // Check if we have ideation blocks on the canvas (even without generated content)
     const hasIdeationBlocks = nodes.some(node => node.type === 'ideationBlock');
-    
+
     if (!hasContent && !hasIdeationBlocks && lastCompiledPost) {
       // No content to compile, but we have a last compiled post - open it for editing
       setSelectedPost(lastCompiledPost);
       setIsCreatingNewPost(false); // This is editing an existing post
       setIsPostEditorOpen(true);
-      
+
       toast({
         title: "Opening last compiled post",
         description: "No new content to compile. Opening your previously compiled post for editing.",
       });
-      
+
       setIsLoading(false);
       return;
     }
-    
+
     // We need to create a custom compilation process that doesn't redirect
     // Instead, we'll compile the post and then open the editor dialog
     const success = await compilePostForDialog();
-    
+
+    // Trigger a manual save after compilation
+    await saveSession(nodes, edges);
+
     setIsLoading(false);
   };
-  
+
   // Custom compile function that returns post data instead of redirecting
   const compilePostForDialog = async () => {
     const { session, clearDynamicContext } = useCanvasStore.getState();
-    
+
     if (!session?.dynamicContext) {
       toast({
         title: "No content to compile",
@@ -237,15 +287,15 @@ const CoCreateCanvas = () => {
       });
       return false;
     }
-    
+
     const { ideas, hooks, visuals, generatedContent } = session.dynamicContext;
-    
+
     // Check if we have any content to compile
     const hasContent = ideas?.length > 0 || hooks?.length > 0 || generatedContent?.length > 0;
-    
+
     // Check if we have ideation blocks on the canvas
     const hasIdeationBlocks = nodes.some(node => node.type === 'ideationBlock');
-    
+
     if (!hasContent && !hasIdeationBlocks) {
       toast({
         title: "No content to compile",
@@ -254,14 +304,14 @@ const CoCreateCanvas = () => {
       });
       return false;
     }
-    
+
     // If we have ideation blocks but no generated content, create a basic post
     if (!hasContent && hasIdeationBlocks) {
       toast({
         title: "Creating basic post...",
         description: "No generated content found. Creating a basic post template.",
       });
-      
+
       // Create a basic post template for the user to edit
       const basicPostContent = `Write your LinkedIn post here...
 
@@ -294,58 +344,58 @@ Consider including:
           basic_template: true
         }
       };
-      
+
       // Save this as the last compiled post for future reference
       setLastCompiledPost(postForEditing);
-      
+
       // Open the editor dialog with the basic post template
       setSelectedPost(postForEditing);
       setIsCreatingNewPost(true);
       setIsPostEditorOpen(true);
-      
+
       toast({
         title: "Basic post template created!",
         description: "Edit the template to create your post",
       });
-      
+
       return true;
     }
-    
+
     try {
       // Start compilation process
       toast({
         title: "Compiling post...",
         description: "Assembling content from connected blocks",
       });
-      
+
       // Compile final post content (same logic as the original hook)
       let finalContent = '';
-      
+
       // Get hook and main content
       const latestHook = hooks?.[hooks.length - 1];
       const latestIdea = ideas?.[ideas.length - 1];
       const latestGeneratedContent = generatedContent?.[generatedContent.length - 1];
-      
+
       let mainContent = '';
       if (latestGeneratedContent) {
         mainContent = latestGeneratedContent.content;
       } else if (latestIdea) {
         mainContent = latestIdea.content;
       }
-      
+
       // Remove existing hooks from main content to prevent duplication
       if (mainContent && latestHook) {
         const lines = mainContent.split('\n');
         let contentStartIndex = 0;
-        
+
         // Skip lines that might be hooks (first few lines that look like hooks)
         for (let i = 0; i < Math.min(3, lines.length); i++) {
           const line = lines[i].trim();
           // If line looks like a hook (sentence that ends with punctuation and is standalone)
-          if (line && 
-              (line.length > 20 && line.length < 200) && // Reasonable hook length
-              /[.!?]$/.test(line) && // Ends with punctuation
-              !/^(But |However |Additionally |Furthermore |Moreover |Also |And |So |Then )/i.test(line) // Not a continuation
+          if (line &&
+            (line.length > 20 && line.length < 200) && // Reasonable hook length
+            /[.!?]$/.test(line) && // Ends with punctuation
+            !/^(But |However |Additionally |Furthermore |Moreover |Also |And |So |Then )/i.test(line) // Not a continuation
           ) {
             contentStartIndex = i + 1;
             // Skip empty lines after potential hook
@@ -357,21 +407,21 @@ Consider including:
             break;
           }
         }
-        
+
         // Reconstruct content without the hook-like beginning
         mainContent = lines.slice(contentStartIndex).join('\n').trim();
       }
-      
+
       // Add hook if available
       if (latestHook) {
         finalContent += latestHook.content.replace(/^Hook \d+: /, '') + '\n\n';
       }
-      
+
       // Add main content
       if (mainContent) {
         finalContent += mainContent;
       }
-      
+
       // Create post object for the editor dialog
       const scheduleTime = new Date(new Date().setHours(12, 0, 0, 0));
       const postForEditing = {
@@ -393,25 +443,25 @@ Consider including:
           session_id: session.sessionId
         }
       };
-      
+
       // Save this as the last compiled post for future reference
       setLastCompiledPost(postForEditing);
-      
+
       // Open the editor dialog with the compiled post
       setSelectedPost(postForEditing);
       setIsCreatingNewPost(true);
       setIsPostEditorOpen(true);
-      
+
       // Clear session context after successful compilation
       clearDynamicContext();
-      
+
       toast({
         title: "Post compiled successfully!",
         description: "Opening post editor to review and schedule your post",
       });
-      
+
       return true;
-      
+
     } catch (error) {
       console.error('Compilation failed:', error);
       toast({
@@ -422,7 +472,7 @@ Consider including:
       return false;
     }
   };
-  
+
   // Fetch available users on component mount
   useEffect(() => {
     fetchAvailableUsers();
@@ -453,7 +503,7 @@ Consider including:
 
     setNodes([defaultIdeationBlock]);
   }, [initializeSession, setNodes]);
-  
+
   // Update all nodes with current edges data when edges change
   useEffect(() => {
     setNodes(nds => nds.map(node => ({
@@ -465,12 +515,12 @@ Consider including:
       }
     })));
   }, [edges, setNodes]);
-  
-  
+
+
   // Setup event listeners and keyboard shortcuts
   useCanvasKeyboardShortcuts(addNode, handleCompilePost, selectedNodes, setSelectedNodes, setNodes, isLoading);
   useCanvasEvents(addConnectedBlock, removeNode);
-  
+
   // Helper function to get current day of week
   const getCurrentDayOfWeek = () => {
     const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -486,7 +536,7 @@ Consider including:
     if (savedPost) {
       setLastCompiledPost(savedPost);
     }
-    
+
     // Close the editor
     setIsPostEditorOpen(false);
     setSelectedPost(null);
@@ -494,8 +544,8 @@ Consider including:
     // Show success message
     toast({
       title: "Post saved successfully!",
-      description: savedPost?.status === 'scheduled' 
-        ? "Your post has been scheduled in Post Forge" 
+      description: savedPost?.status === 'scheduled'
+        ? "Your post has been scheduled in Post Forge"
         : "Your post has been saved as a draft",
     });
   };
@@ -509,28 +559,28 @@ Consider including:
   // Get dynamic button text based on current state
   const getCompileButtonText = () => {
     const { session } = useCanvasStore.getState();
-    
+
     // Check if we have content to compile
     const hasContent = session?.dynamicContext && (
       (session.dynamicContext.ideas?.length > 0) ||
       (session.dynamicContext.hooks?.length > 0) ||
       (session.dynamicContext.generatedContent?.length > 0)
     );
-    
+
     // Check if we have ideation blocks on the canvas
     const hasIdeationBlocks = nodes.some(node => node.type === 'ideationBlock');
-    
+
     if (!hasContent && !hasIdeationBlocks && lastCompiledPost) {
       return 'Edit Last Post';
     }
-    
+
     if (!hasContent && hasIdeationBlocks) {
       return 'Create Post';
     }
-    
+
     return 'Compile Post';
   };
-  
+
   return (
     <div className="w-full h-screen">
       <ReactFlow
@@ -564,17 +614,26 @@ Consider including:
       >
         <MiniMap />
         <Background />
-        
+
         {/* Controls Panel */}
         <Panel position="bottom-right" style={{ marginRight: '10px', marginBottom: '10px' }}>
           <Controls showZoom={true} showFitView={true} showInteractive={true} />
         </Panel>
-        
-        {/* Top Panel */}
+
+        {/* Top Panel - Compile Button and History */}
         <Panel position="top-right" style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1000 }}>
           <div className="flex gap-2">
-            <Button 
-              onClick={handleCompilePost} 
+            <Button
+              onClick={() => setIsHistoryOpen(true)}
+              variant="outline"
+              className="bg-white hover:bg-gray-50 border-gray-200 text-gray-700 w-10 p-0"
+              title="Session History"
+            >
+              <History className="h-4 w-4" />
+            </Button>
+
+            <Button
+              onClick={handleCompilePost}
               disabled={isLoading}
               className="bg-blue-600 hover:bg-blue-700"
             >
@@ -582,8 +641,13 @@ Consider including:
               {isLoading ? 'Compiling...' : getCompileButtonText()}
             </Button>
           </div>
+          {lastSaved && (
+            <div className="text-[10px] text-gray-400 text-right mt-1 pr-1 font-medium">
+              Saved {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </div>
+          )}
         </Panel>
-        
+
         {/* User Selection Panel - Clean Dropdown Only */}
         <Panel position="top-center" style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}>
           <Select value={selectedUserId || ''} onValueChange={handleUserSelect} disabled={isLoadingUsers}>
@@ -642,12 +706,12 @@ Consider including:
             )}
           </div>
         </Panel>
-        
 
-        
+
+
 
       </ReactFlow>
-      
+
       {/* Post Editor Dialog */}
       <PostEditorDialog
         isOpen={isPostEditorOpen}
@@ -662,6 +726,13 @@ Consider including:
           setSelectedPost(null);
         }}
       />
+
+      {/* History Dialog */}
+      <HistoryDialog
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        onLoadSession={handleLoadSession}
+      />
     </div>
   );
 };
@@ -672,4 +743,4 @@ export default function CoCreateCanvasWrapper() {
       <CoCreateCanvas />
     </ReactFlowProvider>
   );
-} 
+}

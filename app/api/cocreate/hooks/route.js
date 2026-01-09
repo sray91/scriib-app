@@ -23,28 +23,28 @@ try {
 export async function POST(req) {
   try {
     const supabase = createRouteHandlerClient({ cookies });
-    
+
     // Get authenticated user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
+
     if (userError || !user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
-    
+
     // Parse request body
     const body = await req.json();
     const { userMessage, contextUserId } = body;
-    
+
     // Validate input
     if (!userMessage) {
       return NextResponse.json({ error: "Missing user message" }, { status: 400 });
     }
-    
+
     console.log(`🎣 Hook generation request from user ${user.id}: "${userMessage.substring(0, 100)}..."`);
-    
+
     // Determine which user's context to use
     let targetUserId = user.id;
     if (contextUserId && contextUserId !== user.id) {
@@ -58,7 +58,7 @@ export async function POST(req) {
       }
       targetUserId = contextUserId;
     }
-    
+
     // Fetch user's context guide
     let contextGuide = null;
     const { data: prefsData, error: prefsError } = await supabase
@@ -73,7 +73,7 @@ export async function POST(req) {
       contextGuide = prefsData.settings.contextGuide;
       console.log('📖 Context guide loaded for hook generation');
     }
-    
+
     // Generate hooks using Claude with HOOKS_GUIDE.md
     const result = await generateHooksWithClaude(
       userMessage,
@@ -81,7 +81,7 @@ export async function POST(req) {
       hooksGuide,
       targetUserId
     );
-    
+
     return NextResponse.json({
       success: true,
       hooks: result.hooks,
@@ -89,10 +89,10 @@ export async function POST(req) {
       contextGuideUsed: !!contextGuide,
       hooksGuideUsed: !!hooksGuide
     });
-    
+
   } catch (error) {
     console.error('Error in hooks generation API:', error);
-    
+
     if (error.message.includes('timeout')) {
       return NextResponse.json(
         { error: 'Hook generation is taking longer than expected. Please try again.' },
@@ -119,7 +119,7 @@ async function generateHooksWithClaude(userMessage, contextGuide, hooksGuide, us
   if (!anthropic) {
     throw new Error('Claude API not available');
   }
-  
+
   // Build comprehensive prompt with hooks guide
   let prompt = `You are an expert LinkedIn hook creator with deep knowledge of viral content patterns.
 
@@ -179,7 +179,7 @@ Return ONLY the numbered hooks 1-12, one per line. Each should be a complete, re
 
     const message = await Promise.race([
       anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022",
+        model: process.env.NEXT_PUBLIC_ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929",
         max_tokens: 2000,
         messages: [{
           role: "user",
@@ -190,11 +190,11 @@ Return ONLY the numbered hooks 1-12, one per line. Each should be a complete, re
     ]);
 
     const hooksResponse = message.content[0].text.trim();
-    
+
     // Parse hooks from response
     const hookLines = hooksResponse.split('\n').filter(line => line.trim());
     const hooks = hookLines.map(line => line.replace(/^\d+\.\s*/, '').trim()).filter(hook => hook.length > 0);
-    
+
     return {
       hooks,
       processingDetails: {

@@ -24,13 +24,13 @@ export async function generateWithModelEnsemble(userMessage, currentDraft, actio
     // Set up global timeout for entire ensemble (45 seconds max to leave buffer)
     const ensembleTimeout = 45000;
     const startTime = Date.now();
-    
+
     const processEnsemble = async () => {
       // === STEP 1: Gemini 2.5 for Large Document Analysis ===
       let styleGuide = null;
       if (trainingDocuments && trainingDocuments.length > 0) {
         processingSteps.push(`🧠 Gemini 2.5: Analyzing ${trainingDocuments.length} training documents for style guide creation...`);
-        
+
         try {
           styleGuide = await createStyleGuideWithGemini(trainingDocuments, userMessage);
           ensembleDetails.modelsUsed.push('Gemini 2.5');
@@ -49,7 +49,7 @@ export async function generateWithModelEnsemble(userMessage, currentDraft, actio
       let stylePreset = null;
       if (pastPosts && pastPosts.length > 0) {
         processingSteps.push(`🎨 Claude 4 Sonnet: Creating reusable style preset from ${pastPosts.length} past posts...`);
-        
+
         try {
           stylePreset = await createStylePresetWithClaude(pastPosts, contextUserId || userId, supabase);
           ensembleDetails.modelsUsed.push('Claude 4 Sonnet');
@@ -66,16 +66,16 @@ export async function generateWithModelEnsemble(userMessage, currentDraft, actio
 
       // === STEP 3: Claude Sonnet 4 for Draft Generation ===
       processingSteps.push(`✍️ Claude Sonnet 4: Generating draft with voice preservation and quality optimization...`);
-      
+
       let draftResult;
       try {
         draftResult = await generateDraftWithClaude(
-          userMessage, 
-          currentDraft, 
-          action, 
-          styleGuide, 
-          stylePreset, 
-          pastPosts, 
+          userMessage,
+          currentDraft,
+          action,
+          styleGuide,
+          stylePreset,
+          pastPosts,
           trendingPosts,
           trainingDocuments
         );
@@ -95,7 +95,7 @@ export async function generateWithModelEnsemble(userMessage, currentDraft, actio
       // === STEP 4: Claude Sonnet 4 for Quality Review and Refinement ===
       if (draftResult && draftResult.postContent) {
         processingSteps.push(`🔍 Claude Sonnet 4: Reviewing draft for factual correctness, clarity, and LinkedIn best practices...`);
-        
+
         try {
           const qualityReview = await reviewDraftQualityWithClaude(
             draftResult.postContent,
@@ -104,7 +104,7 @@ export async function generateWithModelEnsemble(userMessage, currentDraft, actio
             trendingPosts
           );
           ensembleDetails.qualityReview = qualityReview;
-          
+
           if (qualityReview.needs_refinement) {
             processingSteps.push(`🔧 Claude Sonnet 4: Applying quality improvements while preserving voice...`);
             draftResult.postContent = qualityReview.refined_content;
@@ -148,13 +148,13 @@ export async function generateWithModelEnsemble(userMessage, currentDraft, actio
 
   } catch (error) {
     console.error('Error in Model Ensemble:', error);
-    
+
     // Fallback to original single-model approach
     processingSteps.push(`⚠️ Model Ensemble failed - falling back to GPT-4o single model`);
     const fallbackResult = await generatePostContentWithGPT4o(
       userMessage, currentDraft, action, pastPosts, trendingPosts, trainingDocuments
     );
-    
+
     return {
       ...fallbackResult,
       processingSteps: [...processingSteps, ...fallbackResult.processingSteps],
@@ -178,9 +178,9 @@ async function createStyleGuideWithGemini(trainingDocuments, userMessage) {
   }
 
   const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-thinking-exp" });
-  
+
   // Combine all training document content
-  const combinedContent = trainingDocuments.map(doc => 
+  const combinedContent = trainingDocuments.map(doc =>
     `=== ${doc.file_name} (${doc.file_type}) ===\n${doc.extracted_text}`
   ).join('\n\n');
 
@@ -252,7 +252,7 @@ Return a comprehensive style guide as JSON with these sections.`;
 async function createFallbackStyleGuide(trainingDocuments) {
   const totalWords = trainingDocuments.reduce((sum, doc) => sum + doc.word_count, 0);
   const avgWordsPerDoc = totalWords / trainingDocuments.length;
-  
+
   return {
     voice_tone: "Professional and engaging based on training documents",
     writing_mechanics: `Average document length: ${avgWordsPerDoc} words`,
@@ -284,7 +284,7 @@ async function createStylePresetWithClaude(pastPosts, userId, supabase) {
 
     const message = await Promise.race([
       anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022",
+        model: process.env.NEXT_PUBLIC_ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929",
         max_tokens: 2000,
         messages: [{
           role: "user",
@@ -407,7 +407,7 @@ ${typeof stylePreset === 'object' ? stylePreset.analysis : stylePreset}`;
   }
 
   if (pastPosts && pastPosts.length > 0) {
-    const samplePosts = pastPosts.slice(0, 3).map(post => 
+    const samplePosts = pastPosts.slice(0, 3).map(post =>
       `"${post.content.substring(0, 300)}${post.content.length > 300 ? '...' : ''}"`
     ).join('\n\n');
     context += `\n\nSAMPLE PAST POSTS:
@@ -425,7 +425,7 @@ Generate a high-quality LinkedIn post that feels authentic to this user's voice.
 
   try {
     const message = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: process.env.NEXT_PUBLIC_ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929",
       max_tokens: 1500,
       messages: [{
         role: "user",
@@ -481,7 +481,7 @@ Format as JSON with: { "score": number, "needs_refinement": boolean, "improvemen
 
   try {
     const message = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: process.env.NEXT_PUBLIC_ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929",
       max_tokens: 2000,
       messages: [{
         role: "user",
@@ -490,7 +490,7 @@ Format as JSON with: { "score": number, "needs_refinement": boolean, "improvemen
     });
 
     const reviewResponse = message.content[0].text;
-    
+
     try {
       return JSON.parse(reviewResponse);
     } catch (parseError) {
@@ -513,15 +513,15 @@ Format as JSON with: { "score": number, "needs_refinement": boolean, "improvemen
 // Calculate text similarity (simple implementation)
 function calculateTextSimilarity(text1, text2) {
   if (!text1 || !text2) return 0;
-  
+
   const words1 = text1.toLowerCase().split(/\s+/);
   const words2 = text2.toLowerCase().split(/\s+/);
-  
+
   const set1 = new Set(words1);
   const set2 = new Set(words2);
-  
+
   const intersection = new Set([...set1].filter(x => set2.has(x)));
   const union = new Set([...set1, ...set2]);
-  
+
   return intersection.size / union.size;
 } 

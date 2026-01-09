@@ -11,44 +11,45 @@ export const maxDuration = 30; // Shorter timeout for ideation
 export async function POST(req) {
   try {
     const supabase = createRouteHandlerClient({ cookies });
-    
+
     // Get authenticated user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
+
     if (userError || !user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
-    
+
     // Parse request body
     const body = await req.json();
-    const { userMessage, contextType = 'guide' } = body;
-    
+    const { userMessage, contextType = 'guide', model = 'claude-sonnet-4-5-20250929' } = body;
+
     // Validate input
     if (!userMessage) {
       return NextResponse.json({ error: "Missing user message" }, { status: 400 });
     }
-    
-    console.log(`🧠 Ideation request from user ${user.id}: "${userMessage}"`);
-    
+
+    console.log(`🧠 Ideation request from user ${user.id}: "${userMessage}" [Model: ${model}]`);
+
     // Fetch user's context document (markdown guide)
     const contextDoc = await fetchUserContextDocument(supabase, user.id, contextType);
     console.log(`📄 Context document found: ${contextDoc ? 'Yes' : 'No'}`);
-    
+
     // Fetch viral posts as reference (placeholder for future)
     const viralPosts = await fetchViralPostsReference(supabase, 5);
     console.log(`🔥 Viral posts reference: ${viralPosts.length} posts`);
-    
+
     // Generate ideas using Claude with context document
     const result = await generateIdeasWithClaude(
       userMessage,
       contextDoc,
       viralPosts,
-      user.id
+      user.id,
+      model
     );
-    
+
     return NextResponse.json({
       success: true,
       post: result.post,
@@ -56,7 +57,7 @@ export async function POST(req) {
       viralPostsCount: viralPosts.length,
       processingDetails: result.processingDetails
     });
-    
+
   } catch (error) {
     console.error('Error in Ideation API:', error);
     return NextResponse.json(
@@ -78,17 +79,17 @@ async function fetchUserContextDocument(supabase, userId, contextType = 'guide')
       .select('settings')
       .eq('user_id', userId)
       .single();
-    
+
     if (prefError) {
       console.log(`No user preferences found for user ${userId}:`, prefError.message);
       return null;
     }
-    
+
     if (!preferences?.settings?.contextGuide) {
       console.log(`No context guide found in user preferences for user ${userId}`);
       return null;
     }
-    
+
     const guide = preferences.settings.contextGuide;
     return {
       filename: 'Personal Context Guide',
@@ -97,7 +98,7 @@ async function fetchUserContextDocument(supabase, userId, contextType = 'guide')
       type: 'guide',
       source: 'user_preferences'
     };
-    
+
   } catch (error) {
     console.error('Error fetching context guide from user preferences:', error);
     return null;
@@ -115,12 +116,12 @@ async function fetchViralPostsReference(supabase, limit = 5) {
       .eq('is_viral', true)
       .order('viral_score', { ascending: false })
       .limit(limit);
-    
+
     if (error) {
       console.error('Error fetching viral posts:', error);
       return [];
     }
-    
+
     return posts || [];
   } catch (error) {
     console.error('Error in fetchViralPostsReference:', error);
@@ -131,11 +132,20 @@ async function fetchViralPostsReference(supabase, limit = 5) {
 /**
  * Generate ideas using Claude with context document as primary reference
  */
-async function generateIdeasWithClaude(userMessage, contextDoc, viralPosts, userId) {
+async function generateIdeasWithClaude(userMessage, contextDoc, viralPosts, userId, modelId = 'claude-sonnet-4-5-20250929') {
   if (!anthropic) {
     throw new Error('Claude API not available');
   }
-  
+
+  // Validate model ID to ensure security
+  const validModels = [
+    process.env.NEXT_PUBLIC_ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
+    process.env.NEXT_PUBLIC_ANTHROPIC_OPUS_MODEL || 'claude-opus-4-5-20251101'
+  ];
+  const cleanModelId = validModels.includes(modelId)
+    ? modelId
+    : (process.env.NEXT_PUBLIC_ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929');
+
   // Build context-focused prompt
   let prompt = `You are an expert LinkedIn content creator specializing in personalized post generation using the user's personal context guide.
 
@@ -162,7 +172,7 @@ Please generate a generic LinkedIn post based on best practices, but note that i
 
 `;
   }
-  
+
   // Add viral posts reference (placeholder)
   if (viralPosts && viralPosts.length > 0) {
     prompt += `VIRAL POSTS REFERENCE (Inspiration Only):
@@ -177,7 +187,7 @@ Here are some high-performing LinkedIn posts for inspiration on format and engag
     prompt += `
 `;
   }
-  
+
   prompt += `TASK:
 Create a complete LinkedIn post that directly addresses the user's request while strictly adhering to their personal context guide.
 
@@ -194,12 +204,12 @@ Return the complete post content as plain text. Do not include any JSON, formatt
   try {
     // Call Claude with timeout
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Claude API timeout')), 25000);
+      setTimeout(() => reject(new Error('Claude API timeout')), 45000); // Increased timeout for Opus
     });
 
     const message = await Promise.race([
       anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022",
+        model: cleanModelId,
         max_tokens: 2000,
         messages: [{
           role: "user",
@@ -211,13 +221,13 @@ Return the complete post content as plain text. Do not include any JSON, formatt
 
     const response = message.content[0].text;
     console.log('Claude raw response:', response.substring(0, 200) + '...');
-    
+
     // Return the post content directly
     return {
       post: response.trim(),
       contextUsed: !!contextDoc,
       processingDetails: {
-        model: "Claude 3.5 Sonnet",
+        model: cleanModelId === 'claude-opus-4-5-20251101' ? "Claude 4.5 Opus" : "Claude 4.5 Sonnet",
         contextDocUsed: !!contextDoc,
         viralPostsReferenced: viralPosts.length,
         responseLength: response.length
