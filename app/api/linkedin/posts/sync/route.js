@@ -1,17 +1,12 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { getLinkedInConfig, LINKEDIN_MODES } from '@/lib/linkedin-config';
+import { requireAuth } from '@/lib/api-auth';
 
 export async function POST(request) {
-  const supabase = createRouteHandlerClient({ cookies });
-  
-  try {
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
-    }
+  const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
 
     // Get request parameters
     const { count = 30 } = await request.json().catch(() => ({}));
@@ -21,7 +16,7 @@ export async function POST(request) {
     const { data: linkedinAccount, error: accountError } = await supabase
       .from('social_accounts')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('platform', 'linkedin_portability')
       .single();
 
@@ -164,7 +159,7 @@ export async function POST(request) {
         const { data, error } = await supabase
           .from('past_posts')
           .upsert({
-            user_id: user.id,
+            user_id: userId,
             platform: 'linkedin',
             ...post
           }, {

@@ -1,7 +1,7 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { getSupabaseServiceRole } from "@/lib/api-auth";
 import { NextResponse } from "next/server";
 import crypto from 'crypto';
+import { auth } from '@clerk/nextjs/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,89 +15,28 @@ export async function GET(request) {
     const url = new URL(request.url);
     const ghostwriterId = url.searchParams.get('ghostwriter');
     const email = url.searchParams.get('email');
-    
+
     if (!ghostwriterId || !email) {
       return NextResponse.redirect(new URL('/login', url.origin));
     }
-    
+
     console.log("Direct approve request for", { ghostwriterId, email });
-    
-    const cookieStore = cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
-    
-    // First, check if we already have a session
-    const { data: { session }, error: sessionCheckError } = await supabase.auth.getSession();
-    let userId;
-    
-    if (sessionCheckError || !session) {
-      // No session, we need to create one
-      console.log("No session found, creating a temporary login");
-      
-      // Use admin sign-in if available, otherwise create a fake session with data
-      try {
-        // First, check if user already exists
-        const { data: existingUser, error: lookupError } = await supabase.auth.admin.getUserByEmail(email);
-        
-        if (!lookupError && existingUser) {
-          userId = existingUser.id;
-          console.log("Found existing user:", userId);
-        } else {
-          // Generate new user ID
-          userId = generateUUID();
-          
-          // Create the user with admin API if available
-          try {
-            const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
-              email: email,
-              email_confirm: true,
-              user_metadata: { 
-                created_via: 'direct_approver_invite',
-                invited_by: ghostwriterId
-              }
-            });
-            
-            if (!createError && newUser) {
-              userId = newUser.id;
-              console.log("Created new user:", userId);
-            }
-          } catch (adminError) {
-            console.log("Admin API not available, using standard auth:", adminError);
-          }
-        }
-      } catch (adminError) {
-        console.log("Could not use admin API, falling back to standard auth");
-        
-        // Try standard authentication
-        const { data, error: signInError } = await supabase.auth.signInWithOtp({
-          email: email,
-          options: {
-            shouldCreateUser: true
-          }
-        });
-        
-        if (signInError) {
-          console.error("Failed to create session:", signInError);
-          return NextResponse.redirect(new URL(`/login?error=auth_error&message=${encodeURIComponent("We couldn't create a session. Please try the magic link option on the login page.")}&email=${encodeURIComponent(email)}`, url.origin));
-        }
-        
-        // Get the user from the session 
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          userId = user.id;
-          console.log("Created and authenticated user:", userId);
-        }
-      }
-    } else {
-      // We have a session, use the user ID from it
-      userId = session.user.id;
-      console.log("Using existing session for user:", userId);
-    }
-    
+
+    // Get the Clerk user if authenticated
+    const { userId: clerkUserId } = await auth();
+    let userId = clerkUserId;
+
+    // Get service role client for database operations
+    const supabase = getSupabaseServiceRole();
+
+    // If no Clerk user, this is a direct invite link - user needs to sign up first
     if (!userId) {
-      console.error("Could not determine user ID");
-      return NextResponse.redirect(new URL(`/login?error=auth_error&message=${encodeURIComponent("Unable to determine your user account. Please try the magic link option on the login page.")}&email=${encodeURIComponent(email)}`, url.origin));
+      console.log("No authenticated session - user needs to sign up");
+      return NextResponse.redirect(new URL(`/sign-up?message=${encodeURIComponent("Please sign up with your email to accept the approver invitation.")}&email=${encodeURIComponent(email)}&ghostwriter=${ghostwriterId}`, url.origin));
     }
-    
+
+    console.log("Using authenticated Clerk user:", userId);
+
     // Now create the profile and relationship
     try {
       // Ensure profile exists
@@ -110,11 +49,11 @@ export async function GET(request) {
         })
         .onConflict('id')
         .merge();
-        
+
       if (profileError) {
         console.error("Error creating profile:", profileError);
       }
-      
+
       // Create or update the relationship
       const { error: relationshipError } = await supabase
         .from('ghostwriter_approver_link')
@@ -125,7 +64,7 @@ export async function GET(request) {
         })
         .onConflict(['ghostwriter_id', 'approver_id'])
         .merge({ active: true, revoked_at: null });
-        
+
       if (relationshipError) {
         console.error("Error creating relationship:", relationshipError);
         throw new Error("Could not create approver relationship");

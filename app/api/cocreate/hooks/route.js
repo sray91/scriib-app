@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { anthropic } from '../lib/clients.js';
 import fs from 'fs';
 import path from 'path';
+import { requireAuth } from '@/lib/api-auth';
 
 // Configure the API route for hook generation
 export const runtime = 'nodejs';
@@ -22,17 +21,10 @@ try {
 
 export async function POST(req) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Get authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const { userId, supabase } = auth;
 
     // Parse request body
     const body = await req.json();
@@ -43,13 +35,13 @@ export async function POST(req) {
       return NextResponse.json({ error: "Missing user message" }, { status: 400 });
     }
 
-    console.log(`🎣 Hook generation request from user ${user.id}: "${userMessage.substring(0, 100)}..."`);
+    console.log(`🎣 Hook generation request from user ${userId}: "${userMessage.substring(0, 100)}..."`);
 
     // Determine which user's context to use
-    let targetUserId = user.id;
-    if (contextUserId && contextUserId !== user.id) {
+    let targetUserId = userId;
+    if (contextUserId && contextUserId !== userId) {
       // Validate access (reuse validation logic)
-      const hasAccess = await validateUserAccess(supabase, user.id, contextUserId);
+      const hasAccess = await validateUserAccess(supabase, userId, contextUserId);
       if (!hasAccess) {
         return NextResponse.json(
           { error: 'Access denied: You do not have permission to use this user\'s context data' },

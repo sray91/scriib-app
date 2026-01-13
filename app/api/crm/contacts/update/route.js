@@ -1,20 +1,13 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/api-auth';
 
 // PATCH - Update a contact's information
 export async function PATCH(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     const body = await request.json()
     const { contactId, ...updates } = body
@@ -42,7 +35,7 @@ export async function PATCH(request) {
       .from('crm_contacts')
       .update(contactData)
       .eq('id', contactId)
-      .eq('user_id', user.id) // Extra safety check
+      .eq('user_id', userId) // Extra safety check
       .select()
       .single()
 

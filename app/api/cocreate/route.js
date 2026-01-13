@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { requireAuth } from '@/lib/api-auth';
 
 // Import modular functions
 import { fetchUserPastPosts, fetchUserTrainingDocuments, fetchTrendingPosts, validateUserAccess } from './lib/database.js';
@@ -13,33 +12,26 @@ export const maxDuration = 60; // Maximum allowed for hobby plan (60 seconds)
 
 export async function POST(req) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // Get authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-    
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
+
     // Parse request body
     const body = await req.json();
     const { userMessage, currentDraft, action = 'create', contextUserId } = body;
-    
+
     // Validate input
     if (!userMessage) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
-    
-    // Determine which user's context to use (current user or contextUserId)
-    let targetUserId = user.id;
 
-    if (contextUserId && contextUserId !== user.id) {
+    // Determine which user's context to use (current user or contextUserId)
+    let targetUserId = userId;
+
+    if (contextUserId && contextUserId !== userId) {
       // Validate that current user has access to the contextUserId's data
-      const hasAccess = await validateUserAccess(supabase, user.id, contextUserId);
+      const hasAccess = await validateUserAccess(supabase, userId, contextUserId);
 
       if (!hasAccess) {
         return NextResponse.json(

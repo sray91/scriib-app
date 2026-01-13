@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { requireAuth } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,29 +9,22 @@ export async function GET(request) {
     const status = searchParams.get('status');
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
-    
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // Get the current authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
     
     // Use the enhanced function to get posts with relationship data
     let { data, error } = await supabase
-      .rpc('get_user_related_post_authors', { user_uuid: user.id });
+      .rpc('get_user_related_post_authors', { user_uuid: userId });
     
     if (error) {
       console.error('Error fetching user related post authors:', error);
       
       // Fallback to the basic function if the new one fails
       const { data: basicData, error: basicError } = await supabase
-        .rpc('get_user_related_posts', { user_uuid: user.id });
+        .rpc('get_user_related_posts', { user_uuid: userId });
       
       if (basicError) {
         console.error('Error fetching basic post data:', basicError);
@@ -73,25 +65,24 @@ export async function GET(request) {
     
     // Prepare response with role information
     const postsWithRoles = paginatedData.map(post => {
-      const userRole = post.owner_id === user.id 
-        ? 'owner' 
-        : post.approver_id === user.id 
-          ? 'approver' 
+      const userRole = post.owner_id === userId
+        ? 'owner'
+        : post.approver_id === userId
+          ? 'approver'
           : 'ghostwriter';
-      
+
       return {
         ...post,
         current_user_role: userRole
       };
     });
-    
+
     return NextResponse.json({
       posts: postsWithRoles,
       totalCount: filteredData?.length || 0,
       statusCounts: statusCounts,
       user: {
-        id: user.id,
-        email: user.email
+        id: userId
       }
     });
   } catch (error) {

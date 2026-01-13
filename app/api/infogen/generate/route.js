@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { generatePNG } from '@/lib/infographics/image-generator';
 import { generateInfographicHTML } from '@/lib/infographics/html-generator';
 import { v4 as uuidv4 } from 'uuid';
+import { requireAuth } from '@/lib/api-auth';
 
 // Initialize Anthropic client for Claude Sonnet 4
 const anthropic = new Anthropic({
@@ -101,7 +100,7 @@ export async function POST(request) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single();
 
     // Get template-specific instructions if available

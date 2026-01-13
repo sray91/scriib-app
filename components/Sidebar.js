@@ -2,8 +2,8 @@
 
 import { GalleryVerticalEnd, LayoutList, Calendar, Users, Lightbulb, Search, Settings, LogOut, Menu, X, PenTool, Image as ImageIcon, LayoutDashboard, BarChart3, Zap, Contact, Send } from 'lucide-react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { usePathname, useRouter } from 'next/navigation'
+import { useClerk } from '@clerk/nextjs'
 import Image from 'next/image'
 import { useState, useEffect } from 'react'
 import { Button } from './ui/button'
@@ -38,7 +38,8 @@ const navigation = [
 
 export default function SidebarComponent() {
   const pathname = usePathname()
-  const supabase = createClientComponentClient()
+  const router = useRouter()
+  const { signOut } = useClerk()
   const { isCollapsed, toggleSidebar } = useSidebar()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -48,13 +49,13 @@ export default function SidebarComponent() {
     const checkIfMobile = () => {
       setIsMobile(window.innerWidth < 768)
     }
-    
+
     // Check on initial load
     checkIfMobile()
-    
+
     // Add event listener
     window.addEventListener('resize', checkIfMobile)
-    
+
     // Clean up
     return () => window.removeEventListener('resize', checkIfMobile)
   }, [])
@@ -65,8 +66,8 @@ export default function SidebarComponent() {
   }, [pathname])
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    window.location.href = '/login'
+    await signOut()
+    router.push('/login')
   }
 
   // Mobile hamburger button

@@ -1,21 +1,14 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { getUnipileClient } from '@/lib/unipile-client'
+import { requireAuth } from '@/lib/api-auth';
 
 // GET - List all LinkedIn outreach accounts for the user
 export async function GET(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     // Fetch accounts from database
     const { data: accounts, error: dbError } = await supabase
@@ -28,7 +21,7 @@ export async function GET(request) {
           profile_data
         )
       `)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
 
     if (dbError) {
@@ -53,16 +46,10 @@ export async function GET(request) {
 // POST - Create a new LinkedIn outreach account
 export async function POST(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     const body = await request.json()
 
@@ -81,7 +68,7 @@ export async function POST(request) {
 
       // Prepare account data
       const accountData = {
-        user_id: user.id,
+        user_id: userId,
         account_name: body.account_name,
         unipile_account_id: body.unipile_account_id,
         social_account_id: body.social_account_id || null,
@@ -139,16 +126,10 @@ export async function POST(request) {
 // DELETE - Remove a LinkedIn outreach account
 export async function DELETE(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     const { searchParams } = new URL(request.url)
     const accountId = searchParams.get('id')
@@ -165,7 +146,7 @@ export async function DELETE(request) {
       .from('linkedin_outreach_accounts')
       .delete()
       .eq('id', accountId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
 
     if (deleteError) {
       console.error('Error deleting outreach account:', deleteError)
@@ -189,16 +170,10 @@ export async function DELETE(request) {
 // PATCH - Update a LinkedIn outreach account
 export async function PATCH(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     const body = await request.json()
 
@@ -220,7 +195,7 @@ export async function PATCH(request) {
       .from('linkedin_outreach_accounts')
       .update(updateData)
       .eq('id', body.id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .select()
       .single()
 

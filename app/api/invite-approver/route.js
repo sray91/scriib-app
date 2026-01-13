@@ -1,25 +1,18 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { requireAuth } from "@/lib/api-auth";
 import { NextResponse } from "next/server";
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
-  const cookieStore = cookies();
-  const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
   // Declare usersTableExists at the function level so it's accessible throughout
   let usersTableExists = false;
 
   try {
-    // Verify current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Not authenticated" },
-        { status: 401 }
-      );
-    }
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
 
     // Get request data
     const { email, ghostwriter_id } = await request.json();
@@ -32,7 +25,7 @@ export async function POST(request) {
     }
 
     // Check if the user trying to invite is the ghostwriter
-    if (ghostwriter_id !== user.id) {
+    if (ghostwriter_id !== userId) {
       return NextResponse.json(
         { error: "Unauthorized - You can only invite approvers for yourself" },
         { status: 403 }
@@ -145,7 +138,7 @@ export async function POST(request) {
     const { data: existingLink, error: linkCheckError } = await supabase
       .from('ghostwriter_approver_link')
       .select('id, active')
-      .eq('ghostwriter_id', user.id)
+      .eq('ghostwriter_id', userId)
       .eq('approver_id', approver_id)
       .maybeSingle();
 
@@ -201,30 +194,29 @@ export async function POST(request) {
       
       // Log the data we're trying to insert for debugging
       console.log("Attempting to create link with:", {
-        ghostwriter_id: user.id,
+        ghostwriter_id: userId,
         approver_id: approver_id
       });
-      
+
       // Check if the users exist in the database - use the variable from the higher scope
       if (usersTableExists) {
         const { data: gwCheck, error: gwError } = await supabase
           .from('users')
           .select('id')
-          .eq('id', user.id)
+          .eq('id', userId)
           .single();
-          
+
         if (gwError) {
           console.error("Ghostwriter doesn't exist in users table:", gwError);
-          
+
           // Try to create the ghostwriter record
           const { error: gwInsertError } = await supabase
             .from('users')
             .insert({
-              id: user.id,
-              email: user.email,
+              id: userId,
               created_at: new Date().toISOString()
             });
-            
+
           if (gwInsertError) {
             console.error("Failed to create ghostwriter record:", gwInsertError);
             return NextResponse.json(
@@ -257,16 +249,16 @@ export async function POST(request) {
         const { data: ghostwriterProfile, error: gwProfileError } = await supabase
           .from('profiles')
           .select('id')
-          .eq('id', user.id)
+          .eq('id', userId)
           .maybeSingle();
-          
+
         // If not, create a profile entry for the ghostwriter
         if (gwProfileError || !ghostwriterProfile) {
           // Insert ghostwriter into profiles
           await supabase
             .from('profiles')
             .insert({
-              id: user.id,
+              id: userId,
               created_at: new Date().toISOString()
             })
             .onConflict('id')
@@ -300,7 +292,7 @@ export async function POST(request) {
       const { data, error: insertError } = await supabase
         .from('ghostwriter_approver_link')
         .insert({
-          ghostwriter_id: user.id,
+          ghostwriter_id: userId,
           approver_id: approver_id,
           active: true
         })

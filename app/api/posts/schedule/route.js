@@ -1,31 +1,23 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { requireAuth } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
   try {
     const { id, scheduledTime, dayOfWeek } = await request.json();
-    
+
     if (!id) {
       return NextResponse.json(
         { error: 'Post ID is required' },
         { status: 400 }
       );
     }
-    
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // Get the current authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
     
     // First try to get the post with relationships for better visibility
     let { data: existingPost, error: getError } = await supabase
@@ -48,9 +40,9 @@ export async function POST(request) {
     }
     
     // Security validation: Check if user is authorized to update this post
-    const isOwner = existingPost.user_id === user.id;
-    const isApprover = existingPost.approver_id === user.id;
-    const isGhostwriter = existingPost.ghostwriter_id === user.id;
+    const isOwner = existingPost.user_id === userId;
+    const isApprover = existingPost.approver_id === userId;
+    const isGhostwriter = existingPost.ghostwriter_id === userId;
     
     if (!isOwner && !isApprover && !isGhostwriter) {
       return NextResponse.json(
@@ -64,7 +56,7 @@ export async function POST(request) {
       user_id: existingPost.user_id,
       approver_id: existingPost.approver_id,
       ghostwriter_id: existingPost.ghostwriter_id,
-      current_user: user.id,
+      current_user: userId,
       user_role: isOwner ? 'owner' : isApprover ? 'approver' : 'ghostwriter'
     });
     

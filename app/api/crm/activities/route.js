@@ -1,6 +1,5 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/api-auth';
 
 // GET - Fetch all activities for a contact
 export async function GET(request) {
@@ -30,7 +29,7 @@ export async function GET(request) {
       .from('crm_contact_activities')
       .select('*')
       .eq('contact_id', contactId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
 
     if (activitiesError) {
@@ -78,7 +77,7 @@ export async function POST(request) {
     const { data: newActivity, error: createError } = await supabase
       .from('crm_contact_activities')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         contact_id: contactId,
         activity_type: activityType,
         description: description,

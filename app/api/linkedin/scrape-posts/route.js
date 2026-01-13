@@ -1,7 +1,6 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { ApifyClient } from 'apify-client';
+import { requireAuth } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,14 +10,10 @@ const apifyClient = new ApifyClient({
 });
 
 export async function POST(request) {
-  const supabase = createRouteHandlerClient({ cookies });
-  
-  try {
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
-    }
+  const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
 
     // Get request parameters
     const requestBody = await request.json().catch(() => ({}));
@@ -49,7 +44,7 @@ export async function POST(request) {
       maxPosts: Math.min(count, 200) // Limit to prevent abuse
     };
 
-    console.log(`🚀 Starting Apify LinkedIn scraper for user ${user.id}`);
+    console.log(`🚀 Starting Apify LinkedIn scraper for user ${userId}`);
     console.log(`📋 Scraping ${input.urls.length} URL(s) with max ${input.maxPosts} posts`);
 
     // Run the Actor and wait for it to finish
@@ -155,7 +150,7 @@ export async function POST(request) {
         const { data, error } = await supabase
           .from('past_posts')
           .upsert({
-            user_id: user.id,
+            user_id: userId,
             platform: 'linkedin',
             ...post,
             raw_data: {

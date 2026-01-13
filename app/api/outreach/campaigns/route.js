@@ -1,20 +1,13 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/api-auth';
 
 // GET - List all campaigns for the user
 export async function GET(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status') // Optional filter by status
@@ -34,7 +27,7 @@ export async function GET(request) {
           name
         )
       `)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
 
     // Apply status filter if provided
@@ -66,16 +59,10 @@ export async function GET(request) {
 // POST - Create a new campaign
 export async function POST(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     const body = await request.json()
 
@@ -92,7 +79,7 @@ export async function POST(request) {
       .from('linkedin_outreach_accounts')
       .select('*')
       .eq('id', body.linkedin_outreach_account_id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single()
 
     if (accountError || !linkedinAccount) {
@@ -104,7 +91,7 @@ export async function POST(request) {
 
     // Prepare campaign data
     const campaignData = {
-      user_id: user.id,
+      user_id: userId,
       linkedin_outreach_account_id: body.linkedin_outreach_account_id,
       pipeline_id: body.pipeline_id || null,
       name: body.name,
@@ -172,16 +159,10 @@ export async function POST(request) {
 // PATCH - Update a campaign
 export async function PATCH(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     const body = await request.json()
 
@@ -197,7 +178,7 @@ export async function PATCH(request) {
       .from('campaigns')
       .select('*')
       .eq('id', body.id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single()
 
     if (fetchError || !existingCampaign) {
@@ -228,7 +209,7 @@ export async function PATCH(request) {
       .from('campaigns')
       .update(updateData)
       .eq('id', body.id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .select(`
         *,
         linkedin_outreach_accounts (
@@ -266,16 +247,10 @@ export async function PATCH(request) {
 // DELETE - Delete a campaign
 export async function DELETE(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     const { searchParams } = new URL(request.url)
     const campaignId = searchParams.get('id')
@@ -292,7 +267,7 @@ export async function DELETE(request) {
       .from('campaigns')
       .select('status')
       .eq('id', campaignId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single()
 
     if (fetchError || !campaign) {
@@ -315,7 +290,7 @@ export async function DELETE(request) {
       .from('campaigns')
       .delete()
       .eq('id', campaignId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
 
     if (deleteError) {
       console.error('Error deleting campaign:', deleteError)

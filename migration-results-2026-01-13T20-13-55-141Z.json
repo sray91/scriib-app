@@ -1,0 +1,72 @@
+{
+  "success": [
+    {
+      "success": true,
+      "email": "kathy@bennit.ai",
+      "clerkId": "user_38DXh7L3AMTgWxp9ZBzFVfYMaoG",
+      "supabaseId": "f0629086-3d2f-45a1-adc0-10d27c3d9670"
+    },
+    {
+      "success": true,
+      "email": "ryan@axiomsystems.io",
+      "clerkId": "user_38DXhDAdUGGdEnboI9kfnxXm3Mk",
+      "supabaseId": "3865df8a-5d4c-4f26-8a01-b9c59d40e40a"
+    },
+    {
+      "success": true,
+      "email": "john.aren.perez@gmail.com",
+      "clerkId": "user_38DXhIJjs5FUFpSHBTAtsOBuQdL",
+      "supabaseId": "5cb500da-e985-45ff-848d-74f835c083d0"
+    },
+    {
+      "success": true,
+      "email": "chad@engineered-vision.com",
+      "clerkId": "user_38DXhFKXaXKwccgOfvTj4X4cCNN",
+      "supabaseId": "cc06c321-eecc-45c1-8a1d-d93a9f4e72ec"
+    },
+    {
+      "success": true,
+      "email": "elaina@ghostletter.us",
+      "clerkId": "user_38DXhN3HrSmGGL5nG44M6x7uRYF",
+      "supabaseId": "20f37fcf-02a4-42da-9d90-58fccefea241"
+    },
+    {
+      "success": true,
+      "email": "rayswanagan@gmail.com",
+      "clerkId": "user_38DXhPTExOEOdqZFZH0QnggGQPP",
+      "supabaseId": "884e1ba2-414a-4c03-aa56-6a368cb29e10"
+    },
+    {
+      "success": true,
+      "email": "swanagan@ghostletter.us",
+      "clerkId": "user_38DXhVclVcRG0dfcdvqDNcc1xUC",
+      "supabaseId": "a48a72af-2b4f-4c9a-9ed6-386471a1cf97"
+    },
+    {
+      "success": true,
+      "email": "swanaganray@gmail.com",
+      "clerkId": "user_38DXhWiwXpMgx3e3uKHVDK8KpwF",
+      "supabaseId": "52aac5ef-4606-4f2d-8643-33dbb5efb3ee"
+    }
+  ],
+  "failed": [
+    {
+      "success": false,
+      "email": "cpalmer@engineered-vision.com",
+      "supabaseId": "cd608a23-c599-4c31-9c3b-8b33287bbcf7",
+      "error": "Clerk API error: {\"errors\":[{\"message\":\"That email address is taken. Please try another.\",\"long_message\":\"That email address is taken. Please try another.\",\"code\":\"form_identifier_exists\",\"meta\":{\"param_name\":\"email_address\"}}],\"clerk_trace_id\":\"ae53105920491910d1629568d9b4fa34\"}"
+    },
+    {
+      "success": false,
+      "email": "rdcahalane@gmail.com",
+      "supabaseId": "3753198c-b358-4ced-8f20-8d24324b49a6",
+      "error": "Clerk API error: {\"errors\":[{\"message\":\"That email address is taken. Please try another.\",\"long_message\":\"That email address is taken. Please try another.\",\"code\":\"form_identifier_exists\",\"meta\":{\"param_name\":\"email_address\"}}],\"clerk_trace_id\":\"d2fc34785caa5f0cd1629568d9b4ff06\"}"
+    },
+    {
+      "success": false,
+      "email": "melissa@orderappai.com",
+      "supabaseId": "05d2891e-e421-4f73-9fe2-7a29b859af6c",
+      "error": "Clerk API error: {\"errors\":[{\"message\":\"That email address is taken. Please try another.\",\"long_message\":\"That email address is taken. Please try another.\",\"code\":\"form_identifier_exists\",\"meta\":{\"param_name\":\"email_address\"}}],\"clerk_trace_id\":\"ddfb9e4cdc741899d1629568d9b4fa04\"}"
+    }
+  ]
+}

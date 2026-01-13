@@ -1,20 +1,13 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/api-auth';
 
 // GET - Get contacts for a campaign
 export async function GET(request, { params }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     const campaignId = params.id
 
@@ -23,7 +16,7 @@ export async function GET(request, { params }) {
       .from('campaigns')
       .select('id')
       .eq('id', campaignId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single()
 
     if (campaignError || !campaign) {
@@ -77,16 +70,10 @@ export async function GET(request, { params }) {
 // POST - Add contacts to a campaign
 export async function POST(request, { params }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     const campaignId = params.id
     const body = await request.json()
@@ -104,7 +91,7 @@ export async function POST(request, { params }) {
       .from('campaigns')
       .select('*')
       .eq('id', campaignId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single()
 
     if (campaignError || !campaign) {
@@ -118,7 +105,7 @@ export async function POST(request, { params }) {
     const { data: contacts, error: contactsError } = await supabase
       .from('crm_contacts')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .in('id', body.contact_ids)
 
     if (contactsError || !contacts || contacts.length !== body.contact_ids.length) {
@@ -199,16 +186,10 @@ export async function POST(request, { params }) {
 // DELETE - Remove a contact from a campaign
 export async function DELETE(request, { params }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     const campaignId = params.id
     const { searchParams } = new URL(request.url)
@@ -226,7 +207,7 @@ export async function DELETE(request, { params }) {
       .from('campaigns')
       .select('id, status')
       .eq('id', campaignId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single()
 
     if (campaignError || !campaign) {

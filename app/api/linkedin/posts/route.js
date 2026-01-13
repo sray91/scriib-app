@@ -1,18 +1,13 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
-  const supabase = createRouteHandlerClient({ cookies });
-  
-  try {
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
-    }
+  const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -26,11 +21,11 @@ export async function GET(request) {
     const offset = (page - 1) * limit;
 
     // Determine which user's posts to fetch
-    let userIdToQuery = user.id; // Default to current user
+    let userIdToQuery = userId; // Default to current user
     
-    if (targetUserId && targetUserId !== user.id) {
+    if (targetUserId && targetUserId !== userId) {
       // Check if current user has permission to access target user's posts
-      const hasPermission = await checkUserPermission(supabase, user.id, targetUserId);
+      const hasPermission = await checkUserPermission(supabase, userId, targetUserId);
       if (!hasPermission) {
         return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
       }
@@ -68,7 +63,7 @@ export async function GET(request) {
     const { count, error: countError } = await supabase
       .from('past_posts')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('platform', platform);
 
     if (countError) {
@@ -110,14 +105,10 @@ export async function GET(request) {
 }
 
 export async function DELETE(request) {
-  const supabase = createRouteHandlerClient({ cookies });
-  
-  try {
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
-    }
+  const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
 
     const { searchParams } = new URL(request.url);
     const postId = searchParams.get('postId');
@@ -128,7 +119,7 @@ export async function DELETE(request) {
       const { error } = await supabase
         .from('past_posts')
         .delete()
-        .eq('user_id', user.id);
+        .eq('user_id', userId);
 
       if (error) {
         throw error;
@@ -144,7 +135,7 @@ export async function DELETE(request) {
         .from('past_posts')
         .delete()
         .eq('id', postId)
-        .eq('user_id', user.id);
+        .eq('user_id', userId);
 
       if (error) {
         throw error;

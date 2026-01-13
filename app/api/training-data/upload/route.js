@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
+import { requireAuth } from '@/lib/api-auth';
 
 // Configure the API route to handle larger files
 export const runtime = 'nodejs';
@@ -19,17 +18,10 @@ export const maxRequestBodySize = 60 * 1024 * 1024; // 60MB in bytes
 
 export async function POST(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // Get authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
 
     let formData;
     try {
@@ -77,7 +69,7 @@ export async function POST(request) {
       );
     }
 
-    console.log(`📄 Processing document upload for user ${user.id}: ${file.name} (${file.size} bytes)`);
+    console.log(`📄 Processing document upload for user ${userId}: ${file.name} (${file.size} bytes)`);
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
@@ -85,7 +77,7 @@ export async function POST(request) {
     // Generate unique filename
     const uniqueId = uuidv4();
     const fileName = `${uniqueId}${fileExtension}`;
-    const storagePath = `training-documents/${user.id}/${fileName}`;
+    const storagePath = `training-documents/${userId}/${fileName}`;
     
     // Upload to Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
@@ -125,7 +117,7 @@ export async function POST(request) {
 
     // Store document metadata in database
     const documentData = {
-      user_id: user.id,
+      user_id: userId,
       file_name: file.name,
       file_type: fileExtension.substring(1), // Remove the dot
       file_size: file.size,

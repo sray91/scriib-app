@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { requireAuth } from '@/lib/api-auth';
 
 // Configure the API route
 export const runtime = 'nodejs';
@@ -11,27 +10,20 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // Get authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-    
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
+
     // Get URL parameters
     const url = new URL(req.url);
     const type = url.searchParams.get('type') || 'all'; // 'guide', 'reference', 'all'
-    
+
     // First, get the context guide from user preferences
     const { data: preferences } = await supabase
       .from('user_preferences')
       .select('settings, updated_at')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
     
     const contextGuide = preferences?.settings?.contextGuide ? {
@@ -61,7 +53,7 @@ export async function GET(req) {
     let query = supabase
       .from('training_documents')
       .select('id, file_name, file_type, word_count, created_at, processing_status, extracted_text, metadata')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('is_active', true)
       .order('created_at', { ascending: false })
       .limit(10);
@@ -118,17 +110,10 @@ export async function GET(req) {
  */
 export async function POST(req) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // Get authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
     
     const body = await req.json();
     const { content, filename, type = 'guide', description } = body;
@@ -149,11 +134,11 @@ export async function POST(req) {
     const { data: doc, error: insertError } = await supabase
       .from('training_documents')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         file_name: filename,
         file_type: fileExtension,
         file_size: content.length,
-        file_url: `inline://context-docs/${user.id}/${filename}`, // Inline content
+        file_url: `inline://context-docs/${userId}/${filename}`, // Inline content
         description: description || `${type === 'guide' ? 'Context guide' : 'Reference document'} created via API`,
         extracted_text: content,
         word_count: wordCount,
@@ -204,17 +189,10 @@ export async function POST(req) {
  */
 export async function PUT(req) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // Get authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
     
     const body = await req.json();
     const { id, content, description, isActive } = body;
@@ -251,7 +229,7 @@ export async function PUT(req) {
       .from('training_documents')
       .update(updateData)
       .eq('id', id)
-      .eq('user_id', user.id) // Ensure user owns the document
+      .eq('user_id', userId) // Ensure user owns the document
       .select()
       .single();
     
@@ -290,17 +268,10 @@ export async function PUT(req) {
  */
 export async function DELETE(req) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // Get authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
     
     const url = new URL(req.url);
     const id = url.searchParams.get('id');
@@ -320,7 +291,7 @@ export async function DELETE(req) {
         updated_at: new Date().toISOString()
       })
       .eq('id', id)
-      .eq('user_id', user.id); // Ensure user owns the document
+      .eq('user_id', userId); // Ensure user owns the document
     
     if (deleteError) {
       console.error('Error deleting context document:', deleteError);

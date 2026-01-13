@@ -1,17 +1,14 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/api-auth';
 
 // GET all pipelines for the authenticated user
 export async function GET(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const { userId, supabase } = auth;
+    const { searchParams } = new URL(request.url)
 
     // Fetch pipelines with their stages
     const { data: pipelines, error: pipelinesError } = await supabase
@@ -22,7 +19,7 @@ export async function GET(request) {
           *
         )
       `)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
 
     if (pipelinesError) {
@@ -46,13 +43,10 @@ export async function GET(request) {
 // POST create a new pipeline
 export async function POST(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const { userId, supabase } = auth;
 
     const body = await request.json()
     const { name, description, stages } = body
@@ -65,7 +59,7 @@ export async function POST(request) {
     const { data: pipeline, error: pipelineError } = await supabase
       .from('pipelines')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         name,
         description: description || null
       })
@@ -122,13 +116,10 @@ export async function POST(request) {
 // PUT update a pipeline
 export async function PUT(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const { userId, supabase } = auth;
 
     const body = await request.json()
     const { id, name, description } = body
@@ -145,7 +136,7 @@ export async function PUT(request) {
         description: description || null
       })
       .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .select()
       .single()
 
@@ -164,13 +155,10 @@ export async function PUT(request) {
 // DELETE delete a pipeline
 export async function DELETE(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const { userId, supabase } = auth;
 
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
@@ -184,7 +172,7 @@ export async function DELETE(request) {
       .from('pipelines')
       .delete()
       .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
 
     if (deleteError) {
       console.error('Error deleting pipeline:', deleteError)

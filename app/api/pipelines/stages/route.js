@@ -1,17 +1,13 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/api-auth';
 
 // POST create a new stage
 export async function POST(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const { userId, supabase } = auth;
 
     const body = await request.json()
     const { pipeline_id, name, order, color } = body
@@ -25,7 +21,7 @@ export async function POST(request) {
       .from('pipelines')
       .select('id')
       .eq('id', pipeline_id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single()
 
     if (pipelineError || !pipeline) {
@@ -59,13 +55,10 @@ export async function POST(request) {
 // PUT update a stage
 export async function PUT(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const { userId, supabase } = auth;
 
     const body = await request.json()
     const { id, name, order, color } = body
@@ -87,7 +80,7 @@ export async function PUT(request) {
       .eq('id', id)
       .single()
 
-    if (stageError || !stage || stage.pipelines.user_id !== user.id) {
+    if (stageError || !stage || stage.pipelines.user_id !== userId) {
       return NextResponse.json({ error: 'Stage not found' }, { status: 404 })
     }
 
@@ -119,13 +112,10 @@ export async function PUT(request) {
 // DELETE delete a stage
 export async function DELETE(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const { userId, supabase } = auth;
 
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
@@ -147,7 +137,7 @@ export async function DELETE(request) {
       .eq('id', id)
       .single()
 
-    if (stageError || !stage || stage.pipelines.user_id !== user.id) {
+    if (stageError || !stage || stage.pipelines.user_id !== userId) {
       return NextResponse.json({ error: 'Stage not found' }, { status: 404 })
     }
 

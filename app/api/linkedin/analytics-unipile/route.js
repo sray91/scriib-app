@@ -1,7 +1,6 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { getUnipileClient } from '@/lib/unipile-client';
+import { requireAuth } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,14 +10,10 @@ export const dynamic = 'force-dynamic';
  * Works with accounts connected via Unipile (stored in linkedin_outreach_accounts table)
  */
 export async function GET(request) {
-  const supabase = createRouteHandlerClient({ cookies });
+  const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-  try {
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
-    }
+    const { userId, supabase } = auth;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -34,7 +29,7 @@ export async function GET(request) {
     const { data: linkedinAccount, error: accountError } = await supabase
       .from('linkedin_outreach_accounts')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('is_active', true)
       .single();
 

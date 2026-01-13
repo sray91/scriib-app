@@ -1,25 +1,18 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/api-auth';
 
 export async function POST(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     // Get user's connected LinkedIn account
     const { data: linkedInAccount, error: accountError } = await supabase
       .from('social_accounts')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('platform', 'linkedin')
       .single()
 
@@ -37,7 +30,7 @@ export async function POST(request) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('linkedin_url')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
 
     if (profile?.linkedin_url) {
@@ -104,7 +97,7 @@ export async function POST(request) {
     console.log('Using actor ID:', 'LQQIXN9Othf8f7R5n')
     console.log('TARGET LinkedIn Profile URL:', linkedinUrl)
     console.log('Extracted username:', username)
-    console.log('User ID:', user.id)
+    console.log('User ID:', userId)
     console.log('User Email:', user.email)
     console.log('==========================================')
 
@@ -348,7 +341,7 @@ export async function POST(request) {
           const profileUrl = engagement.url_profile || engagement.profileUrl || engagement.profile_url || `https://linkedin.com/unknown/${Date.now()}-${Math.random()}`
 
           allContacts.push({
-            user_id: user.id,
+            user_id: userId,
             profile_url: profileUrl,
             name: engagement.name || engagement.fullName || 'Unknown',
             subtitle: engagement.headline || engagement.subtitle || null,
@@ -499,7 +492,7 @@ export async function POST(request) {
                 company: company,
                 updated_at: new Date().toISOString()
               })
-              .eq('user_id', user.id)
+              .eq('user_id', userId)
               .eq('profile_url', profileUrl)
 
             if (updateError) {

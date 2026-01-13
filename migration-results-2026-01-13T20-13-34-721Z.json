@@ -1,0 +1,23 @@
+{
+  "success": [
+    {
+      "success": true,
+      "email": "cpalmer@engineered-vision.com",
+      "clerkId": "user_38DXeljRdGI6a1zzgXuIH1vnJ6D",
+      "supabaseId": "cd608a23-c599-4c31-9c3b-8b33287bbcf7"
+    },
+    {
+      "success": true,
+      "email": "rdcahalane@gmail.com",
+      "clerkId": "user_38DXeuTIIjEDwB5BKNSBCdQQiHW",
+      "supabaseId": "3753198c-b358-4ced-8f20-8d24324b49a6"
+    },
+    {
+      "success": true,
+      "email": "melissa@orderappai.com",
+      "clerkId": "user_38DXf5PfgHc1Q5BECmuIkatYI0n",
+      "supabaseId": "05d2891e-e421-4f73-9fe2-7a29b859af6c"
+    }
+  ],
+  "failed": []
+}

@@ -1,11 +1,14 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { requireAuth } from '@/lib/api-auth'
 import { NextResponse } from 'next/server'
 
 // GET - Fetch all notes for a contact
 export async function GET(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
+
     const { searchParams } = new URL(request.url)
     const contactId = searchParams.get('contactId')
 
@@ -16,21 +19,12 @@ export async function GET(request) {
       )
     }
 
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
     // Fetch notes for the contact
     const { data: notes, error: notesError } = await supabase
       .from('crm_contact_notes')
       .select('*')
       .eq('contact_id', contactId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
 
     if (notesError) {
@@ -54,7 +48,11 @@ export async function GET(request) {
 // POST - Create a new note
 export async function POST(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
+
     const body = await request.json()
     const { contactId, note } = body
 
@@ -65,20 +63,11 @@ export async function POST(request) {
       )
     }
 
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
     // Create the note
     const { data: newNote, error: createError } = await supabase
       .from('crm_contact_notes')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         contact_id: contactId,
         note: note
       })
@@ -97,7 +86,7 @@ export async function POST(request) {
     await supabase
       .from('crm_contact_activities')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         contact_id: contactId,
         activity_type: 'note_added',
         description: 'Added a note',
@@ -145,7 +134,7 @@ export async function PUT(request) {
       .from('crm_contact_notes')
       .update({ note })
       .eq('id', noteId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .select()
       .single()
 
@@ -195,7 +184,7 @@ export async function DELETE(request) {
       .from('crm_contact_notes')
       .delete()
       .eq('id', noteId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
 
     if (deleteError) {
       console.error('Error deleting note:', deleteError)

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { requireAuth } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,17 +15,10 @@ export async function GET(request) {
       );
     }
     
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // Get the current authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
     
     // Test our functions with the correct parameter names
     const results = {};
@@ -89,7 +81,7 @@ export async function GET(request) {
     return NextResponse.json({
       message: 'Function test results',
       results,
-      user_id: user.id
+      user_id: userId
     });
   } catch (error) {
     console.error('Error in test endpoint:', error);

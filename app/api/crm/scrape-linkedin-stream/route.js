@@ -1,5 +1,4 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { requireAuth } from '@/lib/api-auth';
 
 // Configure longer timeout for this route (in seconds)
 // Vercel Hobby: max 10s, Pro: max 300s (5 min)
@@ -45,7 +44,7 @@ export async function GET(request) {
         const { data: linkedInAccount, error: accountError } = await supabase
           .from('social_accounts')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .eq('platform', 'linkedin')
           .single()
 
@@ -62,7 +61,7 @@ export async function GET(request) {
         const { data: profile } = await supabase
           .from('profiles')
           .select('linkedin_url')
-          .eq('id', user.id)
+          .eq('id', userId)
           .single()
 
         if (profile?.linkedin_url) {
@@ -304,7 +303,7 @@ export async function GET(request) {
               const profileUrl = engagement.url_profile || engagement.profileUrl || engagement.profile_url || `https://linkedin.com/unknown/${Date.now()}-${Math.random()}`
 
               allContacts.push({
-                user_id: user.id,
+                user_id: userId,
                 profile_url: profileUrl,
                 name: engagement.name || engagement.fullName || 'Unknown',
                 subtitle: engagement.headline || engagement.subtitle || null,
@@ -355,7 +354,7 @@ export async function GET(request) {
           const { data: existingContacts } = await supabase
             .from('crm_contacts')
             .select('profile_url, engagement_type')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .in('profile_url', profileUrls)
 
           // Create a map of existing engagement types

@@ -1,51 +1,26 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
+import { requireAuth } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
-
-// Create a Supabase client with the service role key to bypass RLS
-const getSupabaseAdmin = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.NEXT_SUPABASE_SERVICE_KEY;
-  
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase environment variables for admin client');
-  }
-  
-  return createClient(supabaseUrl, supabaseServiceKey);
-};
 
 export async function POST(request) {
   try {
     const { postId, mediaUrls } = await request.json();
-    
+
     if (!postId) {
       return NextResponse.json(
         { error: 'Post ID is required' },
         { status: 400 }
       );
     }
-    
-    // Use regular client to get the current user
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // Get the current authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-    
-    // Initialize the admin client only when needed
-    const supabaseAdmin = getSupabaseAdmin();
-    
-    // Use admin client to get post (bypasses RLS)
-    const { data: existingPost, error: getError } = await supabaseAdmin
+
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
+
+    // Use service role client to get post (bypasses RLS)
+    const { data: existingPost, error: getError } = await supabase
       .from('posts')
       .select('*')
       .eq('id', postId)
@@ -61,9 +36,9 @@ export async function POST(request) {
     
     // Security validation: Check if user is authorized to update this post's media
     // Allowed if: user is the post owner, or user is the assigned approver, or user is the assigned ghostwriter
-    const isOwner = existingPost.user_id === user.id;
-    const isApprover = existingPost.approver_id === user.id;
-    const isGhostwriter = existingPost.ghostwriter_id === user.id;
+    const isOwner = existingPost.user_id === userId;
+    const isApprover = existingPost.approver_id === userId;
+    const isGhostwriter = existingPost.ghostwriter_id === userId;
     
     if (!isOwner && !isApprover && !isGhostwriter) {
       return NextResponse.json(
@@ -72,20 +47,20 @@ export async function POST(request) {
       );
     }
     
-    // First, delete existing media for this post (using admin client to bypass RLS)
-    const { error: deleteError } = await supabaseAdmin
+    // First, delete existing media for this post (using service role client to bypass RLS)
+    const { error: deleteError } = await supabase
       .from('post_media')
       .delete()
       .eq('post_id', postId);
-    
+
     // Don't fail if there was no existing media to delete
     if (deleteError && deleteError.code !== 'PGRST116') {
       console.error('Error deleting existing media:', deleteError);
     }
-    
+
     // If we have new media URLs, insert them
     if (mediaUrls && mediaUrls.length > 0) {
-      const { data: mediaData, error: mediaError } = await supabaseAdmin
+      const { data: mediaData, error: mediaError } = await supabase
         .from('post_media')
         .insert({
           post_id: postId,

@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-
+import { requireAuth } from '@/lib/api-auth';
 export const dynamic = 'force-dynamic';
 
 // Initialize OpenAI client
@@ -12,17 +10,10 @@ const openai = new OpenAI({
 
 export async function POST(req) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // Get authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
     
     // Get the uploaded audio file
     const formData = await req.formData();
@@ -35,7 +26,7 @@ export async function POST(req) {
       );
     }
     
-    console.log(`🎤 Transcribing audio for user ${user.id}, file size: ${audioFile.size} bytes`);
+    console.log(`🎤 Transcribing audio for user ${userId}, file size: ${audioFile.size} bytes`);
     
     // Check file size (Whisper API has a 25MB limit)
     if (audioFile.size > 25 * 1024 * 1024) {

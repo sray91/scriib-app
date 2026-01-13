@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import Anthropic from '@anthropic-ai/sdk';
+import { requireAuth } from '@/lib/api-auth';
 
 const anthropic = process.env.ANTHROPIC_API_KEY 
   ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -13,28 +12,21 @@ export async function POST(req) {
   const startTime = Date.now();
   
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
     
-    // Get authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-    
-    console.log(`🧠 Context guide synthesis request from user ${user.id}`);
+    console.log(`🧠 Context guide synthesis request from user ${userId}`);
     
     // Gather all training data
-    const trainingData = await gatherAllTrainingData(supabase, user.id);
+    const trainingData = await gatherAllTrainingData(supabase, userId);
     
     // Synthesize context guide using Claude
-    const synthesizedGuide = await synthesizeContextGuide(trainingData, user.id);
+    const synthesizedGuide = await synthesizeContextGuide(trainingData, userId);
     
     // Save to user preferences
-    await saveContextGuide(supabase, user.id, synthesizedGuide);
+    await saveContextGuide(supabase, userId, synthesizedGuide);
     
     const processingTime = Date.now() - startTime;
     

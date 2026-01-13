@@ -1,10 +1,13 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { requireAuth } from '@/lib/api-auth'
 import { NextResponse } from 'next/server'
 
 export async function GET(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
+
     const { searchParams } = new URL(request.url)
     const targetUserId = searchParams.get('userId')
     const dataType = searchParams.get('type') // 'trending_posts', 'training_documents', 'context_guide'
@@ -17,14 +20,8 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Missing type parameter' }, { status: 400 })
     }
 
-    // Get current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     // Check if current user has permission to access target user's training data
-    const hasPermission = await checkUserPermission(supabase, user.id, targetUserId)
+    const hasPermission = await checkUserPermission(supabase, userId, targetUserId)
     if (!hasPermission) {
       return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
     }
@@ -97,7 +94,7 @@ export async function POST(request) {
     }
 
     // Check if current user has permission to modify target user's training data
-    const hasPermission = await checkUserPermission(supabase, user.id, targetUserId)
+    const hasPermission = await checkUserPermission(supabase, userId, targetUserId)
     if (!hasPermission) {
       return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
     }

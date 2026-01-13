@@ -1,17 +1,14 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/api-auth';
 
 // GET pipeline contacts for a specific pipeline or contact
 export async function GET(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const { userId, supabase } = auth;
+    const { searchParams } = new URL(request.url)
 
     const { searchParams } = new URL(request.url)
     const pipelineId = searchParams.get('pipeline_id')
@@ -39,7 +36,7 @@ export async function GET(request) {
           company
         )
       `)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
 
     if (pipelineId) {
       query = query.eq('pipeline_id', pipelineId)
@@ -66,13 +63,10 @@ export async function GET(request) {
 // POST add a contact to a pipeline stage
 export async function POST(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const { userId, supabase } = auth;
 
     const body = await request.json()
     const { pipeline_id, stage_id, contact_id, notes } = body
@@ -89,7 +83,7 @@ export async function POST(request) {
       .from('pipelines')
       .select('id')
       .eq('id', pipeline_id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single()
 
     if (pipelineError || !pipeline) {
@@ -101,7 +95,7 @@ export async function POST(request) {
       .from('crm_contacts')
       .select('id')
       .eq('id', contact_id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single()
 
     if (contactError || !contact) {
@@ -170,7 +164,7 @@ export async function POST(request) {
         await supabase
           .from('crm_contact_activities')
           .insert({
-            user_id: user.id,
+            user_id: userId,
             contact_id,
             activity_type: 'stage_changed',
             description: `Moved to ${newStage?.name || 'new stage'} in ${updated.pipelines.name}`,
@@ -194,7 +188,7 @@ export async function POST(request) {
         pipeline_id,
         stage_id,
         contact_id,
-        user_id: user.id,
+        user_id: userId,
         notes: notes || null
       })
       .select(`
@@ -228,7 +222,7 @@ export async function POST(request) {
     await supabase
       .from('crm_contact_activities')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         contact_id,
         activity_type: 'added_to_pipeline',
         description: `Added to ${pipelineContact.pipelines.name} pipeline (${pipelineContact.pipeline_stages.name})`,
@@ -250,13 +244,10 @@ export async function POST(request) {
 // PUT update a pipeline contact (move to different stage or update notes)
 export async function PUT(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const { userId, supabase } = auth;
 
     const body = await request.json()
     const { id, stage_id, notes } = body
@@ -274,7 +265,7 @@ export async function PUT(request) {
         pipeline_stages!inner(name)
       `)
       .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single()
 
     const updateData = {}
@@ -286,7 +277,7 @@ export async function PUT(request) {
       .from('pipeline_contacts')
       .update(updateData)
       .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .select(`
         *,
         pipelines (
@@ -319,7 +310,7 @@ export async function PUT(request) {
       await supabase
         .from('crm_contact_activities')
         .insert({
-          user_id: user.id,
+          user_id: userId,
           contact_id: currentContact.contact_id,
           activity_type: 'stage_changed',
           description: `Moved to ${pipelineContact.pipeline_stages.name} in ${pipelineContact.pipelines.name}`,
@@ -343,13 +334,10 @@ export async function PUT(request) {
 // DELETE remove a contact from a pipeline
 export async function DELETE(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const { userId, supabase } = auth;
 
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
@@ -363,7 +351,7 @@ export async function DELETE(request) {
       .from('pipeline_contacts')
       .delete()
       .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
 
     if (deleteError) {
       console.error('Error deleting pipeline contact:', deleteError)

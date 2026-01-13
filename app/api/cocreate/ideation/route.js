@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { anthropic } from '../lib/clients.js';
+import { requireAuth } from '@/lib/api-auth';
 
 // Configure the API route for ideation-specific AI processing
 export const runtime = 'nodejs';
@@ -10,17 +9,10 @@ export const maxDuration = 30; // Shorter timeout for ideation
 
 export async function POST(req) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Get authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const { userId, supabase } = auth;
 
     // Parse request body
     const body = await req.json();
@@ -31,10 +23,10 @@ export async function POST(req) {
       return NextResponse.json({ error: "Missing user message" }, { status: 400 });
     }
 
-    console.log(`🧠 Ideation request from user ${user.id}: "${userMessage}" [Model: ${model}]`);
+    console.log(`🧠 Ideation request from user ${userId}: "${userMessage}" [Model: ${model}]`);
 
     // Fetch user's context document (markdown guide)
-    const contextDoc = await fetchUserContextDocument(supabase, user.id, contextType);
+    const contextDoc = await fetchUserContextDocument(supabase, userId, contextType);
     console.log(`📄 Context document found: ${contextDoc ? 'Yes' : 'No'}`);
 
     // Fetch viral posts as reference (placeholder for future)
@@ -46,7 +38,7 @@ export async function POST(req) {
       userMessage,
       contextDoc,
       viralPosts,
-      user.id,
+      userId,
       model
     );
 

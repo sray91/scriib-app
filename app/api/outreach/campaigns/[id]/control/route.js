@@ -1,20 +1,13 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/api-auth';
 
 // POST - Control campaign (start, pause, stop)
 export async function POST(request, { params }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     const campaignId = params.id
     const body = await request.json()
@@ -32,7 +25,7 @@ export async function POST(request, { params }) {
       .from('campaigns')
       .select('*, linkedin_outreach_accounts(*)')
       .eq('id', campaignId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single()
 
     if (campaignError || !campaign) {

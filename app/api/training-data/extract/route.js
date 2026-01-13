@@ -1,7 +1,6 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { ApifyClient } from 'apify-client';
+import { requireAuth } from '@/lib/api-auth';
 
 // Initialize the Apify client
 const apifyClient = new ApifyClient({
@@ -9,14 +8,10 @@ const apifyClient = new ApifyClient({
 });
 
 export async function POST(request) {
-  const supabase = createRouteHandlerClient({ cookies });
-  
-  try {
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
-    }
+  const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
 
     // Get request parameters
     const { url } = await request.json();

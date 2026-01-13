@@ -1,21 +1,14 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { getUnipileClient } from '@/lib/unipile-client'
+import { requireAuth } from '@/lib/api-auth';
 
 // POST - Generate a hosted auth link for connecting a LinkedIn account
 export async function POST(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     // Get the site URL from environment variables
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
@@ -30,7 +23,7 @@ export async function POST(request) {
         success_redirect_url: `${siteUrl}/outreach/accounts?status=success`,
         failure_redirect_url: `${siteUrl}/outreach/accounts?status=error`,
         notify_url: `${siteUrl}/api/webhooks/unipile`,
-        name: user.id, // Use Supabase user ID for matching
+        name: userId, // Use Supabase user ID for matching
       })
 
       return NextResponse.json({

@@ -1,20 +1,13 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { requireAuth } from '@/lib/api-auth'
 import { NextResponse } from 'next/server'
 
 // PUT - Create a new contact manually
 export async function PUT(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     const body = await request.json()
 
@@ -28,7 +21,7 @@ export async function PUT(request) {
 
     // Prepare contact data
     const contactData = {
-      user_id: user.id,
+      user_id: userId,
       name: body.name,
       profile_url: body.profile_url,
       subtitle: body.subtitle || null,
@@ -78,16 +71,10 @@ export async function PUT(request) {
 // DELETE a single contact by ID
 export async function DELETE(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     // Get contact ID from request
     const { searchParams } = new URL(request.url)
@@ -105,7 +92,7 @@ export async function DELETE(request) {
       .from('crm_contacts')
       .delete()
       .eq('id', contactId)
-      .eq('user_id', user.id) // Extra safety check
+      .eq('user_id', userId) // Extra safety check
 
     if (deleteError) {
       console.error('Error deleting contact:', deleteError)
@@ -129,16 +116,10 @@ export async function DELETE(request) {
 // DELETE all contacts for the current user
 export async function POST(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     const body = await request.json()
 
@@ -147,7 +128,7 @@ export async function POST(request) {
       const { error: deleteError } = await supabase
         .from('crm_contacts')
         .delete()
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
 
       if (deleteError) {
         console.error('Error deleting all contacts:', deleteError)
@@ -173,7 +154,7 @@ export async function POST(request) {
 
       // Validate and prepare contacts for insertion
       const contactsToInsert = csvContacts.map(contact => ({
-        user_id: user.id,
+        user_id: userId,
         name: contact.name || null,
         profile_url: contact.profile_url || null,
         subtitle: contact.subtitle || null,
@@ -252,7 +233,7 @@ export async function POST(request) {
       const { data: allContacts, error: fetchError } = await supabase
         .from('crm_contacts')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
 
       if (fetchError) {
         console.error('Error fetching contacts:', fetchError)

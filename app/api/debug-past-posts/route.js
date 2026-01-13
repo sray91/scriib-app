@@ -1,24 +1,15 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-
+import { requireAuth } from '@/lib/api-auth';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
     
-    // Get authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-    
-    console.log(`🔍 Debug: Checking past posts for user ${user.id}`);
+    console.log(`🔍 Debug: Checking past posts for user ${userId}`);
     
     // Fetch user's past posts from database
     const { data: posts, error, count } = await supabase
@@ -32,7 +23,7 @@ export async function GET(req) {
         post_url,
         platform
       `, { count: 'exact' })
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('published_at', { ascending: false })
       .limit(10);
 
@@ -48,11 +39,11 @@ export async function GET(req) {
     const { data: allPosts, error: allError, count: allCount } = await supabase
       .from('past_posts')
       .select('id, platform, published_at', { count: 'exact' })
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
 
     return NextResponse.json({
       success: true,
-      user_id: user.id,
+      user_id: userId,
       linkedin_posts: {
         count: posts?.length || 0,
         total_count: count,

@@ -1,7 +1,6 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { getUnipileClient } from '@/lib/unipile-client';
+import { requireAuth } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -272,14 +271,10 @@ async function fetchUnipileAnalytics(unipileAccount, startDate, endDate, limit) 
 }
 
 export async function GET(request) {
-  const supabase = createRouteHandlerClient({ cookies });
+  const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-  try {
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
-    }
+    const { userId, supabase } = auth;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -297,7 +292,7 @@ export async function GET(request) {
     const { data: unipileAccount } = await supabase
       .from('linkedin_outreach_accounts')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('is_active', true)
       .maybeSingle();
 
@@ -320,7 +315,7 @@ export async function GET(request) {
     const { data: portabilityAccount } = await supabase
       .from('social_accounts')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('platform', 'linkedin_portability')
       .maybeSingle();
 
@@ -332,7 +327,7 @@ export async function GET(request) {
       const { data: regularAccount, error: regError } = await supabase
         .from('social_accounts')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('platform', 'linkedin')
         .single();
 
@@ -475,7 +470,7 @@ export async function GET(request) {
       const { data: dbPosts, error: postsError } = await supabase
         .from('past_posts')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('platform', 'linkedin')
         .gte('published_at', startDate.toISOString())
         .lte('published_at', endDate.toISOString())

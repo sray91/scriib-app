@@ -1,7 +1,6 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { getUnipileClient } from '@/lib/unipile-client'
+import { requireAuth } from '@/lib/api-auth';
 
 /**
  * POST - Auto-sync LinkedIn accounts from Unipile
@@ -11,16 +10,10 @@ import { getUnipileClient } from '@/lib/unipile-client'
  */
 export async function POST(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const { userId, supabase } = auth;
 
     // Fetch accounts from Unipile
     try {
@@ -38,7 +31,7 @@ export async function POST(request) {
       const { data: existingAccounts } = await supabase
         .from('linkedin_outreach_accounts')
         .select('unipile_account_id')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
 
       const existingAccountIds = new Set(
         (existingAccounts || []).map(acc => acc.unipile_account_id)
@@ -72,7 +65,7 @@ export async function POST(request) {
           const { data: newAccount, error: insertError } = await supabase
             .from('linkedin_outreach_accounts')
             .insert({
-              user_id: user.id,
+              user_id: userId,
               unipile_account_id: unipileAccount.id,
               account_name: name,
               profile_name: name,

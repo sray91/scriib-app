@@ -1,34 +1,27 @@
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
-import { NextResponse } from 'next/server'
+import { authMiddleware } from "@clerk/nextjs";
 
-export async function middleware(req) {
-  const res = NextResponse.next()
-  const supabase = createMiddlewareClient({ req, res })
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  // Check auth condition
-  if (session) {
-    // If the user is logged in and tries to access login/signup pages, redirect to home
-    if (req.nextUrl.pathname.startsWith('/login') || req.nextUrl.pathname.startsWith('/signup')) {
-      return NextResponse.redirect(new URL('/', req.url))
-    }
-  } else {
-    // If the user is not logged in and tries to access protected routes, redirect to login
-    if (
-      req.nextUrl.pathname !== '/login' &&
-      req.nextUrl.pathname !== '/signup' &&
-      !req.nextUrl.pathname.startsWith('/_next') &&
-      !req.nextUrl.pathname.startsWith('/api')
-    ) {
-      return NextResponse.redirect(new URL('/login', req.url))
-    }
-  }
-
-  return res
-}
+// This middleware enforces authentication across your app
+// Public routes are accessible without authentication
+// Ignored routes are completely bypassed by Clerk (e.g., LinkedIn/Twitter OAuth for posting)
+export default authMiddleware({
+  // Public routes that don't require authentication
+  publicRoutes: [
+    "/login",
+    "/signup",
+    "/reset-password",
+    "/approver-signup",
+    "/invite-complete",
+    "/shared/(.*)",
+    "/api/webhooks/clerk",
+  ],
+  // Routes that should be ignored by Clerk middleware
+  // LinkedIn/Twitter OAuth are for POSTING content, not authentication
+  ignoredRoutes: [
+    "/api/auth/linkedin/(.*)",
+    "/api/auth/twitter/(.*)",
+  ],
+});
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
-}
+  matcher: ["/((?!.+\\.[\\w]+$|_next).*)", "/", "/(api|trpc)(.*)"],
+};

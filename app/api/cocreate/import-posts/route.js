@@ -1,40 +1,32 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { requireAuth } from '@/lib/api-auth';
 
 export async function POST(req) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // Get authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-    
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
+
     // Parse request body
     const body = await req.json();
     const { posts, source } = body;
-    
+
     if (!posts || !Array.isArray(posts) || posts.length === 0) {
       return NextResponse.json(
         { error: 'No posts provided' },
         { status: 400 }
       );
     }
-    
+
     console.log(`Received ${posts.length} posts from ${source || 'unknown source'}`);
-    
+
     // Store posts in the database
     const { data: storedPosts, error: storeError } = await supabase
       .from('linkedin_posts')
       .upsert(
         posts.map(post => ({
-          user_id: user.id,
+          user_id: userId,
           content: post.content,
           likes: post.engagement?.likes || 0,
           comments: post.engagement?.comments || 0,

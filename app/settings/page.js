@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/components/ui/use-toast'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { useSession } from '@supabase/auth-helpers-react'
+import { createClient } from '@supabase/supabase-js'
+import { useUser } from '@clerk/nextjs'
 import * as Switch from '@radix-ui/react-switch'
 import TeamsTab from "@/components/settings/TeamsTab";
 import PreferencesTab from "@/components/settings/PreferencesTab";
@@ -23,8 +23,12 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('social')
   const [sharedCollections, setSharedCollections] = useState([])
   const [socialAccounts, setSocialAccounts] = useState([])
-  const supabase = createClientComponentClient()
-  const session = useSession()
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+  const { user, isLoaded } = useUser()
+  const [userId, setUserId] = useState(null)
   const { toast } = useToast()
   const [isAdmin, setIsAdmin] = useState(false)
   const [users, setUsers] = useState([])
@@ -38,17 +42,40 @@ export default function SettingsPage() {
     }
   }, [searchParams])
 
+  // Get UUID for current Clerk user and check admin status
+  useEffect(() => {
+    if (isLoaded && user) {
+      fetch(`/api/user/get-uuid`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.uuid) {
+            setUserId(data.uuid);
+          }
+        })
+        .catch(err => console.error('Error fetching UUID:', err));
+
+      // Check admin status from Clerk metadata
+      const isUserAdmin = user.publicMetadata?.is_admin || false;
+      setIsAdmin(isUserAdmin);
+
+      // Fetch users if admin
+      if (isUserAdmin) {
+        fetchUsers();
+      }
+    }
+  }, [isLoaded, user]);
+
   useLinkedInAuthStatus();
 
   // Fetch social accounts
   const fetchSocialAccounts = async () => {
-    if (!session?.user?.id) return;
+    if (!userId) return;
 
     try {
       const { data, error } = await supabase
         .from('social_accounts')
         .select('*')
-        .eq('user_id', session.user.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -65,13 +92,13 @@ export default function SettingsPage() {
 
   // Fetch shared collections
   const fetchSharedCollections = async () => {
-    if (!session?.user?.id) return;
+    if (!userId) return;
 
     try {
       const { data, error } = await supabase
         .from('shared_collections')
         .select('*')
-        .eq('user_id', session.user.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -87,11 +114,11 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    if (session) {
+    if (userId) {
       fetchSharedCollections();
       fetchSocialAccounts();
     }
-  }, [session, searchParams]);
+  }, [userId, searchParams]);
 
   // Handle social account connections
   const handleConnect = (platform, mode = 'standard') => {
@@ -197,36 +224,8 @@ export default function SettingsPage() {
     }
   };
 
-  // Check admin status on component mount
-  useEffect(() => {
-    checkAdminStatus()
-  }, [])
-
-  async function checkAdminStatus() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      console.log('Current user:', user)
-      
-      if (!user) return
-
-      const isUserAdmin = user.user_metadata?.is_admin || false
-      console.log('Is admin:', isUserAdmin)
-      
-      setIsAdmin(isUserAdmin)
-      
-      if (isUserAdmin) {
-        fetchUsers()
-      }
-    } catch (error) {
-      console.error('Error checking admin status:', error)
-    }
-  }
-
   async function fetchUsers() {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       const { data, error } = await supabase.rpc('get_users');
       
       if (error) {

@@ -1,22 +1,15 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { requireAuth } from '@/lib/api-auth';
 
 export async function POST(request) {
   try {
+    // Authenticate user and get UUID
+    const auth = await requireAuth();
+    if (auth.error) return auth.error;
+
+    const { userId, supabase } = auth;
+
     const postData = await request.json();
-    
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // Get the current authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Please log in to save posts' },
-        { status: 401 }
-      );
-    }
     
     // Prepare the post data for insertion - only include fields that exist in the table
     const insertData = {
@@ -28,7 +21,7 @@ export async function POST(request) {
       approver_id: postData.approver_id || null,
       ghostwriter_id: postData.ghostwriter_id || null,
       created_at: postData.created_at || new Date().toISOString(),
-      user_id: user.id // Always use the authenticated user's ID
+      user_id: userId // Always use the authenticated user's UUID
     };
     
     // Add optional fields if they exist in the schema (graceful degradation)

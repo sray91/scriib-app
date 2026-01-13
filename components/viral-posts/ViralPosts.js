@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from '@supabase/auth-helpers-react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useUser } from '@clerk/nextjs';
+import { createClient } from '@supabase/supabase-js';
 import { useToast } from '@/components/ui/use-toast';
 import { Toaster } from '@/components/ui/toaster';
 import { TwitterEmbed } from './TwitterEmbed';
@@ -15,8 +15,12 @@ import Pagination from './Pagination';
 const POSTS_PER_PAGE = 6;
 
 export default function ViralPostSwipeFile() {
-  const supabase = createClientComponentClient();
-  const session = useSession();
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+  const { user, isLoaded } = useUser();
+  const [userId, setUserId] = useState(null);
   const { toast } = useToast();
   const [posts, setPosts] = useState([]);
   const [tags, setTags] = useState([]);
@@ -25,27 +29,35 @@ export default function ViralPostSwipeFile() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isTagDialogOpen, setIsTagDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [sessionChecked, setSessionChecked] = useState(false);
 
   // Reset to page 1 when changing tags
   useEffect(() => {
     setPage(1);
   }, [selectedTag]);
 
-  // Check session and trigger a manual fetch if needed
+  // Get UUID for current Clerk user
   useEffect(() => {
-    // Session can be null while loading or undefined if not initialized yet
-    if (session === null) {
-      // Session is explicitly null, meaning the user is not logged in
+    if (isLoaded && user) {
+      fetch(`/api/user/get-uuid`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.uuid) {
+            setUserId(data.uuid);
+          }
+        })
+        .catch(err => console.error('Error fetching UUID:', err));
+    } else if (isLoaded && !user) {
       setIsLoading(false);
-      setSessionChecked(true);
-    } else if (session) {
-      // User is logged in, good to proceed
-      setSessionChecked(true);
+    }
+  }, [isLoaded, user]);
+
+  // Fetch data when userId is available
+  useEffect(() => {
+    if (userId) {
       fetchPosts();
       fetchTags();
     }
-  }, [session]);
+  }, [userId]);
 
   // Add a fallback mechanism if session doesn't initialize quickly
   useEffect(() => {
@@ -87,7 +99,7 @@ export default function ViralPostSwipeFile() {
     setIsLoading(true);
     try {
       // Get current user ID if session isn't available
-      let userId = session?.user?.id;
+      let userId = userId;
       
       if (!userId) {
         const { data } = await supabase.auth.getUser();
@@ -126,7 +138,7 @@ export default function ViralPostSwipeFile() {
     
     try {
       // Get current user ID if session isn't available
-      let userId = session?.user?.id;
+      let userId = userId;
       
       if (!userId) {
         const { data } = await supabase.auth.getUser();
@@ -195,7 +207,7 @@ export default function ViralPostSwipeFile() {
 
     const tweetId = tweetIdMatch[1];
     const newPostObj = {
-      user_id: session?.user?.id || null,
+      user_id: userId || null,
       description: newPostData.description,
       tweet_id: tweetId,
       tag: newPostData.tag || 'untagged',
@@ -242,7 +254,7 @@ export default function ViralPostSwipeFile() {
   };
 
   const handleAddTag = async (newTagName) => {
-    if (!newTagName || !session?.user?.id) return;
+    if (!newTagName || !userId) return;
     if (tags.includes(newTagName)) {
       toast({ title: 'Error', description: 'Tag already exists', variant: 'destructive' });
       return;
@@ -253,7 +265,7 @@ export default function ViralPostSwipeFile() {
         .from('tags')
         .insert([{ 
           name: newTagName,
-          user_id: session.user.id 
+          user_id: userId 
         }]);
 
       if (error) throw error;
@@ -272,7 +284,7 @@ export default function ViralPostSwipeFile() {
   };
 
   const handleDeleteTag = async (tagToDelete) => {
-    if (!session?.user?.id) return;
+    if (!userId) return;
 
     // Check if tag is in use
     const postsUsingTag = posts.some(post => post.tag === tagToDelete);
@@ -290,7 +302,7 @@ export default function ViralPostSwipeFile() {
         .from('tags')
         .delete()
         .eq('name', tagToDelete)
-        .eq('user_id', session.user.id);
+        .eq('user_id', userId);
 
       if (error) throw error;
 
@@ -338,7 +350,7 @@ export default function ViralPostSwipeFile() {
         .from('shared_collections')
         .insert({
           share_id: shareId,
-          user_id: session?.user?.id,
+          user_id: userId,
           tag: tag,
           posts: postsToShare  // Make sure your Supabase table column 'posts' is of type JSONB
         });
