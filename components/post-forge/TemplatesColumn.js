@@ -1,35 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 // Simple collapsible implementation without external dependency
-import { 
-  Plus, 
-  ChevronDown, 
-  ChevronRight, 
-  Settings, 
+import {
+  Plus,
+  ChevronDown,
+  ChevronRight,
+  Settings,
   ArrowRight,
   Calendar,
   FileText,
   Sparkles
 } from 'lucide-react';
+import { getSupabase } from '@/lib/supabase';
 
 const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-export default function TemplatesColumn({ 
-  selectedUser, 
-  onUseTemplate, 
+export default function TemplatesColumn({
+  selectedUser,
+  onUseTemplate,
   onManageTemplates,
-  currentUser 
+  currentUser
 }) {
   const [templates, setTemplates] = useState([]);
   const [templatesByDay, setTemplatesByDay] = useState({});
   const [expandedDays, setExpandedDays] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const supabase = getSupabase();
 
   useEffect(() => {
     if (selectedUser) {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/use-toast';
 import { Toaster } from '@/components/ui/toaster';
 import { TwitterEmbed } from './TwitterEmbed';
@@ -15,10 +15,7 @@ import Pagination from './Pagination';
 const POSTS_PER_PAGE = 6;
 
 export default function ViralPostSwipeFile() {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
+  const supabase = getSupabase();
   const { user, isLoaded } = useUser();
   const [userId, setUserId] = useState(null);
   const { toast } = useToast();

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useSupabase } from '@/lib/hooks/useSupabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -25,7 +25,7 @@ export default function EditCampaignPage() {
   const router = useRouter()
   const params = useParams()
   const campaignId = params.id
-  const supabase = createClientComponentClient()
+  const { supabase, userId, isLoaded } = useSupabase()
   const { toast } = useToast()
 
   // Form state

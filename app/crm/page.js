@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { getSupabase } from '@/lib/supabase'
+import { useUser } from '@clerk/nextjs'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -74,20 +75,35 @@ export default function CRMPage() {
   const [csvData, setCsvData] = useState(null)
   const [csvHeaders, setCsvHeaders] = useState([])
   const [csvPreview, setCsvPreview] = useState([])
-  const supabase = createClientComponentClient()
+  const [userId, setUserId] = useState(null)
+  const supabase = getSupabase()
+  const { user, isLoaded } = useUser()
   const { toast } = useToast()
+
+  // Get UUID for current Clerk user
+  useEffect(() => {
+    if (isLoaded && user) {
+      fetch('/api/user/get-uuid')
+        .then(res => res.json())
+        .then(data => {
+          if (data.uuid) {
+            setUserId(data.uuid)
+          }
+        })
+        .catch(err => console.error('Error fetching UUID:', err))
+    }
+  }, [isLoaded, user])
 
   // Fetch contacts from database
   const fetchContacts = useCallback(async () => {
+    if (!userId) return
+
     setLoading(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
       const { data, error } = await supabase
         .from('crm_contacts')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -102,7 +118,7 @@ export default function CRMPage() {
     } finally {
       setLoading(false)
     }
-  }, [supabase, toast])
+  }, [supabase, toast, userId])
 
   // Fetch pipelines for the filter dropdown
   const fetchPipelines = useCallback(async () => {
@@ -137,6 +153,8 @@ export default function CRMPage() {
   }, [])
 
   useEffect(() => {
+    if (!userId) return
+
     fetchContacts()
     fetchPipelines()
     fetchPipelineContacts()
@@ -162,7 +180,7 @@ export default function CRMPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [fetchContacts, fetchPipelines, fetchPipelineContacts, supabase])
+  }, [userId, fetchContacts, fetchPipelines, fetchPipelineContacts, supabase])
 
   // Delete a single contact
   const handleDeleteContact = async () => {
@@ -420,8 +438,7 @@ export default function CRMPage() {
     setScrapingProgress({ message: 'Initializing...' })
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      if (!userId) {
         toast({
           title: 'Error',
           description: 'You must be logged in to populate CRM',
@@ -436,7 +453,7 @@ export default function CRMPage() {
       const { data: linkedInAccount, error: accountError } = await supabase
         .from('social_accounts')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('platform', 'linkedin')
         .single()
 

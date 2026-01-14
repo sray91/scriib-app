@@ -1,28 +1,34 @@
+'use client';
+
 import { useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { v4 as uuidv4 } from 'uuid';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/components/ui/use-toast';
+import { useSupabase } from '@/lib/hooks/useSupabase';
 
 const DirectUpload = ({ onUploadComplete }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState('');
-  const supabase = createClientComponentClient();
+  const { supabase, userId } = useSupabase();
   const { toast } = useToast();
 
   const handleDirectUpload = async (file) => {
+    if (!userId) {
+      toast({
+        title: 'Error',
+        description: 'User not authenticated',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     setIsUploading(true);
     setUploadProgress(0);
     setUploadStatus('Starting upload...');
 
     try {
-      // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        throw new Error('User not authenticated');
-      }
 
       // Validate file type
       const allowedTypes = ['.pdf', '.doc', '.docx', '.txt', '.md', '.csv'];
@@ -44,7 +50,7 @@ const DirectUpload = ({ onUploadComplete }) => {
       // Generate unique filename
       const uniqueId = uuidv4();
       const fileName = `${uniqueId}${fileExtension}`;
-      const storagePath = `training-documents/${user.id}/${fileName}`;
+      const storagePath = `training-documents/${userId}/${fileName}`;
 
       // Upload directly to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -87,7 +93,7 @@ const DirectUpload = ({ onUploadComplete }) => {
 
       // Store document metadata in database
       const documentData = {
-        user_id: user.id,
+        user_id: userId,
         file_name: file.name,
         file_type: fileExtension.substring(1), // Remove the dot
         file_size: file.size,

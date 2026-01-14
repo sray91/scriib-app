@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/components/ui/use-toast'
-import { createClient } from '@supabase/supabase-js'
+import { getSupabase } from '@/lib/supabase'
 import { useUser } from '@clerk/nextjs'
 import * as Switch from '@radix-ui/react-switch'
 import TeamsTab from "@/components/settings/TeamsTab";
@@ -23,10 +23,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('social')
   const [sharedCollections, setSharedCollections] = useState([])
   const [socialAccounts, setSocialAccounts] = useState([])
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const supabase = getSupabase()
   const { user, isLoaded } = useUser()
   const [userId, setUserId] = useState(null)
   const { toast } = useToast()

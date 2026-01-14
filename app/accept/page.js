@@ -1,87 +1,58 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2, CheckCircle, XCircle, LogIn } from 'lucide-react'
+import { useSupabase } from '@/lib/hooks/useSupabase'
 
 export default function AcceptInvitationPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const supabase = createClientComponentClient()
-  
+  const { supabase, userId, user, isLoaded, isLoading: isAuthLoading } = useSupabase()
+
   const [isProcessing, setIsProcessing] = useState(true)
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
   const [ghostwriterData, setGhostwriterData] = useState(null)
-  const [authenticated, setAuthenticated] = useState(false)
-  
+
   // Get ghostwriter ID from URL
   const ghostwriterId = searchParams.get('ghostwriter')
   const shouldSetPassword = searchParams.get('setPassword') === 'true'
-  
-  // First check if user is authenticated
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const { data: { user }, error } = await supabase.auth.getUser()
-        
-        if (error || !user) {
-          setAuthenticated(false)
-        } else {
-          setAuthenticated(true)
-        }
-      } catch (error) {
-        console.error('Error checking authentication:', error)
-        setAuthenticated(false)
-      } finally {
-        setIsCheckingAuth(false)
-      }
-    }
-    
-    checkAuth()
-  }, [supabase.auth])
+
+  // Derived auth state from Clerk
+  const isCheckingAuth = !isLoaded || isAuthLoading
+  const authenticated = !!userId
   
   // If authenticated and have ghostwriter ID, proceed with activation
   useEffect(() => {
-    if (isCheckingAuth || !authenticated || !ghostwriterId) {
+    if (isCheckingAuth || !authenticated || !ghostwriterId || !userId) {
       return
     }
-    
+
     // Verify the user is authenticated and activate the relationship
     const activateLink = async () => {
       try {
         setIsProcessing(true)
         setError(null)
-        
-        // Get current user
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
-        
-        if (authError || !user) {
-          setError('You must be logged in to accept an invitation.')
-          setIsProcessing(false)
-          return
-        }
-        
+
         // Set default ghostwriter data
         setGhostwriterData({
           id: ghostwriterId,
           email: 'Unknown',
           name: 'your inviter'
         })
-        
+
         // Try to get ghostwriter details using various methods
         await tryGetGhostwriterDetails(ghostwriterId)
-        
+
         // Check if relationship already exists
         const { data: existingLink, error: linkError } = await supabase
           .from('ghostwriter_approver_link')
           .select('id, active')
           .eq('ghostwriter_id', ghostwriterId)
-          .eq('approver_id', user.id)
+          .eq('approver_id', userId)
           .maybeSingle()
           
         if (linkError) {
@@ -122,7 +93,7 @@ export default function AcceptInvitationPage() {
             .from('ghostwriter_approver_link')
             .insert({
               ghostwriter_id: ghostwriterId,
-              approver_id: user.id,
+              approver_id: userId,
               active: true
             })
             
@@ -227,7 +198,7 @@ export default function AcceptInvitationPage() {
     }
     
     activateLink()
-  }, [ghostwriterId, authenticated, isCheckingAuth, supabase, shouldSetPassword, router, success])
+  }, [ghostwriterId, authenticated, isCheckingAuth, supabase, shouldSetPassword, router, success, userId])
   
   // Function to redirect to login
   const goToLogin = () => {

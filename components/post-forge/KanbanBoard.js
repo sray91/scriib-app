@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
-import { 
-  Plus, 
+import {
+  Plus,
   Settings,
   ChevronLeft,
   ChevronRight
@@ -16,46 +15,42 @@ import UserTabs from './UserTabs';
 import TemplatesColumn from './TemplatesColumn';
 import WeeklyKanbanView from './WeeklyKanbanView';
 import PostEditorDialog from './PostEditorDialog';
+import { useSupabase } from '@/lib/hooks/useSupabase';
 
 const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 export default function KanbanBoard() {
   const { toast } = useToast();
   const router = useRouter();
-  const supabase = createClientComponentClient();
-  
-  // User state
+  const { supabase, userId, isLoaded, isLoading: isAuthLoading } = useSupabase();
+
+  // User state - create currentUser object for compatibility with child components
   const [currentUser, setCurrentUser] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
-  
+
   // View state
   const [isNextWeek, setIsNextWeek] = useState(false);
-  
+
   // Posts and templates state
   const [posts, setPosts] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // Post editor state
   const [selectedPost, setSelectedPost] = useState(null);
   const [isPostEditorOpen, setIsPostEditorOpen] = useState(false);
   const [isCreatingNewPost, setIsCreatingNewPost] = useState(false);
-  
+
   // Content generation state
   const [isGeneratingContent, setIsGeneratingContent] = useState(false);
 
   // Initialize user on component mount
   useEffect(() => {
-    async function getUser() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        setCurrentUser(user);
-      } catch (error) {
-        console.error('Error fetching user:', error);
-      }
+    if (isLoaded && !isAuthLoading && userId) {
+      // Create a user-like object for child components
+      setCurrentUser({ id: userId });
     }
-    getUser();
-  }, []);
+  }, [isLoaded, isAuthLoading, userId]);
 
   // Load posts when user or view changes
   useEffect(() => {

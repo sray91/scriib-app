@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -5,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { AlertCircle, CheckCircle2, XCircle, Users, Edit, ExternalLink, FileIcon, Trash2, Upload, FileText } from 'lucide-react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getSupabase } from '@/lib/supabase';
 import { useToast } from "@/components/ui/use-toast";
 import Image from 'next/image';
 
@@ -150,7 +152,7 @@ const ApprovalWorkflow = ({
   const [editedContent, setEditedContent] = useState('');
   const [editedMediaFiles, setEditedMediaFiles] = useState([]);
   const [selectedImageUrl, setSelectedImageUrl] = useState(null);
-  const supabase = createClientComponentClient();
+  const supabase = getSupabase();
   const { toast } = useToast();
 
   // Fetch existing media files for the post

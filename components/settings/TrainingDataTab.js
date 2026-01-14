@@ -12,16 +12,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from '@/lib/supabase';
 import { useUser } from '@clerk/nextjs';
 import PastPostsViewer from '@/components/PastPostsViewer';
 import LinkedInScraperComponent from '@/components/LinkedInScraperComponent';
 
 const TrainingDataTab = () => {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
+  const supabase = getSupabase();
   const { user, isLoaded } = useUser();
   const [userId, setUserId] = useState(null);
   const [activeSubTab, setActiveSubTab] = useState('context-guide');

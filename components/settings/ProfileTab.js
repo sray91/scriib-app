@@ -7,17 +7,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
-import { createClient } from '@supabase/supabase-js'
+import { getSupabase } from '@/lib/supabase'
 import { useUser } from '@clerk/nextjs'
 import { Loader2, Upload, X } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import Image from 'next/image'
 
 export default function ProfileTab() {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  const supabase = getSupabase()
   const { user, isLoaded } = useUser()
   const [userId, setUserId] = useState(null)
   const [loading, setLoading] = useState(false)

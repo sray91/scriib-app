@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useToast } from "@/components/ui/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,6 +10,7 @@ import Link from 'next/link'
 import PostEditorDialog from './PostEditorDialog'
 import { Badge } from '@/components/ui/badge'
 import ApprovalWorkflow from '@/components/ApprovalWorkflow'
+import { useSupabase } from '@/lib/hooks/useSupabase'
 
 // Helper function to normalize status values
 const normalizeStatus = (status) => {
@@ -27,37 +27,19 @@ export default function PostsDashboard() {
   const [isPostEditorOpen, setIsPostEditorOpen] = useState(false)
   const [isCreatingNewPost, setIsCreatingNewPost] = useState(false)
   const [isApprovalDialogOpen, setIsApprovalDialogOpen] = useState(false)
-  const [currentUser, setCurrentUser] = useState(null)
-  
-  const supabase = createClientComponentClient()
+
+  const { supabase, userId, isLoaded, isLoading: isAuthLoading } = useSupabase()
   const { toast } = useToast()
 
-  // Load current user
-  useEffect(() => {
-    const fetchCurrentUser = async () => {
-      try {
-        const { data: { user }, error } = await supabase.auth.getUser()
-        if (error) throw error
-        setCurrentUser(user)
-      } catch (error) {
-        console.error('Error fetching current user:', error)
-        toast({
-          title: 'Error',
-          description: 'Could not authenticate user',
-          variant: 'destructive'
-        })
-      }
-    }
-
-    fetchCurrentUser()
-  }, [])
+  // Create currentUser object for compatibility with child components
+  const currentUser = userId ? { id: userId } : null
 
   // Load posts when user is available
   useEffect(() => {
-    if (currentUser) {
+    if (isLoaded && !isAuthLoading && userId) {
       fetchPosts()
     }
-  }, [currentUser])
+  }, [isLoaded, isAuthLoading, userId])
 
   // Helper to more robustly check if a post is a draft
   const isDraft = (post) => {

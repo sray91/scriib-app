@@ -3,42 +3,41 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Clock, Users } from 'lucide-react'
 import ApprovalWorkflow from '@/components/ApprovalWorkflow'
+import { useSupabase } from '@/lib/hooks/useSupabase'
 
 export default function ApprovalPortal() {
   const [posts, setPosts] = useState([])
-  const [currentUser, setCurrentUser] = useState(null)
   const [selectedPost, setSelectedPost] = useState(null)
   const [isApprovalDialogOpen, setIsApprovalDialogOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [postMedia, setPostMedia] = useState({})
-  const supabase = createClientComponentClient()
+  const { supabase, userId, isLoaded, isLoading: isAuthLoading } = useSupabase()
 
   useEffect(() => {
+    if (!isLoaded || isAuthLoading) return
+
+    if (!userId) {
+      window.location.href = '/login'
+      return
+    }
+
     loadUserAndPosts()
-  }, [])
+  }, [isLoaded, isAuthLoading, userId])
 
   const loadUserAndPosts = async () => {
+    if (!userId) return
+
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser()
-      setCurrentUser(user)
-
-      if (!user) {
-        window.location.href = '/login'
-        return
-      }
-
       // Fetch posts that need approval where current user is the approver
       const { data: postsData, error } = await supabase
         .from('posts')
         .select('*')
         .eq('status', 'pending_approval')
-        .eq('approver_id', user.id)
+        .eq('approver_id', userId)
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -326,7 +325,7 @@ export default function ApprovalPortal() {
           onClose={() => setIsApprovalDialogOpen(false)}
           onApprove={handleApprovePost}
           onReject={handleRejectPost}
-          isApprover={selectedPost?.approver_id === currentUser?.id}
+          isApprover={selectedPost?.approver_id === userId}
         />
       )}
     </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from '@/lib/supabase';
 import { useUser } from '@clerk/nextjs';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Plus, Users, Pencil, Trash2 } from 'lucide-react';
 
 const TeamsTab = () => {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
+  const supabase = getSupabase();
   const { user, isLoaded } = useUser();
   const [userId, setUserId] = useState(null);
   const [teams, setTeams] = useState([]);

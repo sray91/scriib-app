@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { getSupabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function PostsStats() {
@@ -10,7 +10,7 @@ export default function PostsStats() {
     pending: 0,
     scheduled: 0
   })
-  const supabase = createClientComponentClient()
+  const supabase = getSupabase()
 
   // Fetch post counts for the dashboard cards
   useEffect(() => {

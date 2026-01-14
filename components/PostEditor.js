@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+'use client';
+
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { getSupabase } from '@/lib/supabase';
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,8 +15,6 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from '@/components/ui/alert.js';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import ImagePreviewDialog from "@/components/ui/image-preview-dialog";
-
-const supabase = createClientComponentClient();
 
 // Media preview component
 function MediaPreview({ file, index, onRemove, onPreview }) {
@@ -185,6 +185,7 @@ function MediaPreview({ file, index, onRemove, onPreview }) {
 
 export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onArchive }) {
   const { toast } = useToast();
+  const supabase = useMemo(() => getSupabase(), []);
   const [postData, setPostData] = useState({
     content: '',
     scheduledTime: new Date().toISOString(),
@@ -217,9 +218,14 @@ export default function PostEditor({ post, isNew, onSave, onClose, onDelete, onA
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
-        const { data: { user }, error } = await supabase.auth.getUser();
-        if (error) throw error;
-        setCurrentUser(user);
+        // Fetch UUID via API since we're using Clerk
+        const response = await fetch('/api/user/get-uuid');
+        const data = await response.json();
+        if (data.uuid) {
+          setCurrentUser({ id: data.uuid });
+        } else {
+          throw new Error('No user found');
+        }
       } catch (error) {
         console.error('Error fetching current user:', error);
         setError('Failed to authenticate user.');

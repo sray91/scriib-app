@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getSupabase } from '@/lib/supabase';
 import PostEditorDialog from '@/components/post-forge/PostEditorDialog';
 
 // AI Thinking Process Display Component  
@@ -193,7 +193,7 @@ const CoCreate = () => {
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
 
   const { toast } = useToast();
-  const supabase = createClientComponentClient();
+  const supabase = getSupabase();
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef(null);
   const messagesEndRef = useRef(null);

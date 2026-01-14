@@ -20,7 +20,7 @@ import { Play, History } from 'lucide-react';
 import PostEditorDialog from '@/components/post-forge/PostEditorDialog';
 import HistoryDialog from '@/components/cocreate/HistoryDialog';
 import { useToast } from "@/components/ui/use-toast";
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getSupabase } from '@/lib/supabase';
 
 // Import our refactored modules
 import { useCanvasStore } from '@/lib/stores/canvasStore';
@@ -41,7 +41,7 @@ const CoCreateCanvas = () => {
   const [selectedNodes, setSelectedNodes] = useState([]);
   const { initializeSession, saveSession, loadSession } = useCanvasStore();
   const { toast } = useToast();
-  const supabase = createClientComponentClient();
+  const supabase = getSupabase();
 
   // Post Editor Dialog states
   const [isPostEditorOpen, setIsPostEditorOpen] = useState(false);

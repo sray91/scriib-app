@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Users, Check } from 'lucide-react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useSupabase } from '@/lib/hooks/useSupabase';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
@@ -10,24 +10,26 @@ import { useToast } from "@/components/ui/use-toast";
 const UserSelector = ({ selectedUserId, onUserSelect, currentUserRole = 'ghostwriter' }) => {
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const supabase = createClientComponentClient();
+  const { supabase, userId, isLoaded } = useSupabase();
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchAvailableUsers();
-  }, [currentUserRole]);
+    if (isLoaded && userId) {
+      fetchAvailableUsers();
+    }
+  }, [currentUserRole, isLoaded, userId]);
 
   const fetchAvailableUsers = async () => {
+    if (!userId) return;
+
     setIsLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
 
       // Get current user details first
       const { data: currentUserData, error: currentUserError } = await supabase
         .from('users_view')
         .select('id, email, raw_user_meta_data')
-        .eq('id', user.id)
+        .eq('id', userId)
         .single();
 
       if (currentUserError) throw currentUserError;
@@ -48,7 +50,7 @@ const UserSelector = ({ selectedUserId, onUserSelect, currentUserRole = 'ghostwr
         const { data, error } = await supabase
           .from('ghostwriter_approver_link')
           .select('approver_id')
-          .eq('ghostwriter_id', user.id)
+          .eq('ghostwriter_id', userId)
           .eq('active', true);
 
         if (error) throw error;
@@ -58,7 +60,7 @@ const UserSelector = ({ selectedUserId, onUserSelect, currentUserRole = 'ghostwr
         const { data, error } = await supabase
           .from('ghostwriter_approver_link')
           .select('ghostwriter_id')
-          .eq('approver_id', user.id)
+          .eq('approver_id', userId)
           .eq('active', true);
 
         if (error) throw error;

@@ -1,11 +1,11 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { Save, FileText, Brain, Lightbulb, Info } from 'lucide-react';
+import { useSupabase } from '@/lib/hooks/useSupabase';
 
 const ContextGuideTab = () => {
   const [contextGuide, setContextGuide] = useState('');
@@ -13,13 +13,15 @@ const ContextGuideTab = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [lastSaved, setLastSaved] = useState(null);
-  const supabase = createClientComponentClient();
+  const { supabase, userId, isLoaded } = useSupabase();
   const { toast } = useToast();
 
   // Load existing context guide
   useEffect(() => {
-    loadContextGuide();
-  }, []);
+    if (isLoaded && userId) {
+      loadContextGuide();
+    }
+  }, [isLoaded, userId]);
 
   // Update word count when content changes
   useEffect(() => {
@@ -28,15 +30,14 @@ const ContextGuideTab = () => {
   }, [contextGuide]);
 
   const loadContextGuide = async () => {
+    if (!userId) return;
+
     setIsLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
       const { data, error } = await supabase
         .from('user_preferences')
         .select('settings, updated_at')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .single();
 
       if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
@@ -63,16 +64,15 @@ const ContextGuideTab = () => {
   };
 
   const saveContextGuide = async () => {
+    if (!userId) return;
+
     setIsSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
       // Get existing preferences with id
       const { data: existingPrefs, error: selectError } = await supabase
         .from('user_preferences')
         .select('id, settings')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .single();
 
       if (selectError && selectError.code !== 'PGRST116') {
@@ -100,7 +100,7 @@ const ContextGuideTab = () => {
         result = await supabase
           .from('user_preferences')
           .insert({
-            user_id: user.id,
+            user_id: userId,
             settings: updatedSettings,
             updated_at: new Date().toISOString()
           });

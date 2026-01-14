@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useSupabase } from '@/lib/hooks/useSupabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
@@ -39,7 +39,7 @@ export default function CampaignDetailPage() {
   const params = useParams()
   const router = useRouter()
   const campaignId = params.id
-  const supabase = createClientComponentClient()
+  const { supabase, userId, isLoaded } = useSupabase()
   const { toast } = useToast()
 
   const [campaign, setCampaign] = useState(null)
@@ -96,10 +96,9 @@ export default function CampaignDetailPage() {
 
   // Fetch campaign activities
   const fetchActivities = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+    if (!userId) return
 
+    try {
       const { data, error } = await supabase
         .from('campaign_activities')
         .select('*')
@@ -113,7 +112,7 @@ export default function CampaignDetailPage() {
     } catch (error) {
       console.error('Error fetching activities:', error)
     }
-  }, [campaignId, supabase])
+  }, [campaignId, supabase, userId])
 
   useEffect(() => {
     const fetchData = async () => {

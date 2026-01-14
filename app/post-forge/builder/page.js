@@ -10,13 +10,13 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useSupabase } from '@/lib/hooks/useSupabase'
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 export default function PostTemplateBuilder() {
-  const supabase = createClientComponentClient();
+  const { supabase, userId, isLoading: isAuthLoading } = useSupabase();
   const router = useRouter();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
@@ -27,15 +27,10 @@ export default function PostTemplateBuilder() {
   // Load existing template for current day
   useEffect(() => {
     const loadTemplate = async () => {
+      if (!userId) return;
+
       try {
         setIsLoading(true);
-        
-        // Get the current user
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError) {
-          console.error('Error fetching user:', userError);
-          throw userError;
-        }
 
         // Load user-specific templates
         const { data: templates, error: templatesError } = await supabase
@@ -52,7 +47,7 @@ export default function PostTemplateBuilder() {
             )
           `)
           .eq('day', currentDay)
-          .eq('user_id', user.id)  // Filter by user_id
+          .eq('user_id', userId)
           .order('created_at');
 
         if (templatesError) throw templatesError;
@@ -75,8 +70,10 @@ export default function PostTemplateBuilder() {
       }
     };
 
-    loadTemplate();
-  }, [currentDay, supabase, toast]);
+    if (!isAuthLoading) {
+      loadTemplate();
+    }
+  }, [currentDay, supabase, toast, userId, isAuthLoading]);
 
   const handleDayChange = (day) => {
     setCurrentDay(day);
@@ -159,8 +156,8 @@ export default function PostTemplateBuilder() {
       }
 
       // Check for empty templates
-      const hasEmptyTemplates = postTemplates.some(template => 
-        (!template.title || template.title.trim() === '') && 
+      const hasEmptyTemplates = postTemplates.some(template =>
+        (!template.title || template.title.trim() === '') &&
         (!template.description || template.description.trim() === '')
       );
 
@@ -170,17 +167,19 @@ export default function PostTemplateBuilder() {
         );
         if (!confirmSave) return;
       }
-      
+
+      if (!userId) {
+        toast({
+          title: 'Error',
+          description: 'You must be logged in to save templates.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
       setIsSaving(true);
       console.log('Starting save process...');
-
-      // Get the current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) {
-        console.error('User authentication error:', userError);
-        throw userError;
-      }
-      console.log('User authenticated:', user.id);
+      console.log('User authenticated:', userId);
 
       // Start a transaction for atomicity
       const saveTemplates = async () => {
@@ -189,7 +188,7 @@ export default function PostTemplateBuilder() {
           .from('user_time_blocks')
           .delete()
           .eq('day', currentDay)
-          .eq('user_id', user.id); // Add user_id filter to prevent deleting others' templates
+          .eq('user_id', userId);
 
         if (deleteError) {
           console.error('Error deleting existing templates:', deleteError);
@@ -206,14 +205,14 @@ export default function PostTemplateBuilder() {
             console.warn('Template title is empty, using placeholder');
             template.title = "Untitled Template";
           }
-          
+
           const { data: templateData, error: templateError } = await supabase
             .from('user_time_blocks')
             .insert({
               title: template.title,
               description: template.description || '',
               day: currentDay,
-              user_id: user.id,
+              user_id: userId,
               start_time: new Date().toISOString(),
               end_time: new Date().toISOString()
             })

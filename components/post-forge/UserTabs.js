@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Users, ChevronDown } from 'lucide-react';
 import Image from 'next/image';
+import { getSupabase } from '@/lib/supabase';
 
-export default function UserTabs({ 
-  selectedUser, 
-  onUserChange, 
-  currentUser 
+export default function UserTabs({
+  selectedUser,
+  onUserChange,
+  currentUser
 }) {
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const supabase = createClientComponentClient();
+  const supabase = getSupabase();
 
   useEffect(() => {
     if (currentUser) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getSupabase } from '@/lib/supabase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { TwitterEmbed } from '@/components/viral-posts/TwitterEmbed';
@@ -12,7 +12,7 @@ export default function SharedPosts({ params }) {
   const [collection, setCollection] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const supabase = createClientComponentClient();
+  const supabase = getSupabase();
 
   useEffect(() => {
     async function fetchSharedCollection() {
