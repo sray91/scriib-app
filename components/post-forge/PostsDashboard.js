@@ -28,18 +28,18 @@ export default function PostsDashboard() {
   const [isCreatingNewPost, setIsCreatingNewPost] = useState(false)
   const [isApprovalDialogOpen, setIsApprovalDialogOpen] = useState(false)
 
-  const { supabase, userId, isLoaded, isLoading: isAuthLoading } = useSupabase()
+  const { supabase, userId, user, isLoaded, isLoading: isAuthLoading } = useSupabase()
   const { toast } = useToast()
 
   // Create currentUser object for compatibility with child components
   const currentUser = userId ? { id: userId } : null
 
-  // Load posts when user is available
+  // Load posts when Clerk auth is ready and user is logged in
   useEffect(() => {
-    if (isLoaded && !isAuthLoading && userId) {
+    if (isLoaded && user) {
       fetchPosts()
     }
-  }, [isLoaded, isAuthLoading, userId])
+  }, [isLoaded, user])
 
   // Helper to more robustly check if a post is a draft
   const isDraft = (post) => {
@@ -118,80 +118,21 @@ export default function PostsDashboard() {
   const fetchPosts = async () => {
     try {
       setIsLoading(true)
-      
-      if (!currentUser?.id) {
-        console.error('Cannot fetch posts: currentUser or currentUser.id is null');
-        setIsLoading(false);
-        return;
-      }
-      
-      console.log('Fetching posts for user ID:', currentUser.id);
-      
-      // Fetch posts related to the current user in any capacity (creator, approver, or ghostwriter)
-      // Always exclude archived posts from the dashboard
-      const { data, error } = await supabase
-        .from('posts')
-        .select('*')
-        .or(`user_id.eq.${currentUser.id},approver_id.eq.${currentUser.id},ghostwriter_id.eq.${currentUser.id}`)
-        .eq('archived', false)
-        .order('created_at', { ascending: false })
-        .limit(100);
-        
-      if (error) {
-        console.error('Supabase error when fetching posts:', error);
-        throw error;
+
+      console.log('Fetching posts via API...');
+
+      // Use API route which has proper auth and bypasses RLS
+      const response = await fetch('/api/posts/list')
+      const data = await response.json()
+
+      if (!response.ok) {
+        console.error('API error when fetching posts:', data.error);
+        throw new Error(data.error || 'Failed to fetch posts')
       }
 
-      console.log('Posts data retrieved:', data ? data.length : 0, 'posts found related to user ID:', currentUser.id);
+      console.log('Posts data retrieved:', data.posts?.length || 0, 'posts found');
 
-      // Manually fetch user data for each unique user ID in the posts
-      const userIds = new Set();
-      data.forEach(post => {
-        if (post.user_id) userIds.add(post.user_id);
-        if (post.approver_id) userIds.add(post.approver_id);
-        if (post.ghostwriter_id) userIds.add(post.ghostwriter_id);
-      });
-      
-      // Only fetch users if there are any IDs to fetch
-      let users = {};
-      if (userIds.size > 0) {
-        const { data: userData, error: userError } = await supabase
-          .from('users_view')
-          .select('id, email, raw_user_meta_data')
-          .in('id', Array.from(userIds));
-        
-        if (userError) {
-          console.error('Error fetching user data:', userError);
-        } else if (userData) {
-          // Create a map of user ID to user data
-          userData.forEach(user => {
-            users[user.id] = user;
-          });
-        }
-      }
-
-      // Transform the data for display
-      const formattedPosts = data.map(post => {
-        const creator = users[post.user_id];
-        const approver = users[post.approver_id];
-        const ghostwriter = users[post.ghostwriter_id];
-        
-        // Use the original post status - don't normalize it yet
-        // This ensures we preserve the exact database value
-        const status = post.status;
-        
-        return {
-          ...post,
-          status,
-          creator_name: creator?.raw_user_meta_data?.full_name || creator?.raw_user_meta_data?.name || creator?.email?.split('@')[0] || 'Unknown',
-          approver_name: approver?.raw_user_meta_data?.full_name || approver?.raw_user_meta_data?.name || approver?.email?.split('@')[0] || null,
-          ghostwriter_name: ghostwriter?.raw_user_meta_data?.full_name || ghostwriter?.raw_user_meta_data?.name || ghostwriter?.email?.split('@')[0] || null
-        };
-      });
-
-
-
-      setPosts(formattedPosts)
+      setPosts(data.posts || [])
     } catch (error) {
       console.error('Error fetching posts:', error);
       toast({

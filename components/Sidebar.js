@@ -136,18 +136,17 @@ export default function SidebarComponent() {
               const isActive = item.href === '/' ? (pathname === '/' || pathname === '') : pathname === item.href
               return (
                 <SidebarMenuItem key={item.name}>
-                  <Link href={item.href} className="block">
-                    <SidebarMenuButton 
-                      isActive={isActive}
-                      className={`text-white hover:bg-[#fb2e01] ${isActive ? 'bg-[#fb2e01] text-white' : ''}`}
-                      title={isCollapsed ? item.name : undefined}
-                    >
-                      <Icon className={`h-4 w-4 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-white' : ''}`} />
-                      {!isCollapsed && (
-                        <span className="font-lexend-deca">{item.name}</span>
-                      )}
-                    </SidebarMenuButton>
-                  </Link>
+                  <SidebarMenuButton
+                    isActive={isActive}
+                    className={`text-white hover:bg-[#fb2e01] ${isActive ? 'bg-[#fb2e01] text-white' : ''}`}
+                    title={isCollapsed ? item.name : undefined}
+                    onClick={() => router.push(item.href)}
+                  >
+                    <Icon className={`h-4 w-4 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-white' : ''}`} />
+                    {!isCollapsed && (
+                      <span className="font-lexend-deca">{item.name}</span>
+                    )}
+                  </SidebarMenuButton>
                 </SidebarMenuItem>
               )
             })}
@@ -156,18 +155,17 @@ export default function SidebarComponent() {
         <SidebarFooter className="mb-4">
           <SidebarMenu>
             <SidebarMenuItem>
-              <Link href="/settings" className="block">
-                <SidebarMenuButton 
-                  isActive={pathname === '/settings'}
-                  className="text-white hover:bg-[#2A2F3C] data-[active=true]:bg-[#fb2e01] data-[active=true]:text-black"
-                  title={isCollapsed ? 'Settings' : undefined}
-                >
-                  <Settings className={`h-4 w-4 ${isCollapsed ? '' : 'mr-3'} group-data-[active=true]:text-black`} />
-                  {!isCollapsed && (
-                    <span className="font-lexend-deca">Settings</span>
-                  )}
-                </SidebarMenuButton>
-              </Link>
+              <SidebarMenuButton
+                isActive={pathname === '/settings'}
+                className="text-white hover:bg-[#2A2F3C] data-[active=true]:bg-[#fb2e01] data-[active=true]:text-black"
+                title={isCollapsed ? 'Settings' : undefined}
+                onClick={() => router.push('/settings')}
+              >
+                <Settings className={`h-4 w-4 ${isCollapsed ? '' : 'mr-3'} group-data-[active=true]:text-black`} />
+                {!isCollapsed && (
+                  <span className="font-lexend-deca">Settings</span>
+                )}
+              </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton 
