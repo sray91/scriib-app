@@ -1,25 +1,37 @@
-import { authMiddleware } from "@clerk/nextjs";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 // This middleware enforces authentication across your app
 // Public routes are accessible without authentication
 // Ignored routes are completely bypassed by Clerk (e.g., LinkedIn/Twitter OAuth for posting)
-export default authMiddleware({
-  // Public routes that don't require authentication
-  publicRoutes: [
-    "/login",
-    "/signup",
-    "/reset-password",
-    "/approver-signup",
-    "/invite-complete",
-    "/shared/(.*)",
-    "/api/webhooks/clerk",
-  ],
-  // Routes that should be ignored by Clerk middleware
-  // LinkedIn/Twitter OAuth are for POSTING content, not authentication
-  ignoredRoutes: [
-    "/api/auth/linkedin/(.*)",
-    "/api/auth/twitter/(.*)",
-  ],
+
+// Define public routes that don't require authentication
+const isPublicRoute = createRouteMatcher([
+  "/login(.*)",
+  "/signup(.*)",
+  "/reset-password(.*)",
+  "/approver-signup(.*)",
+  "/invite-complete(.*)",
+  "/shared/(.*)",
+  "/api/webhooks/clerk",
+]);
+
+// Define routes that should be ignored by Clerk middleware
+// LinkedIn/Twitter OAuth are for POSTING content, not authentication
+const isIgnoredRoute = createRouteMatcher([
+  "/api/auth/linkedin/(.*)",
+  "/api/auth/twitter/(.*)",
+]);
+
+export default clerkMiddleware(async (auth, req) => {
+  // Skip Clerk middleware for ignored routes
+  if (isIgnoredRoute(req)) {
+    return;
+  }
+
+  // Protect all routes except public ones
+  if (!isPublicRoute(req)) {
+    await auth.protect();
+  }
 });
 
 export const config = {

@@ -1,4 +1,4 @@
-import { auth } from '@clerk/nextjs'
+import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js'
  * Used by client components to get their UUID for database operations
  */
 export async function GET(request) {
-  const { userId: clerkUserId } = auth()
+  const { userId: clerkUserId } = await auth()
 
   if (!clerkUserId) {
     return NextResponse.json(
@@ -16,9 +16,10 @@ export async function GET(request) {
     )
   }
 
+  // Use service key to bypass RLS since Clerk users don't have Supabase sessions
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    process.env.NEXT_SUPABASE_SERVICE_KEY
   )
 
   const { data, error } = await supabase

@@ -8,7 +8,6 @@ export async function GET(request) {
     if (auth.error) return auth.error;
 
     const { userId, supabase } = auth;
-    const { searchParams } = new URL(request.url)
 
     const { searchParams } = new URL(request.url)
     const pipelineId = searchParams.get('pipeline_id')

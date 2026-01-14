@@ -12,11 +12,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/supabase-js';
+import { useUser } from '@clerk/nextjs';
 import PastPostsViewer from '@/components/PastPostsViewer';
 import LinkedInScraperComponent from '@/components/LinkedInScraperComponent';
 
 const TrainingDataTab = () => {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+  const { user, isLoaded } = useUser();
+  const [userId, setUserId] = useState(null);
   const [activeSubTab, setActiveSubTab] = useState('context-guide');
   const [urls, setUrls] = useState(['']);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -44,12 +51,27 @@ const TrainingDataTab = () => {
   const [lastTrainingDate, setLastTrainingDate] = useState(null);
   
   const { toast } = useToast();
-  const supabase = createClientComponentClient();
+
+  // Get UUID for current Clerk user
+  useEffect(() => {
+    if (isLoaded && user) {
+      fetch(`/api/user/get-uuid`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.uuid) {
+            setUserId(data.uuid);
+          }
+        })
+        .catch(err => console.error('Error fetching UUID:', err));
+    }
+  }, [isLoaded, user]);
 
   // Fetch existing trending posts on component mount
   useEffect(() => {
-    initializeComponent();
-  }, []);
+    if (userId) {
+      initializeComponent();
+    }
+  }, [userId]);
 
   // Refresh data when selected user changes
   useEffect(() => {
@@ -70,8 +92,8 @@ const TrainingDataTab = () => {
 
   const setCurrentUserAsDefault = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      // Auth handled by Clerk
+      if (!userId) return;
 
       // Get current user details
       const { data: currentUserData, error: currentUserError } = await supabase
@@ -105,8 +127,8 @@ const TrainingDataTab = () => {
 
   const getCurrentUserRole = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      // Auth handled by Clerk
+      if (!userId) throw new Error('Not authenticated');
 
       // Check if user is a ghostwriter (has approver links)
       const { data: ghostwriterLinks, error: ghostwriterError } = await supabase
@@ -459,8 +481,8 @@ const TrainingDataTab = () => {
         }
       } else {
         // Load context guide for current user
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
+        // Auth handled by Clerk
+        if (!userId) throw new Error('Not authenticated');
 
         console.log('Loading context guide for user:', user.id);
 
@@ -532,8 +554,8 @@ const TrainingDataTab = () => {
         });
       } else {
         // Save context guide for current user
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
+        // Auth handled by Clerk
+        if (!userId) throw new Error('Not authenticated');
 
         console.log('Saving context guide for user:', user.id);
 

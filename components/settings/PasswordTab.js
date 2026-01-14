@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useUser } from '@clerk/nextjs'
 import { Loader2, AlertCircle, Info } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useSearchParams } from 'next/navigation'
 
 export default function PasswordTab() {
+  const { user } = useUser()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmNewPassword, setConfirmNewPassword] = useState('')
@@ -21,8 +22,7 @@ export default function PasswordTab() {
   const [success, setSuccess] = useState(false)
   const [isNewUser, setIsNewUser] = useState(false)
   const [showWelcomeMessage, setShowWelcomeMessage] = useState(false)
-  
-  const supabase = createClientComponentClient()
+
   const { toast } = useToast()
   const searchParams = useSearchParams()
   const fromInvite = searchParams.get('fromInvite') === 'true'
@@ -44,31 +44,22 @@ export default function PasswordTab() {
     }
   }, [successType, toast])
 
-  // Check if user has a password
+  // Clerk handles password management
   useEffect(() => {
     const checkPasswordStatus = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
-        
-        // Check for users that might need to set their first password
-        const { data, error } = await supabase.auth.getSession()
-        
-        if (!error && data?.session) {
-          // Check if this is a new user who hasn't set a password yet
-          if (data.session.user?.app_metadata?.provider === 'email') {
-            setNeedsPassword(true)
-            
-            // Check if the user is recently created (within the last hour)
-            const createdAt = new Date(user.created_at)
-            const now = new Date()
-            const userAgeMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60)
-            
-            // If user was created less than 60 minutes ago, treat as new user
-            if (userAgeMinutes < 60) {
-              setIsNewUser(true)
-            }
-          }
+        // Password management is now handled by Clerk
+        setNeedsPassword(false)
+
+        // Check if the user is recently created (within the last hour)
+        const createdAt = new Date(user.created_at)
+        const now = new Date()
+        const userAgeMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60)
+
+        // If user was created less than 60 minutes ago, treat as new user
+        if (userAgeMinutes < 60) {
+          setIsNewUser(true)
         }
       } catch (error) {
         console.error('Error checking user auth status:', error)

@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@supabase/supabase-js'
+import { useUser } from '@clerk/nextjs'
 import { 
   Table, 
   TableBody, 
@@ -19,24 +20,45 @@ import { AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert.js'
 
 export default function GhostwritersTab() {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+  const { user, isLoaded } = useUser()
+  const [userId, setUserId] = useState(null)
   const [ghostwriters, setGhostwriters] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
-  
-  const supabase = createClientComponentClient()
+
   const { toast } = useToast()
 
+  // Get UUID for current Clerk user
   useEffect(() => {
-    loadGhostwriters()
-  }, [])
+    if (isLoaded && user) {
+      fetch(`/api/user/get-uuid`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.uuid) {
+            setUserId(data.uuid)
+          }
+        })
+        .catch(err => console.error('Error fetching UUID:', err))
+    }
+  }, [isLoaded, user])
+
+  // Fetch data when userId is available
+  useEffect(() => {
+    if (userId) {
+      loadGhostwriters()
+    }
+  }, [userId])
 
   const loadGhostwriters = async () => {
+    if (!userId) return
+
     try {
       setIsLoading(true)
       setError(null)
-      
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
 
       // Get all ghostwriter links for the current user (as approver)
       const { data, error } = await supabase
@@ -48,7 +70,7 @@ export default function GhostwritersTab() {
           created_at,
           revoked_at
         `)
-        .eq('approver_id', user.id)
+        .eq('approver_id', userId)
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -100,10 +122,9 @@ export default function GhostwritersTab() {
   }
 
   const handleToggleActive = async (linkId, currentActive) => {
+    if (!userId) return
+
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      
       const { error } = await supabase
         .from('ghostwriter_approver_link')
         .update({ 

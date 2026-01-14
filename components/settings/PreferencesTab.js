@@ -5,11 +5,18 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@supabase/supabase-js'
+import { useUser } from '@clerk/nextjs'
 import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export default function PreferencesTab() {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+  const { user, isLoaded } = useUser()
+  const [userId, setUserId] = useState(null)
   const [preferences, setPreferences] = useState({
     emailNotifications: false,
     darkMode: false,
@@ -18,36 +25,38 @@ export default function PreferencesTab() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [errorDetails, setErrorDetails] = useState('')
-  const supabase = createClientComponentClient()
   const { toast } = useToast()
-  
+
+  // Get UUID for current Clerk user
   useEffect(() => {
-    loadPreferences()
-  }, [])
+    if (isLoaded && user) {
+      fetch(`/api/user/get-uuid`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.uuid) {
+            setUserId(data.uuid)
+          }
+        })
+        .catch(err => console.error('Error fetching UUID:', err))
+    }
+  }, [isLoaded, user])
+
+  // Fetch data when userId is available
+  useEffect(() => {
+    if (userId) {
+      loadPreferences()
+    }
+  }, [userId])
 
   const loadPreferences = async () => {
+    if (!userId) return
+
     setLoading(true)
     setError(false)
     setErrorDetails('')
-    
-    try {
-      // First check if the user is authenticated
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      
-      if (userError) {
-        console.error('Authentication error:', userError)
-        setErrorDetails(`Auth error: ${userError.message}`)
-        throw userError
-      }
-      
-      if (!user) {
-        console.warn('No authenticated user found')
-        setLoading(false)
-        setErrorDetails('No authenticated user found')
-        return
-      }
 
-      console.log('User authenticated, ID:', user.id)
+    try {
+      console.log('User authenticated, ID:', userId)
 
       // Try a simple query to check database connectivity
       const { error: pingError } = await supabase
@@ -67,7 +76,7 @@ export default function PreferencesTab() {
       const { data, error: prefsError } = await supabase
         .from('user_preferences')
         .select('settings')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .maybeSingle()
 
       if (prefsError && prefsError.code !== 'PGNF') {
@@ -104,31 +113,29 @@ export default function PreferencesTab() {
   }
 
   const updatePreference = async (key, value) => {
+    if (!userId) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to update preferences',
+        variant: 'destructive'
+      })
+      return
+    }
+
     try {
       setError(false)
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      
-      if (userError) throw userError
-      if (!user) {
-        toast({
-          title: 'Error',
-          description: 'You must be logged in to update preferences',
-          variant: 'destructive'
-        })
-        return
-      }
 
       // Optimistically update the UI
       const newPreferences = { ...preferences, [key]: value }
       setPreferences(newPreferences)
 
-      console.log('Updating preference:', key, value, 'for user:', user.id)
+      console.log('Updating preference:', key, value, 'for user:', userId)
       
       // Get existing preferences with id
       const { data: existingPrefs, error: selectError } = await supabase
         .from('user_preferences')
         .select('id, settings')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .single()
 
       if (selectError && selectError.code !== 'PGRST116') {
@@ -151,7 +158,7 @@ export default function PreferencesTab() {
         result = await supabase
           .from('user_preferences')
           .insert({
-            user_id: user.id,
+            user_id: userId,
             settings: newPreferences,
             updated_at: new Date().toISOString()
           })

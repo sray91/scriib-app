@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/supabase-js';
+import { useUser } from '@clerk/nextjs';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,9 +10,13 @@ import { useToast } from "@/components/ui/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Users, Pencil, Trash2 } from 'lucide-react';
 
-const supabase = createClientComponentClient();
-
 const TeamsTab = () => {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+  const { user, isLoaded } = useUser();
+  const [userId, setUserId] = useState(null);
   const [teams, setTeams] = useState([]);
   const [users, setUsers] = useState([]);
   const [isCreateTeamOpen, setIsCreateTeamOpen] = useState(false);
@@ -32,19 +37,34 @@ const TeamsTab = () => {
     { id: 'approver', name: 'Content Approver' }
   ];
 
+  // Get UUID for current Clerk user
   useEffect(() => {
-    fetchTeams();
-    fetchUsers();
-  }, []);
+    if (isLoaded && user) {
+      fetch(`/api/user/get-uuid`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.uuid) {
+            setUserId(data.uuid);
+          }
+        })
+        .catch(err => console.error('Error fetching UUID:', err));
+    }
+  }, [isLoaded, user]);
+
+  // Fetch data when userId is available
+  useEffect(() => {
+    if (userId) {
+      fetchTeams();
+      fetchUsers();
+    }
+  }, [userId]);
 
   const fetchTeams = async () => {
+    if (!userId) return;
+
     try {
       setIsTeamsLoading(true);
       setError(null);
-      
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) throw new Error('Authentication error');
-      if (!user) throw new Error('No authenticated user found');
 
       const { data, error } = await supabase
         .from('teams')
@@ -52,32 +72,16 @@ const TeamsTab = () => {
           id,
           name,
           created_at,
-          user_teams!inner (
+          user_teams (
             id,
             user_id,
-            role,
-            users:auth_user_list!user_id (
-              id,
-              email,
-              raw_user_meta_data
-            )
+            role
           )
         `);
 
       if (error) throw error;
 
-      const teamsWithMembers = data.map(team => ({
-        ...team,
-        members: (team.user_teams || []).map(member => ({
-          ...member,
-          users: {
-            email: member.users.email,
-            full_name: member.users.raw_user_meta_data?.full_name || member.users.email
-          }
-        }))
-      }));
-
-      setTeams(teamsWithMembers);
+      setTeams(data || []);
     } catch (error) {
       console.error('Error in fetchTeams:', error);
       setError(error.message);
@@ -92,24 +96,18 @@ const TeamsTab = () => {
   };
 
   const fetchUsers = async () => {
+    if (!userId) return;
+
     try {
       setIsUsersLoading(true);
       setError(null);
 
-      const { data, error } = await supabase
-        .from('auth_user_list')
-        .select('*');
+      const response = await fetch('/api/user/list');
+      const data = await response.json();
 
-      if (error) throw error;
+      if (!response.ok) throw new Error(data.error || 'Failed to fetch users');
 
-      const formattedUsers = (data || []).map(user => ({
-        id: user.id,
-        email: user.email,
-        full_name: user.raw_user_meta_data?.full_name || user.email,
-        created_at: user.created_at
-      }));
-
-      setUsers(formattedUsers);
+      setUsers(data.users || []);
     } catch (error) {
       console.error('Error in fetchUsers:', error);
       setError(error.message);
@@ -253,14 +251,14 @@ const TeamsTab = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {team.members.map(member => (
-                  <div 
-                    key={member.user_id} 
+                {(team.user_teams || []).map(member => (
+                  <div
+                    key={member.user_id}
                     className="flex items-center justify-between py-2"
                   >
                     <div>
                       <p className="text-sm font-medium">
-                        {member.users.full_name || member.users.email}
+                        User {member.user_id}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {member.role}
@@ -351,7 +349,7 @@ const TeamsTab = () => {
                 <SelectContent>
                   {users.map(user => (
                     <SelectItem key={user.id} value={user.id}>
-                      {user.full_name || user.email}
+                      {user.display_name || user.email || user.clerk_id}
                     </SelectItem>
                   ))}
                 </SelectContent>

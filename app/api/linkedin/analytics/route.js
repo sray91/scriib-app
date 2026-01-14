@@ -271,7 +271,8 @@ async function fetchUnipileAnalytics(unipileAccount, startDate, endDate, limit) 
 }
 
 export async function GET(request) {
-  const auth = await requireAuth();
+  try {
+    const auth = await requireAuth();
     if (auth.error) return auth.error;
 
     const { userId, supabase } = auth;

@@ -7,12 +7,19 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@supabase/supabase-js'
+import { useUser } from '@clerk/nextjs'
 import { Loader2, Upload, X } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import Image from 'next/image'
 
 export default function ProfileTab() {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+  const { user, isLoaded } = useUser()
+  const [userId, setUserId] = useState(null)
   const [loading, setLoading] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [profile, setProfile] = useState({
@@ -28,25 +35,38 @@ export default function ProfileTab() {
   const [userEmail, setUserEmail] = useState('')
   const fileInputRef = useRef(null)
 
-  const supabase = createClientComponentClient()
   const { toast } = useToast()
 
+  // Get UUID for current Clerk user
   useEffect(() => {
-    loadProfile()
-  }, [])
+    if (isLoaded && user) {
+      setUserEmail(user.primaryEmailAddress?.emailAddress || user.email || '')
+      fetch(`/api/user/get-uuid`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.uuid) {
+            setUserId(data.uuid)
+          }
+        })
+        .catch(err => console.error('Error fetching UUID:', err))
+    }
+  }, [isLoaded, user])
+
+  // Fetch data when userId is available
+  useEffect(() => {
+    if (userId) {
+      loadProfile()
+    }
+  }, [userId])
 
   const loadProfile = async () => {
+    if (!userId) return
+
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      // Save the email address from auth
-      setUserEmail(user.email || '')
-
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('id', userId)
         .single()
 
       if (error && error.code !== 'PGNF') throw error
@@ -77,19 +97,18 @@ export default function ProfileTab() {
     setLoading(true)
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('No user found')
+      if (!userId) throw new Error('No user found')
 
       // Get current profile to check unchanged fields
       const { data: currentProfile } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('id', userId)
         .single();
       
       // Only update fields that have changed to avoid conflicts
       const updates = {
-        id: user.id,
+        id: userId,
         updated_at: new Date().toISOString()
       };
       
@@ -110,7 +129,7 @@ export default function ProfileTab() {
             .from('profiles')
             .select('id')
             .eq('username', profile.username)
-            .neq('id', user.id) // Exclude the current user
+            .neq('id', userId) // Exclude the current user
             .maybeSingle();
   
           if (existingUser) {
@@ -136,7 +155,7 @@ export default function ProfileTab() {
       const { error } = await supabase
         .from('profiles')
         .update(updates) // Use update instead of upsert to avoid conflicts
-        .eq('id', user.id);
+        .eq('id', userId);
 
       if (error) {
         console.error('Detailed error:', error);
@@ -198,14 +217,13 @@ export default function ProfileTab() {
 
     setUploadingAvatar(true);
 
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No user found');
+    if (!userId) throw new Error('No user found');
 
+    try {
       // Generate unique filename
       const fileExtension = file.name.split('.').pop().toLowerCase();
       const fileName = `${uuidv4()}.${fileExtension}`;
-      const storagePath = `avatars/${user.id}/${fileName}`;
+      const storagePath = `avatars/${userId}/${fileName}`;
 
       // Delete old avatar if it exists
       if (profile.avatar_url) {
@@ -242,7 +260,7 @@ export default function ProfileTab() {
           avatar_url: publicUrl,
           updated_at: new Date().toISOString()
         })
-        .eq('id', user.id);
+        .eq('id', userId);
 
       if (updateError) {
         throw new Error(`Failed to update profile: ${updateError.message}`);
@@ -275,11 +293,11 @@ export default function ProfileTab() {
   const handleRemoveAvatar = async () => {
     if (!profile.avatar_url) return;
 
+    if (!userId) throw new Error('No user found');
+
     setUploadingAvatar(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No user found');
 
       // Delete from storage
       try {
@@ -296,7 +314,7 @@ export default function ProfileTab() {
           avatar_url: null,
           updated_at: new Date().toISOString()
         })
-        .eq('id', user.id);
+        .eq('id', userId);
 
       if (updateError) {
         throw new Error(`Failed to update profile: ${updateError.message}`);

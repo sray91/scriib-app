@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@supabase/supabase-js'
+import { useUser } from '@clerk/nextjs'
 import { 
   Dialog, 
   DialogContent, 
@@ -28,27 +29,48 @@ import { AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert.js'
 
 export default function ApproversTab() {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+  const { user, isLoaded } = useUser()
+  const [userId, setUserId] = useState(null)
   const [approvers, setApprovers] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState(null)
-  
-  const supabase = createClientComponentClient()
+
   const { toast } = useToast()
 
+  // Get UUID for current Clerk user
   useEffect(() => {
-    loadApprovers()
-  }, [])
+    if (isLoaded && user) {
+      fetch(`/api/user/get-uuid`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.uuid) {
+            setUserId(data.uuid)
+          }
+        })
+        .catch(err => console.error('Error fetching UUID:', err))
+    }
+  }, [isLoaded, user])
+
+  // Fetch data when userId is available
+  useEffect(() => {
+    if (userId) {
+      loadApprovers()
+    }
+  }, [userId])
 
   const loadApprovers = async () => {
+    if (!userId) return
+
     try {
       setIsLoading(true)
       setError(null)
-      
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
 
       // Get all approver links for the current user (as ghostwriter)
       const { data, error } = await supabase
@@ -60,7 +82,7 @@ export default function ApproversTab() {
           created_at,
           revoked_at
         `)
-        .eq('ghostwriter_id', user.id)
+        .eq('ghostwriter_id', userId)
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -115,7 +137,7 @@ export default function ApproversTab() {
 
   const handleInviteApprover = async (e) => {
     e.preventDefault()
-    
+
     if (!inviteEmail.trim()) {
       toast({
         title: 'Error',
@@ -124,13 +146,19 @@ export default function ApproversTab() {
       })
       return
     }
-    
+
+    if (!userId) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to invite approvers.',
+        variant: 'destructive'
+      })
+      return
+    }
+
     try {
       setIsSubmitting(true)
       setError(null)
-      
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('You must be logged in to invite approvers')
 
       // Call the server action to invite the approver
       const response = await fetch('/api/invite-approver', {
@@ -138,9 +166,9 @@ export default function ApproversTab() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           email: inviteEmail,
-          ghostwriter_id: user.id
+          ghostwriter_id: userId
         }),
       })
 
@@ -218,10 +246,9 @@ export default function ApproversTab() {
   }
 
   const handleToggleActive = async (approverId, currentActive) => {
+    if (!userId) return
+
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      
       const { error } = await supabase
         .from('ghostwriter_approver_link')
         .update({ 

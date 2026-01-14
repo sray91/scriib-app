@@ -59,59 +59,25 @@ export default function ViralPostSwipeFile() {
     }
   }, [userId]);
 
-  // Add a fallback mechanism if session doesn't initialize quickly
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!sessionChecked) {
-        console.log('Session not initialized after timeout, fetching directly from supabase');
-        // Direct check with supabase client
-        supabase.auth.getSession().then(({ data: { session: activeSession }, error }) => {
-          if (error) {
-            console.error('Error getting session:', error);
-            setIsLoading(false);
-          } else if (activeSession) {
-            console.log('Session found manually, fetching data');
-            fetchPosts();
-            fetchTags();
-          } else {
-            console.log('No active session found');
-            setIsLoading(false);
-          }
-          setSessionChecked(true);
-        });
-      }
-    }, 3000); // 3 second timeout as a fallback
-
-    return () => clearTimeout(timer);
-  }, [sessionChecked]);
-
   const fetchPosts = async () => {
     if (!supabase?.from) {
       console.error('Supabase client not properly initialized');
-      toast({ 
-        title: "Error", 
-        description: "Database connection error. Please try again later.", 
-        variant: "destructive" 
+      toast({
+        title: "Error",
+        description: "Database connection error. Please try again later.",
+        variant: "destructive"
       });
+      return;
+    }
+
+    if (!userId) {
+      console.error('No user ID available');
+      setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
     try {
-      // Get current user ID if session isn't available
-      let userId = userId;
-      
-      if (!userId) {
-        const { data } = await supabase.auth.getUser();
-        userId = data?.user?.id;
-        console.log('Fetched user ID directly:', userId);
-      }
-      
-      if (!userId) {
-        console.error('No user ID available');
-        setIsLoading(false);
-        return;
-      }
 
       const { data, error } = await supabase
         .from('reference_posts')
@@ -135,20 +101,13 @@ export default function ViralPostSwipeFile() {
 
   const fetchTags = async () => {
     if (!supabase?.from) return;
-    
+
+    if (!userId) {
+      console.error('No user ID available for fetching tags');
+      return;
+    }
+
     try {
-      // Get current user ID if session isn't available
-      let userId = userId;
-      
-      if (!userId) {
-        const { data } = await supabase.auth.getUser();
-        userId = data?.user?.id;
-      }
-      
-      if (!userId) {
-        console.error('No user ID available for fetching tags');
-        return;
-      }
 
       const { data, error } = await supabase
         .from('tags')

@@ -3,7 +3,7 @@ import { headers } from 'next/headers'
 import './globals.css'
 import MainLayout from '@/components/MainLayout'
 import { ClerkProvider } from '@clerk/nextjs'
-import { auth } from '@clerk/nextjs'
+import { auth } from '@clerk/nextjs/server'
 import Providers from '@/components/Providers'
 
 const bebasNeue = Bebas_Neue({
@@ -18,7 +18,7 @@ const lexendDeca = Lexend_Deca({
 })
 
 export default async function RootLayout({ children }) {
-  const { userId } = auth()
+  const { userId } = await auth()
   const isAuthenticated = !!userId
 
   const headersList = await headers()

@@ -10,7 +10,8 @@ const apifyClient = new ApifyClient({
 });
 
 export async function POST(request) {
-  const auth = await requireAuth();
+  try {
+    const auth = await requireAuth();
     if (auth.error) return auth.error;
 
     const { userId, supabase } = auth;

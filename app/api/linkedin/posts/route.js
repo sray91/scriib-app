@@ -4,7 +4,8 @@ import { requireAuth } from '@/lib/api-auth';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
-  const auth = await requireAuth();
+  try {
+    const auth = await requireAuth();
     if (auth.error) return auth.error;
 
     const { userId, supabase } = auth;
@@ -105,7 +106,8 @@ export async function GET(request) {
 }
 
 export async function DELETE(request) {
-  const auth = await requireAuth();
+  try {
+    const auth = await requireAuth();
     if (auth.error) return auth.error;
 
     const { userId, supabase } = auth;

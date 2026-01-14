@@ -10,7 +10,8 @@ export const dynamic = 'force-dynamic';
  * Works with accounts connected via Unipile (stored in linkedin_outreach_accounts table)
  */
 export async function GET(request) {
-  const auth = await requireAuth();
+  try {
+    const auth = await requireAuth();
     if (auth.error) return auth.error;
 
     const { userId, supabase } = auth;
