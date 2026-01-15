@@ -21,6 +21,7 @@ import PostEditorDialog from '@/components/post-forge/PostEditorDialog';
 import HistoryDialog from '@/components/cocreate/HistoryDialog';
 import { useToast } from "@/components/ui/use-toast";
 import { getSupabase } from '@/lib/supabase';
+import { useUser } from '@clerk/nextjs';
 
 // Import our refactored modules
 import { useCanvasStore } from '@/lib/stores/canvasStore';
@@ -42,6 +43,8 @@ const CoCreateCanvas = () => {
   const { initializeSession, saveSession, loadSession } = useCanvasStore();
   const { toast } = useToast();
   const supabase = getSupabase();
+  const { user: clerkUser, isLoaded: isClerkLoaded } = useUser();
+  const [userId, setUserId] = useState(null);
 
   // Post Editor Dialog states
   const [isPostEditorOpen, setIsPostEditorOpen] = useState(false);
@@ -67,6 +70,20 @@ const CoCreateCanvas = () => {
 
   // Custom compilation handler that opens the dialog instead of redirecting
   const { compilePost: originalCompilePost } = usePostCompilation();
+
+  // Get UUID for current Clerk user
+  useEffect(() => {
+    if (isClerkLoaded && clerkUser) {
+      fetch('/api/user/get-uuid')
+        .then(res => res.json())
+        .then(data => {
+          if (data.uuid) {
+            setUserId(data.uuid);
+          }
+        })
+        .catch(err => console.error('Error fetching UUID:', err));
+    }
+  }, [isClerkLoaded, clerkUser]);
 
   // Auto-save effect
   useEffect(() => {
@@ -112,22 +129,21 @@ const CoCreateCanvas = () => {
 
   // Fetch users linked to current user
   const fetchAvailableUsers = async () => {
+    if (!userId) return;
+
     setIsLoadingUsers(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
       // Check current user's role and get linked users
       const { data: asGhostwriter, error: gwError } = await supabase
         .from('ghostwriter_approver_link')
         .select('approver_id')
-        .eq('ghostwriter_id', user.id)
+        .eq('ghostwriter_id', userId)
         .eq('active', true);
 
       const { data: asApprover, error: appError } = await supabase
         .from('ghostwriter_approver_link')
         .select('ghostwriter_id')
-        .eq('approver_id', user.id)
+        .eq('approver_id', userId)
         .eq('active', true);
 
       if (gwError && appError) throw new Error('Failed to fetch user links');
@@ -146,7 +162,7 @@ const CoCreateCanvas = () => {
       setCurrentUserRole(role);
 
       // Always include current user as an option
-      const allUserIds = [user.id, ...linkedUserIds];
+      const allUserIds = [userId, ...linkedUserIds];
 
       // Get user details - always include current user even if no linked users
       const { data: userDetails, error: userError } = await supabase
@@ -154,25 +170,27 @@ const CoCreateCanvas = () => {
         .select('id, email, raw_user_meta_data')
         .in('id', allUserIds);
 
+      const userEmail = clerkUser?.primaryEmailAddress?.emailAddress || clerkUser?.email || '';
+
       if (userError) {
         console.error('Error fetching user details:', userError);
         // Fallback: Create a basic profile for current user
         const fallbackProfiles = [{
-          id: user.id,
-          email: user.email,
-          full_name: user.email.split('@')[0],
+          id: userId,
+          email: userEmail,
+          full_name: userEmail.split('@')[0],
           role: 'current_user',
           isCurrentUser: true
         }];
         setAvailableUsers(fallbackProfiles);
-        setSelectedUserId(user.id);
+        setSelectedUserId(userId);
         setSelectedUser(fallbackProfiles[0]);
         return;
       }
 
       const userProfiles = userDetails.map(userDetail => {
         const userMetadata = userDetail.raw_user_meta_data || {};
-        const isCurrentUser = userDetail.id === user.id;
+        const isCurrentUser = userDetail.id === userId;
         return {
           id: userDetail.id,
           email: userDetail.email,
@@ -185,7 +203,7 @@ const CoCreateCanvas = () => {
       setAvailableUsers(userProfiles);
 
       // Set current user as default selection
-      setSelectedUserId(user.id);
+      setSelectedUserId(userId);
       setSelectedUser(userProfiles.find(u => u.isCurrentUser));
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -473,10 +491,12 @@ Consider including:
     }
   };
 
-  // Fetch available users on component mount
+  // Fetch available users when userId is available
   useEffect(() => {
-    fetchAvailableUsers();
-  }, []);
+    if (userId) {
+      fetchAvailableUsers();
+    }
+  }, [userId]);
 
   // Initialize session and setup default ideation block
   useEffect(() => {
