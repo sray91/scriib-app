@@ -303,9 +303,9 @@ export default function ApprovalPortal() {
                       </div>
                       
                       {/* Platform info */}
-                      {post.platforms && post.platforms.length > 0 && (
+                      {post.platforms && Object.keys(post.platforms).some(k => post.platforms[k]) && (
                         <div className="text-sm text-gray-500">
-                          Platforms: {post.platforms.join(', ')}
+                          Platforms: {Object.entries(post.platforms).filter(([_, enabled]) => enabled).map(([p]) => p).join(', ')}
                         </div>
                       )}
                     </div>

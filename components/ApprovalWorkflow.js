@@ -476,6 +476,9 @@ const ApprovalWorkflow = ({
             Review Post
             {getStatusBadge()}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Review and approve or reject this post
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 my-4">
@@ -653,7 +656,7 @@ const ApprovalWorkflow = ({
       {/* Image Modal */}
       {selectedImageUrl && (
         <Dialog open={!!selectedImageUrl} onOpenChange={() => setSelectedImageUrl(null)}>
-          <DialogContent className="max-w-4xl max-h-[90vh] p-4">
+          <DialogContent className="max-w-4xl max-h-[90vh] p-4" aria-describedby={undefined}>
             <div className="relative w-full h-[80vh] flex items-center justify-center bg-black rounded-lg">
               <Image
                 src={selectedImageUrl}
