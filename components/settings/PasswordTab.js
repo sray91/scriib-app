@@ -53,7 +53,7 @@ export default function PasswordTab() {
         setNeedsPassword(false)
 
         // Check if the user is recently created (within the last hour)
-        const createdAt = new Date(user.created_at)
+        const createdAt = new Date(user.createdAt)
         const now = new Date()
         const userAgeMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60)
 
@@ -65,65 +65,51 @@ export default function PasswordTab() {
         console.error('Error checking user auth status:', error)
       }
     }
-    
+
     checkPasswordStatus()
-  }, [supabase])
+  }, [user])
 
   const handleUpdatePassword = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
     setSuccess(false)
-    
+
     if (newPassword !== confirmNewPassword) {
       setError('New passwords do not match')
       setLoading(false)
       return
     }
-    
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters')
+
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters')
       setLoading(false)
       return
     }
-    
+
     try {
-      // For users with existing passwords
-      if (!needsPassword && currentPassword) {
-        // First verify the current password
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: (await supabase.auth.getUser()).data.user.email,
-          password: currentPassword,
-        })
-        
-        if (signInError) {
-          setError('Current password is incorrect')
-          setLoading(false)
-          return
-        }
-      }
-      
-      // Update the password
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
+      // Use Clerk's password update method
+      await user.updatePassword({
+        currentPassword: needsPassword ? undefined : currentPassword,
+        newPassword: newPassword,
       })
-      
-      if (error) throw error
-      
+
       // Clear the form
       setCurrentPassword('')
       setNewPassword('')
       setConfirmNewPassword('')
       setNeedsPassword(false)
       setSuccess(true)
-      
+
       toast({
         title: 'Success',
         description: isNewUser ? 'Password set successfully' : 'Password updated successfully'
       })
     } catch (error) {
       console.error('Error updating password:', error)
-      setError(error.message)
+      // Clerk errors have a more specific structure
+      const errorMessage = error.errors?.[0]?.message || error.message || 'Failed to update password'
+      setError(errorMessage)
       toast({
         title: 'Error',
         description: isNewUser ? 'Failed to set password' : 'Failed to update password',
@@ -207,7 +193,7 @@ export default function PasswordTab() {
               required
             />
             <p className="text-xs text-gray-500 mt-1">
-              Password must be at least 6 characters
+              Password must be at least 8 characters
             </p>
           </div>
 
