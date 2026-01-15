@@ -613,9 +613,9 @@ Consider including:
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{
-          padding: 0.05,
-          minZoom: 1,
-          maxZoom: 1
+          padding: 0.2,
+          minZoom: 0.5,
+          maxZoom: 2
         }}
         multiSelectionKeyCode="Control"
         deleteKeyCode="Delete"
