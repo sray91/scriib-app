@@ -35,6 +35,16 @@ Score each criterion 1-10:
 - Does it sound like something they would actually say?
 - Are there any assumptions presented as facts?
 
+**Slop Detection Checklist** (any of these = immediate NEEDS_USER_INPUT):
+- [ ] Time-stamped anecdotes without source ("Last Tuesday...", "Three years ago...")
+- [ ] DM/conversation openers ("I was scrolling when...", "Someone asked me...")
+- [ ] Mentor/friend quotes without source ("A mentor told me...")
+- [ ] Manufactured epiphanies ("And then it hit me...")
+- [ ] Struggle narratives without specifics ("I used to believe X until...")
+- [ ] Dramatic one-liner paragraphs (breathless. staccato. style.)
+- [ ] Vague metaphors ("the arena", "the path", "the journey", "the grind")
+- [ ] Pseudo-profound closing questions ("When was the last time you...?")
+
 ### 3. LinkedIn Optimization (Weight: 20%)
 - Is the hook compelling?
 - Is the structure easy to read?
@@ -83,8 +93,10 @@ Return your review in this exact JSON format:
 
 ## Verdict Rules
 
-- **PASS**: weighted_score >= 8 AND no critical issues AND no fabrication flags
-- **NEEDS_REVISION**: weighted_score >= 6 AND issues are fixable without user input
-- **NEEDS_USER_INPUT**: fabrication detected OR missing information that only user can provide
+- **PASS**: weighted_score >= 8 AND no critical issues AND no fabrication flags AND no slop patterns detected
+- **NEEDS_REVISION**: weighted_score >= 6 AND issues are fixable without user input AND no slop patterns
+- **NEEDS_USER_INPUT**: fabrication detected OR slop patterns detected OR missing information that only user can provide
+
+**IMPORTANT**: If ANY item in the Slop Detection Checklist is found, the verdict MUST be NEEDS_USER_INPUT with a fabrication_flag explaining what was detected. Do not try to fix slop by revision - it requires real information from the user.
 
 Now review the draft:

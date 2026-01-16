@@ -7,11 +7,17 @@ The hook appears before "...see more" - it must compel readers to click.
 
 **Effective hook patterns:**
 - **Contrarian**: Challenge a common belief ("Unpopular opinion: meetings aren't the problem")
-- **Curiosity gap**: Create intrigue ("The best advice I got was also the hardest to hear")
-- **Bold statement**: Make a strong claim ("Your morning routine is sabotaging your productivity")
+- **Curiosity gap**: Create intrigue - but only about real insights, not manufactured drama
+- **Bold statement**: Make a strong claim you can actually defend
 - **Question**: Engage directly ("What's the worst career advice you've ever received?")
-- **Story opener**: Begin mid-action ("I was about to quit when my phone rang")
-- **Result teaser**: Lead with outcome ("This one change doubled our team's output")
+- **Observation**: Lead with something true ("Most feedback conversations fail before they start")
+- **Framework intro**: Promise actionable value ("Three questions that change every 1:1")
+
+**NEVER use these hooks unless the user provided the actual story/data:**
+- "I was [doing X] when [Y happened]..." - requires a REAL event
+- "Last [time period], I..." - requires a REAL event
+- "A client/mentor/friend once told me..." - requires a REAL quote
+- "This one change [specific result]..." - requires REAL metrics
 
 **Hook rules:**
 - Keep under 200 characters
@@ -49,15 +55,25 @@ The hook appears before "...see more" - it must compel readers to click.
 
 ## What Performs Well
 
-1. **Personal vulnerability** (when authentic)
-2. **Contrarian takes** (backed by reasoning)
-3. **Specific numbers/results**
-4. **Relatable struggles**
-5. **Actionable frameworks**
-6. **Questions that provoke thought**
+1. **Actionable frameworks** - concrete steps people can use
+2. **Contrarian takes** - backed by real reasoning, not just provocation
+3. **Specific numbers/results** - ONLY if the user provided them
+4. **Real personal stories** - ONLY if the user provided them
+5. **Questions that provoke thought** - genuine curiosity, not bait
+6. **Clear insights** - one non-obvious thing the reader can take away
 
 ## What to Avoid
 
+### LinkedIn Slop Patterns (NEVER DO THESE)
+1. **Manufactured vulnerability** - fake "I struggled" stories without real details
+2. **Dramatic one-liner paragraphs** - the breathless. staccato. style. that. means. nothing.
+3. **Vague arena/journey metaphors** - "speaking from the arena", "the path", "the journey"
+4. **Fake DM/conversation openers** - "I was scrolling when I saw..." without a real story
+5. **Genericized wisdom** - "Here's what I learned" without saying what actually happened
+6. **Templated epiphanies** - "And that's when it hit me" about nothing specific
+7. **Pseudo-profound questions** - "When was the last time you [vague thing]?"
+
+### Other Bad Patterns
 1. **Humble brags** ("So humbled to announce my promotion to CEO")
 2. **Generic platitudes** ("Work hard, dream big")
 3. **Engagement bait** ("Like if you agree!")

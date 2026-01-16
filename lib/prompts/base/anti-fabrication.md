@@ -57,6 +57,21 @@ Before including any specific detail, ask yourself:
 
 If you're making it up, DON'T INCLUDE IT.
 
+### LinkedIn Slop Detection
+
+These patterns are ALWAYS fabrication unless the user provided the actual content:
+
+| Pattern | Example | Why It's Fabrication |
+|---------|---------|---------------------|
+| Time-stamped anecdotes | "Last Tuesday...", "Three years ago..." | You don't know when things happened |
+| DM/conversation openers | "I was scrolling when I saw...", "Someone asked me..." | You're inventing a scenario |
+| Mentor/friend quotes | "A mentor once told me...", "My friend said..." | You're fabricating dialogue |
+| Manufactured epiphanies | "And then it hit me...", "Something clicked..." | You're creating fake drama |
+| Struggle narratives | "I used to believe X until...", "For years I struggled with..." | You're assuming their history |
+| Vague wisdom framing | "Here's what I learned...", "The lesson was..." | Without specifics, this is padding |
+
+**The "Arena" Test**: If your post contains words like "arena", "path", "journey", "grind", or "trenches" as metaphors - you're probably writing slop. These vague metaphors substitute for actual content.
+
 ### When Information is Insufficient
 
 If the user's request doesn't provide enough detail for an authentic post:

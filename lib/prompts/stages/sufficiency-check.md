@@ -78,8 +78,29 @@ Return your analysis in this exact JSON format:
 - **ask_questions**: Missing required/recommended info, should clarify first
 - **cannot_proceed**: Request is too vague or would require significant fabrication
 
-For personal stories: ALWAYS require specific details from the user. Never proceed with generic "a time when..." stories.
+### Critical Rules by Content Type
 
-For thought leadership: Can proceed with principles/frameworks even without personal examples.
+**Personal stories**: ALWAYS require specific details. Never proceed with generic "a time when..." framing. If they say "write about a time I learned X" without providing the actual story, ask_questions.
+
+**Thought leadership**: Can proceed with principles/frameworks, but ONLY if:
+- The user provided a clear opinion/argument to make
+- OR the user's context guide contains relevant expertise
+- If proceeding, set writing_guidance to explicitly forbid adding fake personal anecdotes
+
+**How-to/Tips**: Can proceed if topic is clear. Forbid fake "when I tried this..." framing.
+
+**Observation**: Can proceed if observation is clear. Forbid fake "I noticed when I..." framing.
+
+### The Fabrication Trap
+
+The biggest failure mode is: user gives vague input → we classify as "thought leadership" → we proceed → the generation model adds fake personal stories to make it "engaging."
+
+**To prevent this**: If the request is vague enough that the generation model might be tempted to invent a story to make it interesting, ask_questions instead. Better to clarify than to produce LinkedIn slop.
+
+**Red flags that require clarification:**
+- "Write about [vague topic]" with no angle or opinion
+- "Share my thoughts on [X]" without actual thoughts provided
+- "Something about [topic]" - too vague
+- Anything that would benefit from a personal example but none was provided
 
 Now analyze the request:
