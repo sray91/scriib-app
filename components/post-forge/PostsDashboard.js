@@ -113,7 +113,7 @@ export default function PostsDashboard() {
     
     // Set filtered posts
     setFilteredPosts(filtered);
-  }, [activeTab, posts, currentUser])
+  }, [activeTab, posts])
 
   const fetchPosts = async () => {
     try {

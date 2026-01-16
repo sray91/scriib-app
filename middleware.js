@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
 // This middleware enforces authentication across your app
 // Public routes are accessible without authentication
@@ -32,6 +33,11 @@ export default clerkMiddleware(async (auth, req) => {
   if (!isPublicRoute(req)) {
     await auth.protect();
   }
+
+  // Pass the pathname to the layout via header
+  const response = NextResponse.next();
+  response.headers.set("x-invoke-path", req.nextUrl.pathname);
+  return response;
 });
 
 export const config = {

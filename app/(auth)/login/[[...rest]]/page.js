@@ -42,11 +42,13 @@ export default function LoginPage() {
             <SignIn
               routing="path"
               path="/login"
-              redirectUrl={nextUrl}
+              fallbackRedirectUrl={nextUrl}
               appearance={{
                 elements: {
                   rootBox: "w-full",
                   card: "shadow-none border-none",
+                  headerTitle: "hidden",
+                  headerSubtitle: "hidden",
                 }
               }}
             />

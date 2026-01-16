@@ -33,7 +33,7 @@ export default function SignUpPage() {
             <SignUp
               routing="path"
               path="/signup"
-              redirectUrl={nextUrl}
+              fallbackRedirectUrl={nextUrl}
               initialValues={{
                 emailAddress: inviteEmail,
               }}
@@ -41,6 +41,8 @@ export default function SignUpPage() {
                 elements: {
                   rootBox: "w-full",
                   card: "shadow-none border-none",
+                  headerTitle: "hidden",
+                  headerSubtitle: "hidden",
                 }
               }}
             />

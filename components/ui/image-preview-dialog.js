@@ -1,4 +1,5 @@
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Button } from "@/components/ui/button";
 import { X, Download, ZoomIn, ZoomOut } from "lucide-react";
 import { useState } from "react";
@@ -82,6 +83,10 @@ export default function ImagePreviewDialog({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
+        <VisuallyHidden>
+          <DialogTitle>{imageName}</DialogTitle>
+          <DialogDescription>Preview of {imageName}</DialogDescription>
+        </VisuallyHidden>
         {/* Header with controls */}
         <div className="absolute top-0 left-0 right-0 z-10 bg-black/70 backdrop-blur-sm p-4">
           <div className="flex items-center justify-between text-white">
