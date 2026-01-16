@@ -4,11 +4,11 @@
 export function buildSystemPrompt(pastPosts, trendingPosts, voiceAnalysis, trendingInsights, userMessage = '', trainingDocuments = [], hooksKnowledge = '') {
   // If user has past posts or training documents, prioritize their authentic voice over everything else
   if ((pastPosts && pastPosts.length > 0) || (trainingDocuments && trainingDocuments.length > 0)) {
-    const samplePosts = (pastPosts || []).slice(0, 3).map((post, i) => 
+    const samplePosts = (pastPosts || []).slice(0, 3).map((post, i) =>
       `LinkedIn Post ${i + 1}: "${post.content.substring(0, 300)}${post.content.length > 300 ? '...' : ''}"`
     ).join('\n\n');
 
-    const sampleDocuments = (trainingDocuments || []).slice(0, 2).map((doc, i) => 
+    const sampleDocuments = (trainingDocuments || []).slice(0, 2).map((doc, i) =>
       `Training Document ${i + 1} (${doc.file_name}): "${doc.extracted_text.substring(0, 300)}${doc.extracted_text.length > 300 ? '...' : ''}"`
     ).join('\n\n');
 
@@ -34,12 +34,13 @@ ${voiceAnalysis.documentInsights ? `- Document Insights: ${voiceAnalysis.documen
 ${samplePosts}${sampleDocuments ? '\n\n' + sampleDocuments : ''}
 
 ## CORE PRINCIPLES
-1. **AUTHENTICITY IS EVERYTHING**: Match the user's exact voice, tone, and style from their past posts
-2. **MIRROR THEIR PATTERNS**: Use the same sentence structure, vocabulary, and flow they naturally use
-3. **RESPECT THEIR TOPICS**: Write about the subject matter in the way they would naturally approach it
-4. **MATCH THEIR FORMALITY**: If they're casual, be casual. If they're formal, be formal.
-5. **FOLLOW THEIR EMOJI/HASHTAG PATTERNS**: Only use emojis/hashtags if they typically do
-6. **NATURAL ENDINGS**: End posts the way they naturally would - no forced calls to action
+1. Match the user's exact voice, tone, and style from their past posts
+2. Use the same sentence structure, vocabulary, and flow they naturally use
+3. Write about the subject matter in the way they would naturally approach it
+4. Match their formality: If they're casual, be casual. If they're formal, be formal.
+5. Follow their emoji/hashtag patterns: Only use emojis/hashtags if they typically do
+6. End posts the way they naturally would - no forced calls to action
+7. **NEVER FABRICATE**: Do NOT invent stories, experiences, anecdotes, statistics, quotes, or facts. Only use information the user explicitly provides.
 
 ## YOUR INSTRUCTIONS
 - Write exactly as this user would write, based on their past post patterns
@@ -49,8 +50,9 @@ ${samplePosts}${sampleDocuments ? '\n\n' + sampleDocuments : ''}
 - If the topic is professional, reflect their professional voice
 - Don't force engagement optimization - let their authentic voice shine through
 - End posts naturally in their style, not with forced CTAs unless that's their pattern
-- **ABSOLUTELY CRITICAL**: ${voiceAnalysis.usesEmojis ? 'This user DOES use emojis - include them naturally' : 'This user NEVER uses emojis - DO NOT include ANY emojis (🚫 NO: 😊, 👍, 💼, etc.)'}
-- **ABSOLUTELY CRITICAL**: ${voiceAnalysis.usesHashtags ? 'This user DOES use hashtags - include them naturally' : 'This user NEVER uses hashtags - DO NOT include ANY hashtags (🚫 NO: #LinkedIn, #leadership, etc.)'}
+- ${voiceAnalysis.usesEmojis ? 'This user DOES use emojis - include them naturally' : 'This user NEVER uses emojis - DO NOT include ANY emojis (🚫 NO: 😊, 👍, 💼, etc.)'}
+- ${voiceAnalysis.usesHashtags ? 'This user DOES use hashtags - include them naturally' : 'This user NEVER uses hashtags - DO NOT include ANY hashtags (🚫 NO: #LinkedIn, #leadership, etc.)'}
+- **CRITICAL**: NEVER make up stories, experiences, or examples. If the user wants a personal story, ask them for the details. Only use information they provide.
 
 Write the post as this specific user would write it, using their authentic voice and patterns.
 
@@ -66,13 +68,13 @@ HOOK_TYPE: [chosen hook type from the hooks guide]
 
   // Fallback for users without past posts - use keyword detection
   const personalKeywords = [
-    'dad', 'father', 'mom', 'mother', 'parent', 'family', 'died', 'death', 'dying', 'passed away', 'funeral', 
+    'dad', 'father', 'mom', 'mother', 'parent', 'family', 'died', 'death', 'dying', 'passed away', 'funeral',
     'grief', 'loss', 'mourning', 'cancer', 'illness', 'hospital', 'divorce', 'breakup', 'depression',
     'anxiety', 'mental health', 'therapy', 'trauma', 'suicide', 'addiction', 'recovery', 'struggle',
     'heartbreak', 'crying', 'tears', 'emotional', 'vulnerable', 'personal story', 'intimate'
   ];
-  
-  const isPersonalContent = personalKeywords.some(keyword => 
+
+  const isPersonalContent = personalKeywords.some(keyword =>
     userMessage.toLowerCase().includes(keyword)
   );
 
@@ -94,6 +96,7 @@ This appears to be deeply personal or emotional content. Your priorities are:
 5. **NEVER use emojis** in emotional content - let words carry the weight
 6. **NEVER use hashtags** - keep the focus on the story
 7. Respect the gravity of serious topics like loss, illness, or trauma
+8. **NEVER FABRICATE**: Do NOT invent or make up personal experiences, stories, or details. Only use information the user explicitly provides. If they want a personal story, ask them for the details.
 
 Write the post authentically, as someone would genuinely share this experience.
 
@@ -126,11 +129,11 @@ Analysis of ${trendingPosts.length} high-performing posts:
 - Optimal Length: ~${trendingInsights.optimalLength} characters
 
 ## HIGH-PERFORMING POST EXAMPLES
-${trendingPosts.slice(0, 3).map((post, i) => 
-  `Example ${i + 1} (${post.engagement_rate}% engagement):
+${trendingPosts.slice(0, 3).map((post, i) =>
+    `Example ${i + 1} (${post.engagement_rate}% engagement):
   "${post.content.substring(0, 200)}${post.content.length > 200 ? '...' : ''}"
   Engagement: ${post.likes} likes, ${post.comments} comments, ${post.shares} shares`
-).join('\n\n')}
+  ).join('\n\n')}
 
 ## EXPERT KNOWLEDGE: CREATING COMPELLING HOOKS
 ${hooksKnowledge ? hooksKnowledge : 'Hook knowledge base not available'}
@@ -155,7 +158,7 @@ ${userMessage}
 
 Improve the post while maintaining my voice and incorporating trending elements.`;
   }
-  
+
   return `Create a LinkedIn post based on this request: ${userMessage}
 
 Make it engaging, authentic to my voice, and optimized for high performance.`;

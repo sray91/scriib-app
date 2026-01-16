@@ -359,8 +359,8 @@ const CoCreate = () => {
     }, 1200);
     
     try {
-      // Call the CoCreate Model Ensemble API
-      const response = await fetch('/api/cocreate', {
+      // Call the CoCreate v2 API with new pipeline
+      const response = await fetch('/api/cocreate/v2', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -369,7 +369,10 @@ const CoCreate = () => {
           userMessage,
           currentDraft: currentPost,
           action: currentPost ? 'refine' : 'create',
-          contextUserId: selectedUserId || undefined
+          contextUserId: selectedUserId || undefined,
+          // v2 options
+          skipSufficiencyCheck: false,
+          skipQualityReview: false
         }),
       });
 
@@ -410,68 +413,113 @@ const CoCreate = () => {
       
       // Clear the processing timer
       clearInterval(processingTimerRef.current);
-      
+
       if (!response.ok) {
         throw new Error(data.error || 'Failed to generate content');
       }
-      
-      // Add AI response to chat
+
+      // Handle v2 response - check if more info is needed
+      if (data.needsMoreInfo) {
+        // AI needs more information - show questions to user
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: data.questions || "I need a bit more information to write this authentically. Could you provide more details?",
+            needsMoreInfo: true
+          }
+        ]);
+
+        // If there's a draft content despite needing more info, show it
+        if (data.draftContent) {
+          setCurrentPost(data.draftContent);
+        }
+
+        toast({
+          title: "More details needed",
+          description: "Please provide additional information for a more authentic post",
+        });
+        return;
+      }
+
+      // Success - add AI response to chat
+      const qualityInfo = data.qualityScore
+        ? ` (Quality: ${Math.round(data.qualityScore)}/10)`
+        : '';
+      const confidenceInfo = data.confidence
+        ? ` [${data.confidence} confidence]`
+        : '';
+
       setMessages(prev => [
-        ...prev, 
-        { role: 'assistant', content: data.message, insights: true }
+        ...prev,
+        {
+          role: 'assistant',
+          content: data.message || `Generated your post${qualityInfo}${confidenceInfo}`,
+          insights: true
+        }
       ]);
-      
-      // Add the actual processing steps that happened
-      if (data.processingSteps && data.processingSteps.length > 0) {
+
+      // Add the pipeline steps that happened
+      if (data.steps && data.steps.length > 0) {
+        const stepMessages = data.steps.map(step =>
+          `${step.status === 'completed' ? '✅' : step.status === 'started' ? '⏳' : '❌'} ${step.stage.replace(/_/g, ' ')}`
+        );
         const thinkingMessage = {
           role: 'system',
-          content: 'AI Thinking Process',
-          processingSteps: data.processingSteps,
+          content: 'AI Pipeline Steps',
+          processingSteps: stepMessages,
           isThinking: true
         };
         setMessages(prev => [...prev, thinkingMessage]);
       }
-      
-      // Update current post
-      if (data.updatedPost) {
-        setCurrentPost(data.updatedPost);
-        
+
+      // Update current post (v2 uses 'content', fallback to 'updatedPost' for compatibility)
+      const postContent = data.content || data.updatedPost;
+      if (postContent) {
+        setCurrentPost(postContent);
+
         // Add to history if it's a significant update
-        if (data.isSignificantUpdate) {
-          setPostHistory(prev => [...prev, { 
+        if (data.isSignificantUpdate || data.confidence === 'high') {
+          setPostHistory(prev => [...prev, {
             timestamp: new Date().toISOString(),
-            content: data.updatedPost 
+            content: postContent
           }]);
         }
       }
-      
-      // Store insights for the insights panel
-      if (data.voiceAnalysis) {
-        setVoiceAnalysis(data.voiceAnalysis);
+
+      // Store voice profile for the insights panel (v2 format)
+      if (data.voiceProfile) {
+        // Convert v2 voiceProfile to display format
+        setVoiceAnalysis({
+          style: data.voiceProfile.style || 'Professional',
+          tone: data.voiceProfile.tone || 'Confident',
+          avgLength: data.voiceProfile.avgLength || 800,
+          usesEmojis: data.voiceProfile.usesEmojis || false,
+          usesHashtags: data.voiceProfile.usesHashtags || false,
+          commonTopics: data.voiceProfile.expertiseAreas || [],
+          preferredFormats: data.voiceProfile.hooks || []
+        });
       }
-      if (data.trendingInsights) {
-        setTrendingInsights(data.trendingInsights);
-      }
-      
-      // Store Model Ensemble details
-      if (data.ensembleDetails) {
-        setEnsembleDetails(data.ensembleDetails);
-      }
-      
-      // Add debug information to chat if available
-      if (data.debugInfo) {
-        const debugMessage = {
+
+      // Show missing info if any (content was generated but could be better)
+      if (data.missingInfo && data.missingInfo.length > 0) {
+        const infoMessage = {
           role: 'system',
-          content: 'Debug Information',
-          debugInfo: data.debugInfo,
-          isDebug: true
+          content: 'Suggestions',
+          processingSteps: [
+            '💡 To make this post even better, consider adding:',
+            ...data.missingInfo.map(info => `  • ${info}`)
+          ],
+          isThinking: true
         };
-        setMessages(prev => [...prev, debugMessage]);
+        setMessages(prev => [...prev, infoMessage]);
       }
-      
+
       toast({
         title: "Content generated successfully!",
-        description: `Created using Model Ensemble: ${data.ensembleDetails?.modelsUsed?.join(', ') || 'AI models'}`,
+        description: data.qualityVerdict === 'PASS'
+          ? `Quality review passed (${Math.round(data.qualityScore || 7)}/10)`
+          : `Generated with ${data.confidence || 'medium'} confidence`,
       });
       
     } catch (error) {
@@ -653,7 +701,7 @@ const CoCreate = () => {
       
       const randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
       
-      const response = await fetch('/api/cocreate', {
+      const response = await fetch('/api/cocreate/v2', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -661,52 +709,54 @@ const CoCreate = () => {
         body: JSON.stringify({
           userMessage: randomPrompt,
           action: 'create',
-          contextUserId: selectedUserId || undefined
+          contextUserId: selectedUserId || undefined,
+          // Skip sufficiency check for random prompts
+          skipSufficiencyCheck: true,
+          proceedWithoutQuestions: true
         }),
       });
 
       const data = await response.json();
-      
+
       // Clear the processing timer
       clearInterval(processingTimerRef.current);
-      
+
       if (!response.ok) {
         throw new Error(data.error || 'Failed to generate content');
       }
-      
-      setCurrentPost(data.updatedPost);
-      setPostHistory(prev => [...prev, { 
+
+      // Get the post content (v2 uses 'content', fallback to 'updatedPost')
+      const postContent = data.content || data.updatedPost;
+
+      setCurrentPost(postContent);
+      setPostHistory(prev => [...prev, {
         timestamp: new Date().toISOString(),
-        content: data.updatedPost 
+        content: postContent
       }]);
-      
+
       setMessages(prev => [
         ...prev,
-        { role: 'assistant', content: data.message }
+        { role: 'assistant', content: data.message || `Generated a post about ${randomPrompt.toLowerCase()}` }
       ]);
-      
-      // Store insights
-      if (data.voiceAnalysis) {
-        setVoiceAnalysis(data.voiceAnalysis);
+
+      // Store voice profile for insights (v2 format)
+      if (data.voiceProfile) {
+        setVoiceAnalysis({
+          style: data.voiceProfile.style || 'Professional',
+          tone: data.voiceProfile.tone || 'Confident',
+          avgLength: data.voiceProfile.avgLength || 800,
+          usesEmojis: data.voiceProfile.usesEmojis || false,
+          usesHashtags: data.voiceProfile.usesHashtags || false,
+          commonTopics: data.voiceProfile.expertiseAreas || [],
+          preferredFormats: data.voiceProfile.hooks || []
+        });
       }
-      if (data.trendingInsights) {
-        setTrendingInsights(data.trendingInsights);
-      }
-      
-      // Add debug information to chat if available
-      if (data.debugInfo) {
-        const debugMessage = {
-          role: 'system',
-          content: 'Debug Information',
-          debugInfo: data.debugInfo,
-          isDebug: true
-        };
-        setMessages(prev => [...prev, debugMessage]);
-      }
-      
+
       toast({
         title: "New post generated",
-        description: "Created based on your profile and current trends",
+        description: data.qualityScore
+          ? `Quality score: ${Math.round(data.qualityScore)}/10`
+          : "Created based on your voice profile",
       });
       
     } catch (error) {

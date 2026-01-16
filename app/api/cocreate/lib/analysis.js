@@ -1,4 +1,4 @@
-import { openai } from './clients.js';
+import { anthropic } from './clients.js';
 
 // Analyze user's writing voice from past posts and training documents
 export async function analyzeUserVoice(pastPosts, userMessage = '', trainingDocuments = []) {
@@ -87,19 +87,21 @@ export async function analyzeUserVoice(pastPosts, userMessage = '', trainingDocu
   });
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o", 
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert at analyzing authentic writing voice and style. Analyze the posts to capture the author's natural way of expressing themselves - their vocabulary choices, sentence patterns, emotional expression, and authentic personality. Focus on HOW they naturally write, not what they write about. Return ONLY a valid JSON object."
-        },
-        {
-          role: "user",
-          content: `Analyze this person's authentic writing voice from their posts and documents:
+    if (!anthropic) {
+      throw new Error('Anthropic Claude not available');
+    }
+
+    const message = await anthropic.messages.create({
+      model: process.env.NEXT_PUBLIC_ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929",
+      max_tokens: 800,
+      messages: [{
+        role: "user",
+        content: `You are an expert at analyzing authentic writing voice and style. Analyze the posts to capture the author's natural way of expressing themselves - their vocabulary choices, sentence patterns, emotional expression, and authentic personality. Focus on HOW they naturally write, not what they write about. Return ONLY a valid JSON object.
+
+Analyze this person's authentic writing voice from their posts and documents:
 
 ${allContentForAnalysis.map((item, i) => {
-  const sourceLabel = item.source === 'linkedin_post' ? 'LinkedIn Post' : 
+  const sourceLabel = item.source === 'linkedin_post' ? 'LinkedIn Post' :
                      item.source === 'training_document' ? `Document (${item.filename})` : 'Content';
   return `${sourceLabel} ${i + 1}: "${item.content}"`;
 }).join('\n\n')}
@@ -107,7 +109,7 @@ ${allContentForAnalysis.map((item, i) => {
 Focus on their natural writing patterns, vocabulary, and authentic voice across all content types. Return analysis as JSON:
 {
   "style": "their natural writing style (casual/formal, direct/flowing, conversational/structured, etc)",
-  "tone": "their authentic emotional tone and personality in writing", 
+  "tone": "their authentic emotional tone and personality in writing",
   "commonTopics": ["topic1", "topic2"],
   "avgLength": ${Math.round(allContentForAnalysis.reduce((sum, item) => sum + item.content.length, 0) / allContentForAnalysis.length)},
   "usesEmojis": ${actualUsesEmojis},
@@ -115,53 +117,44 @@ Focus on their natural writing patterns, vocabulary, and authentic voice across 
   "preferredFormats": ["their natural format preferences based on actual usage"],
   "documentInsights": "how training documents enhance voice understanding (if any documents provided)"
 }`
-        }
-      ],
-      temperature: 0.3,
-      max_tokens: 800,
+      }]
     });
 
-    // Validate OpenAI response structure
-    if (!completion || !completion.choices || !completion.choices[0] || !completion.choices[0].message) {
-      console.error('Invalid OpenAI response structure:', completion);
-      throw new Error('Invalid response from OpenAI API');
+    // Validate Claude response structure
+    if (!message || !message.content || !message.content[0]) {
+      console.error('Invalid Claude response structure:', message);
+      throw new Error('Invalid response from Claude API');
     }
 
     // Try to parse the JSON response with error handling
     try {
-      const responseContent = completion.choices[0].message.content;
+      const responseContent = message.content[0].text;
       console.log('Raw voice analysis response:', responseContent);
-      
+
       if (!responseContent || typeof responseContent !== 'string') {
-        throw new Error('Empty or invalid response content from OpenAI');
+        throw new Error('Empty or invalid response content from Claude');
       }
-      
+
       // Extract JSON from markdown code blocks if present
       let cleanedContent = responseContent.trim();
-      
+
       // Remove markdown code block wrapper if present
       if (cleanedContent.startsWith('```json') && cleanedContent.endsWith('```')) {
         cleanedContent = cleanedContent.slice(7, -3).trim();
       } else if (cleanedContent.startsWith('```') && cleanedContent.endsWith('```')) {
         cleanedContent = cleanedContent.slice(3, -3).trim();
       }
-      
-      // Check if the response looks like an error message
-      if (responseContent.toLowerCase().includes('error') || responseContent.toLowerCase().includes('sorry')) {
-        console.error('OpenAI returned error message:', responseContent);
-        throw new Error('OpenAI returned error message');
-      }
-      
+
       const voiceAnalysis = JSON.parse(cleanedContent);
       console.log('🎯 Parsed voice analysis:', JSON.stringify(voiceAnalysis, null, 2));
       return voiceAnalysis;
     } catch (parseError) {
       console.error('Error parsing voice analysis JSON:', parseError);
-      console.log('Failed response content:', completion.choices[0]?.message?.content);
+      console.log('Failed response content:', message.content[0]?.text);
       console.log('🔄 Falling back to simple analysis due to parsing error');
     }
   } catch (error) {
-    console.error('Error analyzing voice with OpenAI:', error);
+    console.error('Error analyzing voice with Claude:', error);
     console.log('🔄 Using fallback analysis based on past posts patterns');
   }
   

@@ -1,5 +1,4 @@
-import { openai, anthropic, genAI } from './clients.js';
-import { generatePostContentWithGPT4o } from './generators.js';
+import { anthropic, genAI } from './clients.js';
 import { analyzeUserVoice, analyzeTrendingPosts } from './analysis.js';
 
 /**
@@ -84,12 +83,8 @@ export async function generateWithModelEnsemble(userMessage, currentDraft, actio
         processingSteps.push(`✅ Claude Sonnet 4: Draft generated with authentic voice preservation`);
       } catch (error) {
         console.error('Claude draft generation failed:', error);
-        processingSteps.push(`⚠️ Claude Sonnet 4: Fallback to GPT-4o generation (${error.message})`);
-        // Fallback to original GPT-4o approach
-        draftResult = await generatePostContentWithGPT4o(
-          userMessage, currentDraft, action, pastPosts, trendingPosts, trainingDocuments
-        );
-        ensembleDetails.modelsUsed.push('GPT-4o (fallback)');
+        processingSteps.push(`❌ Claude Sonnet 4: Draft generation failed (${error.message})`);
+        throw new Error(`Draft generation failed: ${error.message}`);
       }
 
       // === STEP 4: Claude Sonnet 4 for Quality Review and Refinement ===
@@ -141,29 +136,16 @@ export async function generateWithModelEnsemble(userMessage, currentDraft, actio
 
     // Race between ensemble processing and timeout
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Model Ensemble timed out - falling back to GPT-4o')), ensembleTimeout);
+      setTimeout(() => reject(new Error('Model Ensemble timed out')), ensembleTimeout);
     });
 
     return await Promise.race([processEnsemble(), timeoutPromise]);
 
   } catch (error) {
     console.error('Error in Model Ensemble:', error);
+    processingSteps.push(`❌ Model Ensemble failed: ${error.message}`);
 
-    // Fallback to original single-model approach
-    processingSteps.push(`⚠️ Model Ensemble failed - falling back to GPT-4o single model`);
-    const fallbackResult = await generatePostContentWithGPT4o(
-      userMessage, currentDraft, action, pastPosts, trendingPosts, trainingDocuments
-    );
-
-    return {
-      ...fallbackResult,
-      processingSteps: [...processingSteps, ...fallbackResult.processingSteps],
-      ensembleDetails: {
-        ...ensembleDetails,
-        modelsUsed: ['GPT-4o (fallback)'],
-        error: error.message
-      }
-    };
+    throw new Error(`Content generation failed: ${error.message}. Please try again.`);
   }
 }
 
@@ -421,7 +403,15 @@ ${samplePosts}`;
 4. Focus on clarity, value, and professional impact
 5. Include compelling hooks and natural conclusions
 
-Generate a high-quality LinkedIn post that feels authentic to this user's voice.`;
+CRITICAL RULES - DO NOT VIOLATE:
+- NEVER invent, fabricate, or make up stories, experiences, anecdotes, or personal narratives
+- NEVER create fictional scenarios or imaginary examples presented as real
+- NEVER attribute quotes, statistics, or facts that weren't provided by the user
+- If the user asks for a story or personal experience, ask them to provide the details - do NOT make one up
+- Only use information explicitly provided by the user in their request
+- If you need more details to write authentically, indicate what information would help
+
+Generate a high-quality LinkedIn post that feels authentic to this user's voice using ONLY the information they provided.`;
 
   try {
     const message = await anthropic.messages.create({

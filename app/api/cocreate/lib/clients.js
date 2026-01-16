@@ -1,10 +1,3 @@
-import OpenAI from 'openai';
-
-// Initialize AI clients for the Model Ensemble
-export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_COCREATE_API_KEY,
-});
-
 // Initialize Anthropic Claude client for the Ensemble
 let anthropic;
 try {

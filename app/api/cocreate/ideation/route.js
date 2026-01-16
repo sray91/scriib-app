@@ -138,8 +138,16 @@ async function generateIdeasWithClaude(userMessage, contextDoc, viralPosts, user
     ? modelId
     : (process.env.NEXT_PUBLIC_ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929');
 
-  // Build context-focused prompt
+  // Build context-focused prompt with anti-fabrication rules
   let prompt = `You are an expert LinkedIn content creator specializing in personalized post generation using the user's personal context guide.
+
+⚠️ CRITICAL ANTI-FABRICATION RULES (NEVER VIOLATE):
+- NEVER invent or fabricate stories, anecdotes, experiences, or examples
+- NEVER create fictional scenarios and present them as real
+- NEVER attribute quotes, statistics, or facts that aren't from the context guide
+- NEVER use phrases like "I once..." or "A client of mine..." unless EXPLICITLY documented in the context guide
+- If you need an example, use clearly hypothetical language: "Imagine if..." or "Consider a scenario where..."
+- If the user's request requires specific experiences you don't have documented, ASK for them or state the limitation
 
 USER REQUEST: "${userMessage}"
 
@@ -184,12 +192,13 @@ Here are some high-performing LinkedIn posts for inspiration on format and engag
 Create a complete LinkedIn post that directly addresses the user's request while strictly adhering to their personal context guide.
 
 Requirements:
-1. **CONTEXT GUIDE ONLY**: Use ONLY the personal context guide above for voice, style, and expertise - no other assumptions
-2. **EXACT VOICE MATCH**: Mirror the writing style, tone, and approach defined in the context guide
-3. **EXPERTISE ALIGNMENT**: Focus on topics and perspectives that match the user's documented expertise areas
-4. **ADDRESS THE REQUEST**: Directly respond to what the user is asking for
-5. **OPTIMIZE FOR LINKEDIN**: Include engaging hook, clear value, and call-to-action
-6. **BE COMPLETE**: Provide a full, ready-to-post LinkedIn post
+1. **NEVER FABRICATE**: Do NOT invent stories, experiences, client examples, or specific events unless explicitly documented in the context guide. Use hypothetical framing ("Imagine...", "Consider...") for examples instead of presenting fiction as fact.
+2. **CONTEXT GUIDE ONLY**: Use ONLY the personal context guide above for voice, style, and expertise - no other assumptions
+3. **EXACT VOICE MATCH**: Mirror the writing style, tone, and approach defined in the context guide
+4. **EXPERTISE ALIGNMENT**: Focus on topics and perspectives that match the user's documented expertise areas
+5. **ADDRESS THE REQUEST**: Directly respond to what the user is asking for
+6. **OPTIMIZE FOR LINKEDIN**: Include engaging hook, clear value, and call-to-action
+7. **BE COMPLETE**: Provide a full, ready-to-post LinkedIn post
 
 Return the complete post content as plain text. Do not include any JSON, formatting, or additional explanations - just the post content that can be copied and pasted directly to LinkedIn.`;
 

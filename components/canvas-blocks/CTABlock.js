@@ -39,36 +39,47 @@ const CTABlock = ({ data, id }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userMessage: `Create 3 compelling call-to-action options for this content: ${latestIdea.content}. Focus on engagement, connection, and driving action.`,
-          action: 'create'
+          userMessage: `Create 3 compelling call-to-action options for this content: ${latestIdea.content}. Focus on engagement, connection, and driving action. Return ONLY the 3 CTAs, one per line.`,
+          action: 'create',
+          skipSufficiencyCheck: true,
+          skipQualityReview: true
         }),
       });
-      
+
       const result = await response.json();
-      
-      if (response.ok) {
-        // Use default CTA templates as fallback
-        const generatedCTAs = DEFAULT_CTA_TEMPLATES.map(template => ({
+
+      if (response.ok && result.success && result.content) {
+        // Parse the generated CTAs from the content
+        const ctaLines = result.content.split('\n').filter(line => line.trim());
+        const generatedCTAs = ctaLines.slice(0, 3).map((text, idx) => ({
+          id: idx + 1,
+          text: text.trim()
+        }));
+
+        // Fall back to defaults if parsing failed
+        const finalCTAs = generatedCTAs.length > 0 ? generatedCTAs : DEFAULT_CTA_TEMPLATES.map(template => ({
           id: template.id,
           text: template.text
         }));
-        
-        setCtas(generatedCTAs);
-        
+
+        setCtas(finalCTAs);
+
         // Update session context
         updateDynamicContext({
-          ctas: [...(session?.dynamicContext?.ctas || []), ...generatedCTAs.map(c => ({
+          ctas: [...(session?.dynamicContext?.ctas || []), ...finalCTAs.map(c => ({
             id: `cta-${Date.now()}-${c.id}`,
             content: c.text,
             source: 'cta',
             blockId: id
           }))]
         });
-        
+
         toast({
           title: "CTAs generated!",
-          description: "3 new call-to-action options added"
+          description: `${finalCTAs.length} new call-to-action options added`
         });
+      } else if (result.error) {
+        throw new Error(result.error);
       }
     } catch (error) {
       console.error('Error generating CTAs:', error);

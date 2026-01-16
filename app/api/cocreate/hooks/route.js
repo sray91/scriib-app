@@ -112,8 +112,15 @@ async function generateHooksWithClaude(userMessage, contextGuide, hooksGuide, us
     throw new Error('Claude API not available');
   }
 
-  // Build comprehensive prompt with hooks guide
+  // Build comprehensive prompt with hooks guide and anti-fabrication rules
   let prompt = `You are an expert LinkedIn hook creator with deep knowledge of viral content patterns.
+
+⚠️ CRITICAL ANTI-FABRICATION RULES:
+- NEVER invent specific client stories, personal experiences, or achievements unless explicitly documented in the user's context guide
+- For "Personal Stories" hooks, use hypothetical framing ("What if you...", "Imagine...") or general patterns instead of fabricating specific events
+- DO NOT create hooks with fake statistics, made-up timeframes, or invented results
+- For "Competency" hooks, only reference achievements explicitly documented in the context guide
+- Use general templates that the user can fill in with their real experiences
 
 USER REQUEST: "${userMessage}"
 
@@ -138,30 +145,31 @@ IMPORTANT: Use this context guide to understand their voice and expertise areas 
 Based on the hooks guide knowledge above, create 12 compelling hooks for the user's request.
 
 Requirements from the HOOKS GUIDE:
-1. **Target the 4 eternal markets**: Health, Wealth, Relationships, Happiness
-2. **Stop the scroll in 3 seconds**: Each hook must grab attention immediately
-3. **Use proven angles**: Insider's Take, Good vs Bad, Before & After, Problem vs Solution, etc.
-4. **Be polarizing and confident**: Aim to shock, can't make everyone happy
-5. **Include specific numbers and timeframes**: Make it concrete and believable
-6. **Spark emotions**: LOL, WTF, AWW, WOW, NSFW, AHA, FINALLY, YAY
-7. **One complete sentence each**: Clear and concise
-8. **Show benefits**: More money, faster growth, better relationships, etc.
+1. **NEVER FABRICATE**: Do NOT invent specific results, timeframes, or achievements - use templates/placeholders like "[X months]" or "[specific result]" that the user can fill in
+2. **Target the 4 eternal markets**: Health, Wealth, Relationships, Happiness
+3. **Stop the scroll in 3 seconds**: Each hook must grab attention immediately
+4. **Use proven angles**: Insider's Take, Good vs Bad, Before & After, Problem vs Solution, etc.
+5. **Be polarizing and confident**: Aim to shock, can't make everyone happy
+6. **Use general patterns**: Create hooks that work as templates the user can personalize
+7. **Spark emotions**: LOL, WTF, AWW, WOW, NSFW, AHA, FINALLY, YAY
+8. **One complete sentence each**: Clear and concise
+9. **Show benefits**: More money, faster growth, better relationships, etc.
 
 Use the specific hook patterns from the guide:
 - Insider's Take: Harsh truths, brutal lessons, counterintuitive mistakes
 - Good vs Bad: Contrast what people should stop vs start doing
-- Before & After: Transformation stories with specific timeframes
+- Before & After: Transformation stories (use general framing, not fabricated specifics)
 - Problem vs Solution: Call out wrong approach, offer right way
-- Competency: Impressive achievements with timeframes
-- Personal Stories: Specific stories with lessons learned
+- Competency: Achievement-based (only if documented in context guide, otherwise use templates)
+- Personal Stories: General relatable patterns (not fabricated specific events)
 - Questions: Target pain points with thresholds/outcomes
 - Polarizing: Controversial but confident opinions
 - Misdirect: Challenge beliefs, offer alternatives
 - Relatable: Personal struggles overcome with tactics
 
-${contextGuide ? 'Match the user\'s voice and expertise areas from their context guide.' : 'Use a professional, engaging tone.'}
+${contextGuide ? 'Match the user\'s voice and expertise areas from their context guide. Only reference specific achievements if explicitly documented.' : 'Use a professional, engaging tone with general templates.'}
 
-Return ONLY the numbered hooks 1-12, one per line. Each should be a complete, ready-to-use opening line.`;
+Return ONLY the numbered hooks 1-12, one per line. Each should be a complete, ready-to-use opening line (or template the user can easily personalize).`;
 
   try {
     // Call Claude with timeout
