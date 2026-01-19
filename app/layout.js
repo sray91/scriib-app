@@ -27,7 +27,7 @@ export default async function RootLayout({ children }) {
   const isSharedRoute = pathname.startsWith('/shared/')
   const authPaths = ['/login', '/signup', '/approver-signup', '/invite-complete', '/reset-password']
   const isAuthPath = authPaths.some(route => pathname.startsWith(route))
-  const excludeMainLayout = ['/settings', '/approval-portal']
+  const excludeMainLayout = ['/settings', '/approval-portal', '/admin']
   const shouldExcludeMainLayout = excludeMainLayout.some(route => pathname.startsWith(route)) || isSharedRoute
 
   return (
